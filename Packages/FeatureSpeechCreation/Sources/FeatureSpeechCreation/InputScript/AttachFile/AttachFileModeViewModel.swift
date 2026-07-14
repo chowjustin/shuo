@@ -29,7 +29,7 @@ final class AttachFileModeViewModel {
     }
 
     private let fileImporter: any FileImporting
-    private var importTask: Task<Void, Never>?
+    private(set) var importTask: Task<Void, Never>?  
 
     init(fileImporter: any FileImporting) {
         self.fileImporter = fileImporter

@@ -59,7 +59,7 @@ struct AttachFileModeViewModelTests {
 
         vm.fileSelected(url: testURL)
         vm.confirmUpload()
-        await Task.yield()
+        await vm.importTask?.value
 
         #expect(vm.hasImportedFile)
         #expect(vm.importedMedia?.id == media.id)
@@ -74,7 +74,7 @@ struct AttachFileModeViewModelTests {
 
         vm.fileSelected(url: testURL)
         vm.confirmUpload()
-        await Task.yield()
+        await vm.importTask?.value
 
         if case .failed = vm.viewState { } else { Issue.record("Expected failed") }
         #expect(!vm.hasImportedFile)
@@ -109,7 +109,7 @@ struct AttachFileModeViewModelTests {
 
         vm.fileSelected(url: testURL)
         vm.confirmUpload()
-        await Task.yield()
+        await vm.importTask?.value
         vm.cancel()
 
         if case .idle = vm.viewState { } else { Issue.record("Expected idle after cancel") }
@@ -125,7 +125,7 @@ struct AttachFileModeViewModelTests {
 
         vm.fileSelected(url: testURL)
         vm.confirmUpload()
-        await Task.yield()
+        await vm.importTask?.value  
         vm.cancel()
 
         if case .idle = vm.viewState { } else { Issue.record("Expected idle after cancel from failed") }
