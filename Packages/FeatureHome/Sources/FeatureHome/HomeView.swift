@@ -8,13 +8,27 @@
 import SwiftUI
 
 public struct HomeView: View {
-    public init() {}
+    private let onTapCreate: () -> Void
+
+    public init(onTapCreate: @escaping () -> Void = {}) {
+        self.onTapCreate = onTapCreate
+    }
 
     public var body: some View {
         Text("Hello, World!")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: onTapCreate) {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("New script")
+                }
+            }
     }
 }
 
 #Preview {
-    HomeView()
+    NavigationStack {
+        HomeView()
+    }
 }

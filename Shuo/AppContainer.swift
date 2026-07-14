@@ -13,9 +13,14 @@
 // §5, §12.1.
 
 import FeatureHome
+import FeatureSpeechCreation
 
 final class AppContainer {
-    func makeHomeView() -> HomeView {
-        HomeView()
+    func makeHomeView(onTapCreate: @escaping () -> Void) -> HomeView {
+        HomeView(onTapCreate: onTapCreate)
+    }
+
+    func makeCreateScriptCoordinator(onFinish: @escaping () -> Void) -> CreateScriptCoordinator {
+        CreateScriptCoordinator(onFinish: onFinish)
     }
 }
