@@ -16,7 +16,7 @@ import SwiftUI
 
 public struct PurposeSelectionView: View {
     private let coordinator: CreateScriptCoordinator
-    @State private var selectedPurpose: SpeechPurpose?
+    @State private var inputScriptViewModel: InputScriptViewModel?
 
     public init(coordinator: CreateScriptCoordinator) {
         self.coordinator = coordinator
@@ -35,7 +35,7 @@ public struct PurposeSelectionView: View {
                         PurposeCard(
                             title: purpose.title,
                             description: purpose.description,
-                            isSelected: selectedPurpose == purpose,
+                            isSelected: coordinator.selectedPurpose == purpose,
                             action: { selectPurpose(purpose) }
                         )
                     }
@@ -55,14 +55,48 @@ public struct PurposeSelectionView: View {
                 }
             }
         }
+        .presentationDragIndicator(.visible)
+        .sheet(isPresented: isShowingInputScript) {
+            if let inputScriptViewModel {
+                InputScriptView(
+                    viewModel: inputScriptViewModel,
+                    onBack: { coordinator.dismissInputScript() },
+                    onClose: { coordinator.close() }
+                )
+            }
+        }
     }
 
     private func selectPurpose(_ purpose: SpeechPurpose) {
-        selectedPurpose = purpose
+        inputScriptViewModel = InputScriptViewModel(purpose: purpose)
         coordinator.selectPurpose(purpose)
+    }
+
+    private var isShowingInputScript: Binding<Bool> {
+        Binding(
+            get: { coordinator.selectedPurpose != nil },
+            set: { isPresented in
+                if !isPresented {
+                    coordinator.dismissInputScript()
+                    inputScriptViewModel = nil
+                }
+            }
+        )
     }
 }
 
 #Preview {
-    PurposeSelectionView(coordinator: CreateScriptCoordinator())
+    PurposeSelectionPreviewHost()
+}
+
+private struct PurposeSelectionPreviewHost: View {
+    @State private var isPresented = true
+
+    var body: some View {
+        Color(uiColor: .systemGroupedBackground)
+            .ignoresSafeArea()
+            .sheet(isPresented: $isPresented) {
+                PurposeSelectionView(coordinator: CreateScriptCoordinator(onFinish: { isPresented = false }))
+            }
+    }
 }

@@ -1,6 +1,6 @@
 # Shuo — iOS Architecture & Feature Analysis
 
-**Status:** Pre-implementation design document
+**Status:** Design document — implementation in progress; Purpose selection and Input Script are built (§3.1.1), everything else is still the original design
 **Scope:** User Stories 1–3 (speech creation, transcription & AI analysis, save/search/history)
 **Target platform:** iOS 26+, Swift 6.2, SwiftUI
 
@@ -55,23 +55,27 @@ enum SpeechPurpose: String, Codable, CaseIterable, Sendable, Identifiable {
 ```
 Because it's just three `CaseIterable` cases, the Purpose screen is a `ForEach(SpeechPurpose.allCases)` over cards — no ViewModel logic beyond "which one was tapped," which the coordinator handles directly.
 
-**Navigation (confirmed):** Home is the only screen presented as a regular, persistent part of the app's `NavigationStack`. Everything from tapping "+" through seeing the transcript & pattern suggestions is **one continuous `.fullScreenCover`**, internally driven by a single `CreateScriptCoordinator` owning its own `NavigationPath` and `Route` enum:
+**Navigation (implemented — revised from the original design below):** Home is the only screen presented as a regular, persistent part of the app's `NavigationStack`. The create flow is driven by a single `CreateScriptCoordinator`, but rather than one shared `.fullScreenCover`, it's implemented as **chained native `.sheet` presentations**: Purpose is presented as its own sheet (from `RootView` in the `Shuo` app target, via a "+" button on `HomeView`), and selecting a purpose card presents Input Script as a second sheet on top of it. **Only Input Script disables interactive dismiss** (`.interactiveDismissDisabled(true)`, so a half-filled Speak/Write/Attach session can't be swiped away by accident) — **Purpose stays swipe-dismissible**, since nothing is entered yet at that step and canceling the whole flow from the root screen is a reasonable, low-cost action. Both sheets show `.presentationDragIndicator(.visible)`. The coordinator owns a single `selectedPurpose: SpeechPurpose?` (not an array/`NavigationPath` — there's only ever one thing "on top of" Purpose today) plus an `onFinish: () -> Void` callback, the classic Coordinator-pattern way of signaling the presenter to tear the whole flow down without exposing a raw presented/dismissed flag for the presenter to poll:
 
 ```swift
 @Observable @MainActor final class CreateScriptCoordinator {
-    enum Route: Hashable {
-        case purpose
-        case inputScript(SpeechPurpose)
-        case loading(LoadingContext)          // extraction / transcription / first AI pass
-        case analysis(ScriptDraft)            // transcript + pattern suggestions
-    }
-    var path: [Route] = []
-    // reopening a saved script skips straight to .analysis — see §3.3
+    private(set) var selectedPurpose: SpeechPurpose?
+    private let onFinish: () -> Void
+
+    init(onFinish: @escaping () -> Void) { self.onFinish = onFinish }
+
+    func selectPurpose(_ purpose: SpeechPurpose) { selectedPurpose = purpose }
+    func dismissInputScript() { selectedPurpose = nil }
+    func close() { onFinish() }
 }
 ```
-This keeps title/purpose/draft state alive across every step without re-fetching or duplicating it, and the "X" button dismisses the *entire* cover from any step — with one exception: inside Attach File, "X" only cancels the file picker sub-modal, not the whole creation flow (per the acceptance criteria, these are two different dismiss actions). Reopening a previously saved script from Home also presents the same `.fullScreenCover`, but with `path` initialized directly to `.analysis(existingScript)`, bypassing purpose/input/loading entirely.
+`RootView` (in the `Shuo` app target) constructs the coordinator with `onFinish: { coordinator = nil }`, so its own `@State private var coordinator: CreateScriptCoordinator?` is the single source of truth for "is the create flow showing" — there's no separate `isPresented` flag on the coordinator to keep in sync with it.
 
-**Loading UI (confirmed):** the transition after "Save"/"proceed" in Input Script — which may involve audio extraction (video attachments), speech-to-text, and the first AI analysis pass — is a dedicated, reusable `LoadingView` pushed as its own route (`.loading`), living in `ShuoDesignSystem` so any step can reuse it with a different status message ("Extracting audio…", "Transcribing…", "Analyzing your speech…"). It stays inside the same fullscreen cover — the user never sees a screen transition outside the flow. This is distinct from the *inline* "Updating suggestions…" indicator used for incremental edits in the Transcript view (§3.2.2) — that one is a small in-place indicator, not a navigation to a new route, since navigating away for a small edit would be jarring.
+A `.loading`/`.analysis` step, and the reopen-a-saved-script path, are **not built yet** — the `Route`/`ScriptDraft`-based sketch further down in this doc (§6) still reflects a target end-state, not what exists today. When those land, this single-optional model will likely need to grow into a real stack again (e.g. back to a `Route`/`path: [Route]` shape, or a proper `NavigationPath`) — don't reintroduce that complexity before it's actually needed.
+
+This keeps title/purpose state alive across every step without re-fetching or duplicating it, and the "X" button dismisses the *entire* chain from any step — since `close()` calling `onFinish()` tears down `RootView`'s single `coordinator` reference, which dismisses any sheet stacked on top of Purpose too — with one planned exception: inside Attach File, "X" is meant to only cancel the file picker sub-modal, not the whole creation flow (per the acceptance criteria, these are two different dismiss actions) — not yet implemented, since Attach File mode itself isn't built. Reopening a previously saved script from Home is intended to present the same sheet chain pre-hydrated at the analysis step, bypassing purpose/input/loading entirely — also not yet implemented.
+
+**Loading UI (planned, not yet implemented):** the transition after "Save"/"proceed" in Input Script — which may involve audio extraction (video attachments), speech-to-text, and the first AI analysis pass — is meant to be a dedicated, reusable `LoadingView` pushed as its own route (`.loading`), living in `ShuoDesignSystem` so any step can reuse it with a different status message ("Extracting audio…", "Transcribing…", "Analyzing your speech…"). It should stay inside the same sheet chain — the user should never see a screen transition outside the flow. This is distinct from the *inline* "Updating suggestions…" indicator used for incremental edits in the Transcript view (§3.2.2) — that one is a small in-place indicator, not a navigation to a new route, since navigating away for a small edit would be jarring.
 
 #### 3.1.2 Input Script — shared shell
 Because Speak / Write / Attach File have meaningfully different state and behavior, I'd avoid one giant `InputScriptViewModel` with a dozen optional properties (a common anti-pattern) and instead compose three focused child ViewModels owned by a parent:
@@ -393,9 +397,9 @@ This split follows current (2026) Apple guidance directly: Swift Testing is the 
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Purpose → Input Script: one container or chained sheets? | **One fullscreen sheet** for the entire create-through-analysis flow; Home is the only regular screen. See §3.1.1. |
+| 1 | Purpose → Input Script: one container or chained sheets? | **Originally speced as one fullscreen sheet** for the entire create-through-analysis flow. **Revised during implementation to chained `.sheet` presentations** instead (Purpose sheet → Input Script sheet stacked on top; only Input Script is `interactiveDismissDisabled`, Purpose stays swipe-dismissible) — Home remains the only regular screen. See §3.1.1 for the current implementation and what's still unbuilt. |
 | 2 | Grammar/vocab UI surface? | **Deferred past v1.** Interface stays defined, nothing wired up or displayed. See §2.5, §3.2.4. |
-| 3 | Loading/progress UX for longer processing (video extraction, transcription, first AI pass)? | **Dedicated, reusable `LoadingView`**, pushed as its own route inside the same fullscreen sheet. See §3.1.1. |
+| 3 | Loading/progress UX for longer processing (video extraction, transcription, first AI pass)? | **Dedicated, reusable `LoadingView`**, pushed as its own route inside the same sheet chain. **Not yet implemented** — no `.loading` route exists yet. See §3.1.1. |
 | 4 | Chunking strategy for long transcripts vs. the Foundation Models context window? | **In scope for v1**, not deferred. See §3.2.4. |
 | 5 | Require Apple Intelligence–eligible hardware, or degrade gracefully? | **Required for v1.** No degraded "no-AI" mode. See §2.1. |
 | 6 | Multi-language beyond English for v1? | **English only** for v1. See §2.3. |
