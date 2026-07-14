@@ -10,7 +10,6 @@ import ShuoCore
 final class AttachFileModeViewModel {
     enum ViewState {
         case idle
-        case selected(URL)
         case processing
         case ready(ImportedMedia)
         case failed(String)
@@ -29,7 +28,7 @@ final class AttachFileModeViewModel {
     }
 
     private let fileImporter: any FileImporting
-    private(set) var importTask: Task<Void, Never>?  
+    private(set) var importTask: Task<Void, Never>?
 
     init(fileImporter: any FileImporting) {
         self.fileImporter = fileImporter
@@ -38,11 +37,6 @@ final class AttachFileModeViewModel {
     func fileSelected(url: URL) {
         importTask?.cancel()
         importTask = nil
-        viewState = .selected(url)
-    }
-
-    func confirmUpload() {
-        guard case .selected(let url) = viewState else { return }
         viewState = .processing
         importTask = Task {
             do {
