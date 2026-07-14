@@ -36,29 +36,12 @@ struct AttachFileModeViewModelTests {
 
     // MARK: - fileSelected
 
-    @Test("fileSelected transitions to selected state with correct URL")
-    func fileSelectedTransitionsToSelected() {
-        let vm = AttachFileModeViewModel(fileImporter: FakeFileImporting(returning: makeMedia()))
-
-        vm.fileSelected(url: testURL)
-
-        if case .selected(let url) = vm.viewState {
-            #expect(url == testURL)
-        } else {
-            Issue.record("Expected selected")
-        }
-        #expect(!vm.hasImportedFile)
-    }
-
-    // MARK: - confirmUpload
-
-    @Test("confirmUpload transitions to ready on success")
-    func confirmUploadSuccess() async {
+    @Test("fileSelected transitions to ready on success")
+    func fileSelectedTransitionsToReady() async {
         let media = makeMedia()
         let vm = AttachFileModeViewModel(fileImporter: FakeFileImporting(returning: media))
 
         vm.fileSelected(url: testURL)
-        vm.confirmUpload()
         await vm.importTask?.value
 
         #expect(vm.hasImportedFile)
@@ -66,14 +49,13 @@ struct AttachFileModeViewModelTests {
         #expect(vm.importedMedia?.originalFileName == media.originalFileName)
     }
 
-    @Test("confirmUpload transitions to failed on error")
-    func confirmUploadFailure() async {
+    @Test("fileSelected transitions to failed on error")
+    func fileSelectedTransitionsToFailed() async {
         let vm = AttachFileModeViewModel(
             fileImporter: FakeFileImporting(throwing: ShuoError.importFailed)
         )
 
         vm.fileSelected(url: testURL)
-        vm.confirmUpload()
         await vm.importTask?.value
 
         if case .failed = vm.viewState { } else { Issue.record("Expected failed") }
@@ -81,34 +63,13 @@ struct AttachFileModeViewModelTests {
         #expect(vm.importedMedia == nil)
     }
 
-    @Test("confirmUpload is a no-op when called from idle")
-    func confirmUploadNoOpFromIdle() {
-        let vm = AttachFileModeViewModel(fileImporter: FakeFileImporting(returning: makeMedia()))
-
-        vm.confirmUpload()
-
-        if case .idle = vm.viewState { } else { Issue.record("Expected idle unchanged") }
-    }
-
     // MARK: - cancel
-
-    @Test("cancel from selected resets to idle")
-    func cancelFromSelected() {
-        let vm = AttachFileModeViewModel(fileImporter: FakeFileImporting(returning: makeMedia()))
-
-        vm.fileSelected(url: testURL)
-        vm.cancel()
-
-        if case .idle = vm.viewState { } else { Issue.record("Expected idle") }
-        #expect(!vm.hasImportedFile)
-    }
 
     @Test("cancel from ready resets to idle")
     func cancelFromReady() async {
         let vm = AttachFileModeViewModel(fileImporter: FakeFileImporting(returning: makeMedia()))
 
         vm.fileSelected(url: testURL)
-        vm.confirmUpload()
         await vm.importTask?.value
         vm.cancel()
 
@@ -124,10 +85,35 @@ struct AttachFileModeViewModelTests {
         )
 
         vm.fileSelected(url: testURL)
-        vm.confirmUpload()
-        await vm.importTask?.value  
+        await vm.importTask?.value
         vm.cancel()
 
         if case .idle = vm.viewState { } else { Issue.record("Expected idle after cancel from failed") }
+    }
+
+    // MARK: - Overwrite
+
+    @Test("fileSelected from ready overwrites with new file")
+    func fileSelectedFromReadyOverwrites() async {
+        let firstMedia = makeMedia()
+        let secondMedia = ImportedMedia(
+            fileURL: URL(filePath: "/tmp/new.mp3"),
+            kind: .audio,
+            originalFileName: "new.mp3"
+        )
+        let importer = FakeSequentialFileImporting(results: [
+            .success(firstMedia),
+            .success(secondMedia)
+        ])
+        let vm = AttachFileModeViewModel(fileImporter: importer)
+
+        vm.fileSelected(url: testURL)
+        await vm.importTask?.value
+        #expect(vm.importedMedia?.id == firstMedia.id)
+
+        vm.fileSelected(url: URL(filePath: "/tmp/new.mp3"))
+        await vm.importTask?.value
+        #expect(vm.importedMedia?.id == secondMedia.id)
+        #expect(vm.importedMedia?.originalFileName == "new.mp3")
     }
 }
