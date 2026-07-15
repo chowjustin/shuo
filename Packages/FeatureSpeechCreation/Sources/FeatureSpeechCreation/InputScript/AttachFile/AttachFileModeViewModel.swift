@@ -7,34 +7,34 @@ import Foundation
 import ShuoCore
 
 @Observable @MainActor
-final class AttachFileModeViewModel {
-    enum ViewState {
+public final class AttachFileModeViewModel {
+    public enum ViewState {
         case idle
         case processing
         case ready(ImportedMedia)
         case failed(String)
     }
 
-    private(set) var viewState: ViewState = .idle
+    public private(set) var viewState: ViewState = .idle
 
-    var hasImportedFile: Bool {
+    public var hasImportedFile: Bool {
         if case .ready = viewState { return true }
         return false
     }
 
-    var importedMedia: ImportedMedia? {
+    public var importedMedia: ImportedMedia? {
         if case .ready(let media) = viewState { return media }
         return nil
     }
 
     private let fileImporter: any FileImporting
-    private(set) var importTask: Task<Void, Never>?
+    public private(set) var importTask: Task<Void, Never>?
 
-    init(fileImporter: any FileImporting) {
+    public init(fileImporter: any FileImporting) {
         self.fileImporter = fileImporter
     }
 
-    func fileSelected(url: URL) {
+    public func fileSelected(url: URL) {
         importTask?.cancel()
         importTask = nil
         viewState = .processing
@@ -50,7 +50,7 @@ final class AttachFileModeViewModel {
         }
     }
 
-    func cancel() {
+    public func cancel() {
         importTask?.cancel()
         importTask = nil
         viewState = .idle

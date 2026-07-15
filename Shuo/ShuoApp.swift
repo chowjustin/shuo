@@ -18,7 +18,7 @@ struct ShuoApp: App {
     var body: some Scene {
         WindowGroup {
             NavigationStack {
-                container.makeHomeView()
+                container.makeAttachFileModeView()
             }
         }
     }

@@ -45,36 +45,26 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		D183575B300480AB00F31EA3 /* Shuo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = Shuo;
 			sourceTree = "<group>";
 		};
 		D183576B300480AC00F31EA3 /* ShuoTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = ShuoTests;
 			sourceTree = "<group>";
 		};
 		D1835775300480AC00F31EA3 /* ShuoUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = ShuoUITests;
 			sourceTree = "<group>";
 		};
 		D1835786300480C500F31EA3 /* Packages */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = Packages;
 			sourceTree = "<group>";
 		};
 		D1835787300480D500F31EA3 /* Docs */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = Docs;
 			sourceTree = "<group>";
 		};
@@ -244,15 +234,15 @@
 			mainGroup = D1835750300480AB00F31EA3;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				6826BEFE8629967C10EDFAB3 /* XCLocalSwiftPackageReference "ShuoCore" */,
-				2780EB860206211AE22F7745 /* XCLocalSwiftPackageReference "ShuoPersistence" */,
-				5E3DECBA30EB8D030AD26246 /* XCLocalSwiftPackageReference "ShuoAudio" */,
-				EED6E2C7BAEDD9A5F247E0BF /* XCLocalSwiftPackageReference "ShuoAI" */,
-				74B6BE5F67082A2F73DF7F2F /* XCLocalSwiftPackageReference "ShuoDesignSystem" */,
-				9B0881AEB2168F7D89808985 /* XCLocalSwiftPackageReference "ShuoTestSupport" */,
-				618F9C2D5103F041096A5B21 /* XCLocalSwiftPackageReference "FeatureHome" */,
-				5FE76285717D63FB00F108B1 /* XCLocalSwiftPackageReference "FeatureSpeechCreation" */,
-				FD254348700976DF6E83AC88 /* XCLocalSwiftPackageReference "FeatureTranscriptAnalysis" */,
+				6826BEFE8629967C10EDFAB3 /* XCLocalSwiftPackageReference "Packages/ShuoCore" */,
+				2780EB860206211AE22F7745 /* XCLocalSwiftPackageReference "Packages/ShuoPersistence" */,
+				5E3DECBA30EB8D030AD26246 /* XCLocalSwiftPackageReference "Packages/ShuoAudio" */,
+				EED6E2C7BAEDD9A5F247E0BF /* XCLocalSwiftPackageReference "Packages/ShuoAI" */,
+				74B6BE5F67082A2F73DF7F2F /* XCLocalSwiftPackageReference "Packages/ShuoDesignSystem" */,
+				9B0881AEB2168F7D89808985 /* XCLocalSwiftPackageReference "Packages/ShuoTestSupport" */,
+				618F9C2D5103F041096A5B21 /* XCLocalSwiftPackageReference "Packages/FeatureHome" */,
+				5FE76285717D63FB00F108B1 /* XCLocalSwiftPackageReference "Packages/FeatureSpeechCreation" */,
+				FD254348700976DF6E83AC88 /* XCLocalSwiftPackageReference "Packages/FeatureTranscriptAnalysis" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D183575A300480AB00F31EA3 /* Products */;
@@ -457,7 +447,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7Z827VAMZB;
+				DEVELOPMENT_TEAM = 42695GJBV8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -489,7 +479,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7Z827VAMZB;
+				DEVELOPMENT_TEAM = 42695GJBV8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -640,39 +630,39 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		2780EB860206211AE22F7745 /* XCLocalSwiftPackageReference "ShuoPersistence" */ = {
+		2780EB860206211AE22F7745 /* XCLocalSwiftPackageReference "Packages/ShuoPersistence" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/ShuoPersistence;
 		};
-		5E3DECBA30EB8D030AD26246 /* XCLocalSwiftPackageReference "ShuoAudio" */ = {
+		5E3DECBA30EB8D030AD26246 /* XCLocalSwiftPackageReference "Packages/ShuoAudio" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/ShuoAudio;
 		};
-		5FE76285717D63FB00F108B1 /* XCLocalSwiftPackageReference "FeatureSpeechCreation" */ = {
+		5FE76285717D63FB00F108B1 /* XCLocalSwiftPackageReference "Packages/FeatureSpeechCreation" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/FeatureSpeechCreation;
 		};
-		618F9C2D5103F041096A5B21 /* XCLocalSwiftPackageReference "FeatureHome" */ = {
+		618F9C2D5103F041096A5B21 /* XCLocalSwiftPackageReference "Packages/FeatureHome" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/FeatureHome;
 		};
-		6826BEFE8629967C10EDFAB3 /* XCLocalSwiftPackageReference "ShuoCore" */ = {
+		6826BEFE8629967C10EDFAB3 /* XCLocalSwiftPackageReference "Packages/ShuoCore" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/ShuoCore;
 		};
-		74B6BE5F67082A2F73DF7F2F /* XCLocalSwiftPackageReference "ShuoDesignSystem" */ = {
+		74B6BE5F67082A2F73DF7F2F /* XCLocalSwiftPackageReference "Packages/ShuoDesignSystem" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/ShuoDesignSystem;
 		};
-		9B0881AEB2168F7D89808985 /* XCLocalSwiftPackageReference "ShuoTestSupport" */ = {
+		9B0881AEB2168F7D89808985 /* XCLocalSwiftPackageReference "Packages/ShuoTestSupport" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/ShuoTestSupport;
 		};
-		EED6E2C7BAEDD9A5F247E0BF /* XCLocalSwiftPackageReference "ShuoAI" */ = {
+		EED6E2C7BAEDD9A5F247E0BF /* XCLocalSwiftPackageReference "Packages/ShuoAI" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/ShuoAI;
 		};
-		FD254348700976DF6E83AC88 /* XCLocalSwiftPackageReference "FeatureTranscriptAnalysis" */ = {
+		FD254348700976DF6E83AC88 /* XCLocalSwiftPackageReference "Packages/FeatureTranscriptAnalysis" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/FeatureTranscriptAnalysis;
 		};
@@ -681,42 +671,42 @@
 /* Begin XCSwiftPackageProductDependency section */
 		5A8B63975DF169AF9D2C57A0 /* ShuoDesignSystem */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 74B6BE5F67082A2F73DF7F2F /* XCLocalSwiftPackageReference "ShuoDesignSystem" */;
+			package = 74B6BE5F67082A2F73DF7F2F /* XCLocalSwiftPackageReference "Packages/ShuoDesignSystem" */;
 			productName = ShuoDesignSystem;
 		};
 		65BD879E51E13C70DE65F5D7 /* ShuoPersistence */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 2780EB860206211AE22F7745 /* XCLocalSwiftPackageReference "ShuoPersistence" */;
+			package = 2780EB860206211AE22F7745 /* XCLocalSwiftPackageReference "Packages/ShuoPersistence" */;
 			productName = ShuoPersistence;
 		};
 		779F718613323A09E59D2A2E /* ShuoAudio */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 5E3DECBA30EB8D030AD26246 /* XCLocalSwiftPackageReference "ShuoAudio" */;
+			package = 5E3DECBA30EB8D030AD26246 /* XCLocalSwiftPackageReference "Packages/ShuoAudio" */;
 			productName = ShuoAudio;
 		};
 		7C6596D4012DED9F9A2107C3 /* FeatureTranscriptAnalysis */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = FD254348700976DF6E83AC88 /* XCLocalSwiftPackageReference "FeatureTranscriptAnalysis" */;
+			package = FD254348700976DF6E83AC88 /* XCLocalSwiftPackageReference "Packages/FeatureTranscriptAnalysis" */;
 			productName = FeatureTranscriptAnalysis;
 		};
 		7FCB03B9DB0C0038940223A7 /* FeatureHome */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 618F9C2D5103F041096A5B21 /* XCLocalSwiftPackageReference "FeatureHome" */;
+			package = 618F9C2D5103F041096A5B21 /* XCLocalSwiftPackageReference "Packages/FeatureHome" */;
 			productName = FeatureHome;
 		};
 		B82BF9CC0BF94F8EFD48EA79 /* ShuoAI */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = EED6E2C7BAEDD9A5F247E0BF /* XCLocalSwiftPackageReference "ShuoAI" */;
+			package = EED6E2C7BAEDD9A5F247E0BF /* XCLocalSwiftPackageReference "Packages/ShuoAI" */;
 			productName = ShuoAI;
 		};
 		CCF8C374B84778DA2D582A18 /* ShuoCore */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 6826BEFE8629967C10EDFAB3 /* XCLocalSwiftPackageReference "ShuoCore" */;
+			package = 6826BEFE8629967C10EDFAB3 /* XCLocalSwiftPackageReference "Packages/ShuoCore" */;
 			productName = ShuoCore;
 		};
 		F9AF571B09F33A6991D8B6A4 /* FeatureSpeechCreation */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 5FE76285717D63FB00F108B1 /* XCLocalSwiftPackageReference "FeatureSpeechCreation" */;
+			package = 5FE76285717D63FB00F108B1 /* XCLocalSwiftPackageReference "Packages/FeatureSpeechCreation" */;
 			productName = FeatureSpeechCreation;
 		};
 /* End XCSwiftPackageProductDependency section */
