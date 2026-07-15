@@ -12,13 +12,10 @@ import Foundation
 import SwiftUI
 
 public enum ShuoColor {
-    public static let accent = Color(hex: 0xF7567C)
-    public static let purposeTeal = Color(hex: 0x99E1D9)
+    public static let pink = Color(hex: 0xF7567C)
+    public static let aqua = Color(hex: 0x99E1D9)
+    public static let aquaTint = Color(hex: 0xF0FFFE)
     public static let background = Color(uiColor: .systemBackground)
-    public static let cardBackgroundSelected = purposeTeal
-    public static let cardBackgroundUnselected = purposeTeal.opacity(0.5)
-    public static let cardBorderSelected = Color(hex: 0x99E1D9)
-    public static let cardBorderUnselected = Color(hex: 0x99E1D9)
 
     public static let primaryText = Color(uiColor: .label)
     public static let secondaryText = Color(uiColor: .secondaryLabel)

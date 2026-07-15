@@ -36,7 +36,7 @@ public struct PurposeCard: View {
             VStack(alignment: .leading, spacing: ShuoSpacing.small) {
                 VStack(alignment: .leading, spacing: ShuoSpacing.xSmall) {
                     Text(title)
-                        .font(ShuoTypography.headline)
+                        .font(.title3.bold())
                         .foregroundStyle(ShuoColor.primaryText)
                     Text(description)
                         .font(ShuoTypography.caption)
@@ -47,9 +47,8 @@ public struct PurposeCard: View {
                     Spacer(minLength: 0)
                     Image(systemName: "play.fill")
                         .font(.caption)
-                        .foregroundStyle(.white)
-                        .frame(width: 32, height: 32)
-                        .background(Circle().fill(ShuoColor.accent))
+                        .foregroundStyle(isSelected ? .white : ShuoColor.pink)
+
                 }
             }
             .cardStyle(isSelected: isSelected)

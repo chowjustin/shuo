@@ -13,48 +13,57 @@ import Foundation
 import ShuoCore
 import ShuoDesignSystem
 import SwiftUI
-
+ 
 public struct PurposeSelectionView: View {
     private let coordinator: CreateScriptCoordinator
-<<<<<<< Updated upstream
     @State private var inputScriptViewModel: InputScriptViewModel?
-
-=======
     @State private var selectedPurpose: SpeechPurpose?
     @State private var navigationTask: Task<Void, Never>?
-    
-    private static let selectionDelay: Duration = .milliseconds(500)
-    
->>>>>>> Stashed changes
+ 
+    private static let selectionDelay: Duration = .milliseconds(200)
+ 
     public init(coordinator: CreateScriptCoordinator) {
         self.coordinator = coordinator
     }
-    
+ 
     public var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                VStack(alignment: .center, spacing: ShuoSpacing.large) {
-                    
-                    Text("Tell us your purpose")
-                        .font(ShuoTypography.title)
-                        .foregroundStyle(ShuoColor.primaryText)
-                        .accessibilityAddTraits(.isHeader)
-                    ForEach(SpeechPurpose.allCases) { purpose in
-                        PurposeCard(
-                            title: purpose.title,
-                            description: purpose.description,
-                            isSelected: coordinator.selectedPurpose == purpose,
-                            action: { selectPurpose(purpose) }
-                        )
-                        .accessibilityElement(children: .combine)
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityValue(selectedPurpose == purpose ? "Selected" : "")                    }
+        ScrollView {
+            VStack(alignment: .center, spacing: ShuoSpacing.medium) {
+ 
+                Text("Tell us your purpose")
+                    .font(ShuoTypography.title)
+                    .foregroundStyle(ShuoColor.primaryText)
+                    .accessibilityAddTraits(.isHeader)
+ 
+                ForEach(SpeechPurpose.allCases) { purpose in
+                    PurposeCard(
+                        title: purpose.title,
+                        description: purpose.description,
+                        isSelected: selectedPurpose == purpose,
+                        action: { selectPurpose(purpose) }
+                    )
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityValue(selectedPurpose == purpose ? "Selected" : "")
                 }
-                .padding(ShuoSpacing.medium)
-                .frame(minHeight: geometry.size.height)
             }
+            .padding(ShuoSpacing.large)
+            .padding(.top,70)
         }
-<<<<<<< Updated upstream
+        .background(ShuoColor.background)
+        .overlay(alignment: .topLeading) {
+            Button {
+                coordinator.close()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.title3)
+                    .foregroundStyle(ShuoColor.primaryText)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(ShuoColor.closeButtonBackground))
+            }
+            .accessibilityLabel("Close")
+            .padding(ShuoSpacing.medium)
+        }
         .presentationDragIndicator(.visible)
         .sheet(isPresented: isShowingInputScript) {
             if let inputScriptViewModel {
@@ -65,42 +74,23 @@ public struct PurposeSelectionView: View {
                 )
             }
         }
-    }
-
-    private func selectPurpose(_ purpose: SpeechPurpose) {
-        inputScriptViewModel = InputScriptViewModel(purpose: purpose)
-        coordinator.selectPurpose(purpose)
-=======
-        .background(ShuoColor.background)
-        .overlay(alignment: .topTrailing) {
-            Button {
-                coordinator.close()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(ShuoColor.primaryText)
-                    .frame(width: 30, height: 30)
-                    .background(Circle().fill(ShuoColor.closeButtonBackground))
-            }
-            .accessibilityLabel("Close")
-            .padding(ShuoSpacing.medium)
-        }
         .onDisappear {
             navigationTask?.cancel()
         }
     }
-private func selectPurpose(_ purpose: SpeechPurpose) {
+ 
+    private func selectPurpose(_ purpose: SpeechPurpose) {
         selectedPurpose = purpose
-
+ 
         navigationTask?.cancel()
         navigationTask = Task {
             try? await Task.sleep(for: Self.selectionDelay)
             guard !Task.isCancelled else { return }
+            inputScriptViewModel = InputScriptViewModel(purpose: purpose)
             coordinator.selectPurpose(purpose)
         }
->>>>>>> Stashed changes
     }
-
+ 
     private var isShowingInputScript: Binding<Bool> {
         Binding(
             get: { coordinator.selectedPurpose != nil },
@@ -108,19 +98,20 @@ private func selectPurpose(_ purpose: SpeechPurpose) {
                 if !isPresented {
                     coordinator.dismissInputScript()
                     inputScriptViewModel = nil
+                    selectedPurpose = nil
                 }
             }
         )
     }
 }
-
+ 
 #Preview {
     PurposeSelectionPreviewHost()
 }
-
+ 
 private struct PurposeSelectionPreviewHost: View {
     @State private var isPresented = true
-
+ 
     var body: some View {
         Color(uiColor: .systemGroupedBackground)
             .ignoresSafeArea()
@@ -130,4 +121,3 @@ private struct PurposeSelectionPreviewHost: View {
     }
 }
  
-

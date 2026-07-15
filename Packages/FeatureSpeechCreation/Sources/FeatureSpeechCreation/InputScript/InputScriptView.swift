@@ -23,6 +23,10 @@ public struct InputScriptView: View {
         self.viewModel = viewModel
         self.onBack = onBack
         self.onClose = onClose
+
+        UISegmentedControl.appearance().selectedSegmentTintColor = UIColor(ShuoColor.aqua)
+
+        UISegmentedControl.appearance().backgroundColor = UIColor(ShuoColor.aquaTint)
     }
 
     public var body: some View {
@@ -39,7 +43,7 @@ public struct InputScriptView: View {
                         .font(.subheadline)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(ShuoColor.cardBackground, in: Capsule())
+                        .background(ShuoColor.aqua, in: Capsule())
                 }
 
                 Picker("Input Mode", selection: $viewModel.mode) {
