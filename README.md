@@ -183,7 +183,3 @@ The suggested build order (domain first, then persistence, then each feature) is
   analysis, domain model, module structure, and the full project layout.
 - [`CLAUDE.md`](CLAUDE.md) — conventions, workflow, and the rules for working in this
   codebase day to day.
-
----
-
-Built by Justin Chow.
