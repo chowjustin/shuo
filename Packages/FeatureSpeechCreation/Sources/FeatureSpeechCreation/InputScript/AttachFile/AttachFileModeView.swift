@@ -12,11 +12,15 @@ import SwiftUI
 import UniformTypeIdentifiers
 import ShuoCore
 
-struct AttachFileModeView: View {
+public struct AttachFileModeView: View {
     let viewModel: AttachFileModeViewModel
     @State private var isPickerPresented = false
 
-    var body: some View {
+    public init(viewModel: AttachFileModeViewModel) {
+        self.viewModel = viewModel
+    }
+
+    public var body: some View {
         VStack(spacing: 0) {
             contentArea
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -41,7 +45,7 @@ struct AttachFileModeView: View {
     private var contentArea: some View {
         switch viewModel.viewState {
         case .idle:
-            Text("Attach a file to get started.")
+            Text("Upload your audio or video file.")
                 .foregroundStyle(.secondary)
 
         case .processing:
@@ -49,7 +53,11 @@ struct AttachFileModeView: View {
                 .foregroundStyle(.secondary)
 
         case .ready(let media):
-            fileCard(name: media.originalFileName, systemIcon: iconName(for: media.kind))
+            fileCard(
+                name: media.originalFileName,
+                systemIcon: iconName(for: media.kind),
+                durationLabel: media.formattedDuration
+            )
 
         case .failed(let message):
             VStack(spacing: 12) {
@@ -103,7 +111,7 @@ struct AttachFileModeView: View {
         }
     }
 
-    private func fileCard(name: String, systemIcon: String) -> some View {
+    private func fileCard(name: String, systemIcon: String, durationLabel: String?) -> some View {
         VStack(spacing: 16) {
             ZStack {
                 RoundedRectangle(cornerRadius: 16)
@@ -114,7 +122,7 @@ struct AttachFileModeView: View {
                     .font(.system(size: 40))
                     .foregroundStyle(.secondary)
             }
-            .frame(width: 120, height: 120)
+            .frame(width: 220, height: 215)
 
             Text(name)
                 .font(.subheadline)
@@ -122,6 +130,12 @@ struct AttachFileModeView: View {
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
+
+            if let durationLabel {
+                Text(durationLabel)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
