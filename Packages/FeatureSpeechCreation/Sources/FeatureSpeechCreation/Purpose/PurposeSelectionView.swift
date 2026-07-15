@@ -16,21 +16,29 @@ import SwiftUI
 
 public struct PurposeSelectionView: View {
     private let coordinator: CreateScriptCoordinator
+<<<<<<< Updated upstream
     @State private var inputScriptViewModel: InputScriptViewModel?
 
+=======
+    @State private var selectedPurpose: SpeechPurpose?
+    @State private var navigationTask: Task<Void, Never>?
+    
+    private static let selectionDelay: Duration = .milliseconds(500)
+    
+>>>>>>> Stashed changes
     public init(coordinator: CreateScriptCoordinator) {
         self.coordinator = coordinator
     }
-
+    
     public var body: some View {
-        NavigationStack {
+        GeometryReader { geometry in
             ScrollView {
-                VStack(alignment: .leading, spacing: ShuoSpacing.medium) {
-                    Text("What's the purpose of your speech?")
+                VStack(alignment: .center, spacing: ShuoSpacing.large) {
+                    
+                    Text("Tell us your purpose")
                         .font(ShuoTypography.title)
                         .foregroundStyle(ShuoColor.primaryText)
-                        .padding(.top, ShuoSpacing.small)
-
+                        .accessibilityAddTraits(.isHeader)
                     ForEach(SpeechPurpose.allCases) { purpose in
                         PurposeCard(
                             title: purpose.title,
@@ -38,23 +46,15 @@ public struct PurposeSelectionView: View {
                             isSelected: coordinator.selectedPurpose == purpose,
                             action: { selectPurpose(purpose) }
                         )
-                    }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityValue(selectedPurpose == purpose ? "Selected" : "")                    }
                 }
                 .padding(ShuoSpacing.medium)
-            }
-            .background(ShuoColor.background)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        coordinator.close()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .foregroundStyle(ShuoColor.secondaryText)
-                    }
-                    .accessibilityLabel("Close")
-                }
+                .frame(minHeight: geometry.size.height)
             }
         }
+<<<<<<< Updated upstream
         .presentationDragIndicator(.visible)
         .sheet(isPresented: isShowingInputScript) {
             if let inputScriptViewModel {
@@ -70,6 +70,35 @@ public struct PurposeSelectionView: View {
     private func selectPurpose(_ purpose: SpeechPurpose) {
         inputScriptViewModel = InputScriptViewModel(purpose: purpose)
         coordinator.selectPurpose(purpose)
+=======
+        .background(ShuoColor.background)
+        .overlay(alignment: .topTrailing) {
+            Button {
+                coordinator.close()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(ShuoColor.primaryText)
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(ShuoColor.closeButtonBackground))
+            }
+            .accessibilityLabel("Close")
+            .padding(ShuoSpacing.medium)
+        }
+        .onDisappear {
+            navigationTask?.cancel()
+        }
+    }
+private func selectPurpose(_ purpose: SpeechPurpose) {
+        selectedPurpose = purpose
+
+        navigationTask?.cancel()
+        navigationTask = Task {
+            try? await Task.sleep(for: Self.selectionDelay)
+            guard !Task.isCancelled else { return }
+            coordinator.selectPurpose(purpose)
+        }
+>>>>>>> Stashed changes
     }
 
     private var isShowingInputScript: Binding<Bool> {
@@ -100,3 +129,5 @@ private struct PurposeSelectionPreviewHost: View {
             }
     }
 }
+ 
+
