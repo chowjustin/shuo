@@ -22,7 +22,7 @@ public struct PurposeSelectionView: View {
     @State private var navigationTask: Task<Void, Never>?
 
     /// Lets the tapped card render its selected state before the Input Script sheet covers it.
-    private static let selectionDelay: Duration = .milliseconds(500)
+    private static let selectionDelay: Duration = .milliseconds(200)
 
     public init(coordinator: CreateScriptCoordinator, fileImporter: any FileImporting) {
         self.coordinator = coordinator
@@ -30,39 +30,37 @@ public struct PurposeSelectionView: View {
     }
 
     public var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                VStack(alignment: .center, spacing: ShuoSpacing.large) {
-                    Text("Tell us your purpose")
-                        .font(ShuoTypography.title)
-                        .foregroundStyle(ShuoColor.primaryText)
-                        .accessibilityAddTraits(.isHeader)
+        ScrollView {
+            VStack(alignment: .center, spacing: ShuoSpacing.medium) {
+                Text("Tell us your purpose")
+                    .font(ShuoTypography.title)
+                    .foregroundStyle(ShuoColor.primaryText)
+                    .accessibilityAddTraits(.isHeader)
 
-                    ForEach(SpeechPurpose.allCases) { purpose in
-                        PurposeCard(
-                            title: purpose.title,
-                            description: purpose.description,
-                            isSelected: selectedPurpose == purpose,
-                            action: { selectPurpose(purpose) }
-                        )
-                        .accessibilityElement(children: .combine)
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityValue(selectedPurpose == purpose ? "Selected" : "")
-                    }
+                ForEach(SpeechPurpose.allCases) { purpose in
+                    PurposeCard(
+                        title: purpose.title,
+                        description: purpose.description,
+                        isSelected: selectedPurpose == purpose,
+                        action: { selectPurpose(purpose) }
+                    )
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityValue(selectedPurpose == purpose ? "Selected" : "")
                 }
-                .padding(ShuoSpacing.medium)
-                .frame(minHeight: geometry.size.height)
             }
+            .padding(ShuoSpacing.large)
+            .padding(.top, 70)
         }
         .background(ShuoColor.background)
-        .overlay(alignment: .topTrailing) {
+        .overlay(alignment: .topLeading) {
             Button {
                 coordinator.close()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.footnote.weight(.semibold))
+                    .font(.title3)
                     .foregroundStyle(ShuoColor.primaryText)
-                    .frame(width: 30, height: 30)
+                    .frame(width: 40, height: 40)
                     .background(Circle().fill(ShuoColor.closeButtonBackground))
             }
             .accessibilityLabel("Close")
@@ -85,12 +83,12 @@ public struct PurposeSelectionView: View {
 
     private func selectPurpose(_ purpose: SpeechPurpose) {
         selectedPurpose = purpose
-        inputScriptViewModel = InputScriptViewModel(purpose: purpose, fileImporter: fileImporter)
 
         navigationTask?.cancel()
         navigationTask = Task {
             try? await Task.sleep(for: Self.selectionDelay)
             guard !Task.isCancelled else { return }
+            inputScriptViewModel = InputScriptViewModel(purpose: purpose, fileImporter: fileImporter)
             coordinator.selectPurpose(purpose)
         }
     }
