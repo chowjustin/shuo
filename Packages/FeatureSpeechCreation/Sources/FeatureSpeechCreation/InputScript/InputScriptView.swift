@@ -39,7 +39,7 @@ public struct InputScriptView: View {
                         .font(.subheadline)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(ShuoColor.cardBackground, in: Capsule())
+                        .background(ShuoColor.cardBackgroundUnselected, in: Capsule())
                 }
 
                 Picker("Input Mode", selection: $viewModel.mode) {

@@ -9,6 +9,7 @@
 // ViewModel — the coordinator handles which purpose was tapped directly. See
 // ARCHITECTURE.md §3.1.1.
 
+import Foundation
 import ShuoCore
 import ShuoDesignSystem
 import SwiftUI
@@ -17,6 +18,11 @@ public struct PurposeSelectionView: View {
     private let coordinator: CreateScriptCoordinator
     private let fileImporter: any FileImporting
     @State private var inputScriptViewModel: InputScriptViewModel?
+    @State private var selectedPurpose: SpeechPurpose?
+    @State private var navigationTask: Task<Void, Never>?
+
+    /// Lets the tapped card render its selected state before the Input Script sheet covers it.
+    private static let selectionDelay: Duration = .milliseconds(500)
 
     public init(coordinator: CreateScriptCoordinator, fileImporter: any FileImporting) {
         self.coordinator = coordinator
@@ -24,37 +30,43 @@ public struct PurposeSelectionView: View {
     }
 
     public var body: some View {
-        NavigationStack {
+        GeometryReader { geometry in
             ScrollView {
-                VStack(alignment: .leading, spacing: ShuoSpacing.medium) {
-                    Text("What's the purpose of your speech?")
+                VStack(alignment: .center, spacing: ShuoSpacing.large) {
+                    Text("Tell us your purpose")
                         .font(ShuoTypography.title)
                         .foregroundStyle(ShuoColor.primaryText)
-                        .padding(.top, ShuoSpacing.small)
+                        .accessibilityAddTraits(.isHeader)
 
                     ForEach(SpeechPurpose.allCases) { purpose in
                         PurposeCard(
                             title: purpose.title,
                             description: purpose.description,
-                            isSelected: coordinator.selectedPurpose == purpose,
+                            isSelected: selectedPurpose == purpose,
                             action: { selectPurpose(purpose) }
                         )
+                        .accessibilityElement(children: .combine)
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityValue(selectedPurpose == purpose ? "Selected" : "")
                     }
                 }
                 .padding(ShuoSpacing.medium)
+                .frame(minHeight: geometry.size.height)
             }
-            .background(ShuoColor.background)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        coordinator.close()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .foregroundStyle(ShuoColor.secondaryText)
-                    }
-                    .accessibilityLabel("Close")
-                }
+        }
+        .background(ShuoColor.background)
+        .overlay(alignment: .topTrailing) {
+            Button {
+                coordinator.close()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(ShuoColor.primaryText)
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(ShuoColor.closeButtonBackground))
             }
+            .accessibilityLabel("Close")
+            .padding(ShuoSpacing.medium)
         }
         .presentationDragIndicator(.visible)
         .sheet(isPresented: isShowingInputScript) {
@@ -66,11 +78,21 @@ public struct PurposeSelectionView: View {
                 )
             }
         }
+        .onDisappear {
+            navigationTask?.cancel()
+        }
     }
 
     private func selectPurpose(_ purpose: SpeechPurpose) {
+        selectedPurpose = purpose
         inputScriptViewModel = InputScriptViewModel(purpose: purpose, fileImporter: fileImporter)
-        coordinator.selectPurpose(purpose)
+
+        navigationTask?.cancel()
+        navigationTask = Task {
+            try? await Task.sleep(for: Self.selectionDelay)
+            guard !Task.isCancelled else { return }
+            coordinator.selectPurpose(purpose)
+        }
     }
 
     private var isShowingInputScript: Binding<Bool> {
@@ -78,8 +100,10 @@ public struct PurposeSelectionView: View {
             get: { coordinator.selectedPurpose != nil },
             set: { isPresented in
                 if !isPresented {
+                    navigationTask?.cancel()
                     coordinator.dismissInputScript()
                     inputScriptViewModel = nil
+                    selectedPurpose = nil
                 }
             }
         )

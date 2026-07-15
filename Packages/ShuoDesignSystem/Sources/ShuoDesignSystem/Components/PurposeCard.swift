@@ -33,21 +33,24 @@ public struct PurposeCard: View {
 
     public var body: some View {
         Button(action: action) {
-            HStack(alignment: .top, spacing: ShuoSpacing.medium) {
+            VStack(alignment: .leading, spacing: ShuoSpacing.small) {
                 VStack(alignment: .leading, spacing: ShuoSpacing.xSmall) {
                     Text(title)
                         .font(ShuoTypography.headline)
                         .foregroundStyle(ShuoColor.primaryText)
                     Text(description)
-                        .font(ShuoTypography.body)
+                        .font(ShuoTypography.caption)
                         .foregroundStyle(ShuoColor.secondaryText)
                 }
 
-                Spacer(minLength: 0)
-
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isSelected ? ShuoColor.accent : ShuoColor.secondaryText)
+                HStack {
+                    Spacer(minLength: 0)
+                    Image(systemName: "play.fill")
+                        .font(.caption)
+                        .foregroundStyle(.white)
+                        .frame(width: 32, height: 32)
+                        .background(Circle().fill(ShuoColor.accent))
+                }
             }
             .cardStyle(isSelected: isSelected)
         }
