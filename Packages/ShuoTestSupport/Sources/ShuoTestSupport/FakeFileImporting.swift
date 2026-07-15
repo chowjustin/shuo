@@ -2,10 +2,22 @@
 //  FakeFileImporting.swift
 //  ShuoTestSupport
 //
-//  Created by Justin Chow on 13/07/26.
-//
-
-// Fake conforming to `FileImporting` (ShuoCore), returning a scripted `ImportedMedia`
-// without touching the filesystem or security-scoped resources.
 
 import Foundation
+import ShuoCore
+
+public struct FakeFileImporting: FileImporting {
+    private let result: Result<ImportedMedia, any Error>
+
+    public init(returning media: ImportedMedia) {
+        self.result = .success(media)
+    }
+
+    public init(throwing error: any Error) {
+        self.result = .failure(error)
+    }
+
+    public func importFile(from url: URL) async throws -> ImportedMedia {
+        try result.get()
+    }
+}

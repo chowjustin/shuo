@@ -54,7 +54,6 @@ public struct InputScriptView: View {
                 HStack {
                     Spacer()
                     modeContent
-                        .foregroundStyle(.secondary)
                     Spacer()
                 }
 
@@ -86,7 +85,7 @@ public struct InputScriptView: View {
     private var modeContent: some View {
         switch viewModel.mode {
         case .attachFile:
-            Text("Attach a file to get started.")
+            AttachFileModeView(viewModel: viewModel.attachVM)
         case .speak:
             Text("Let's hear your ideas.")
         case .write:
@@ -99,6 +98,12 @@ public struct InputScriptView: View {
     InputScriptPreviewHost()
 }
 
+private struct PreviewFileImporter: FileImporting {
+    func importFile(from url: URL) async throws -> ImportedMedia {
+        ImportedMedia(fileURL: url, kind: .audio, originalFileName: url.lastPathComponent)
+    }
+}
+
 private struct InputScriptPreviewHost: View {
     @State private var isPresented = true
 
@@ -107,7 +112,10 @@ private struct InputScriptPreviewHost: View {
             .ignoresSafeArea()
             .sheet(isPresented: $isPresented) {
                 InputScriptView(
-                    viewModel: InputScriptViewModel(purpose: .persuade),
+                    viewModel: InputScriptViewModel(
+                        purpose: .persuade,
+                        fileImporter: PreviewFileImporter()
+                    ),
                     onBack: {},
                     onClose: { isPresented = false }
                 )

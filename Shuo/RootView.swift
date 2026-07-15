@@ -19,7 +19,7 @@ struct RootView: View {
         })
         .sheet(isPresented: isShowingCreateFlow) {
             if let coordinator {
-                PurposeSelectionView(coordinator: coordinator)
+                container.makePurposeSelectionView(coordinator: coordinator)
             }
         }
     }
