@@ -30,50 +30,100 @@ public struct InputScriptView: View {
     }
 
     public var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 20) {
-                TextField("Title", text: $viewModel.title)
-                    .font(.system(.largeTitle, weight: .bold))
-                    .focused($isTitleFocused)
+        ZStack {
+            NavigationStack {
+                VStack(alignment: .leading, spacing: 20) {
+                    TextField("Title", text: $viewModel.title)
+                        .font(.system(.largeTitle, weight: .bold))
+                        .focused($isTitleFocused)
 
-                Picker("Input Mode", selection: $viewModel.mode) {
-                    ForEach(InputMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
+                    Picker("Input Mode", selection: $viewModel.mode) {
+                        ForEach(InputMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    // Each mode owns its own vertical layout — Speak and Attach centre their
+                    // content and pin a button to the bottom, Write starts at the top. Spacers
+                    // here would only fight them, and would push Write's first line away from
+                    // the picker.
+                    modeContent
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .padding()
+                .frame(maxHeight: .infinity, alignment: .top)
+                .contentShape(Rectangle())
+                .onTapGesture { isTitleFocused = false }
+                .navigationTitle("Input \(viewModel.purpose.gerund) Script")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(action: goBack) {
+                            Image(systemName: "chevron.left")
+                        }
+                        .accessibilityLabel("Back")
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(action: confirm) {
+                            Image(systemName: "checkmark")
+                        }
+                        .disabled(!viewModel.hasValidContent)
+                        .accessibilityLabel("Confirm")
                     }
                 }
-                .pickerStyle(.segmented)
-
-                // Each mode owns its own vertical layout — Speak and Attach centre their
-                // content and pin a button to the bottom, Write starts at the top. Spacers
-                // here would only fight them, and would push Write's first line away from
-                // the picker.
-                modeContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding()
-            .frame(maxHeight: .infinity, alignment: .top)
-            .contentShape(Rectangle())
-            .onTapGesture { isTitleFocused = false }
-            .navigationTitle("Input \(viewModel.purpose.gerund) Script")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(action: goBack) {
-                        Image(systemName: "chevron.left")
-                    }
-                    .accessibilityLabel("Back")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: confirm) {
-                        Image(systemName: "checkmark")
-                    }
-                    .disabled(!viewModel.hasValidContent)
-                    .accessibilityLabel("Confirm")
-                }
+            .blur(radius: viewModel.attachVM.isFileTooLarge ? 8 : 0)
+            .animation(.spring(duration: 0.25), value: viewModel.attachVM.isFileTooLarge)
+
+            if viewModel.attachVM.isFileTooLarge {
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+
+                fileTooLargeAlert
+                    .transition(.scale(scale: 0.85).combined(with: .opacity))
             }
         }
+        .animation(.spring(duration: 0.25), value: viewModel.attachVM.isFileTooLarge)
         .presentationDragIndicator(.visible)
         .interactiveDismissDisabled(true)
+    }
+
+    private var fileTooLargeAlert: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 52))
+                .foregroundStyle(.red.opacity(0.85))
+
+            Text("File too large.")
+                .font(.title3.bold())
+                .foregroundStyle(.primary)
+
+            Text("Maximum file size: 20MB")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Button {
+                viewModel.attachVM.cancel()
+                viewModel.attachVM.isPickerPresented = true
+            } label: {
+                Text("Try again")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.accentColor, in: Capsule())
+            }
+            .padding(.top, 4)
+        }
+        .padding(28)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 8)
+        )
+        .frame(width: 300)
     }
 
     @ViewBuilder

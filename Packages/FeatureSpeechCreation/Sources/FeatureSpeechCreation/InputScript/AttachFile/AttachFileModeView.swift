@@ -13,8 +13,7 @@ import UniformTypeIdentifiers
 import ShuoCore
 
 public struct AttachFileModeView: View {
-    let viewModel: AttachFileModeViewModel
-    @State private var isPickerPresented = false
+    @Bindable var viewModel: AttachFileModeViewModel
 
     public init(viewModel: AttachFileModeViewModel) {
         self.viewModel = viewModel
@@ -29,7 +28,7 @@ public struct AttachFileModeView: View {
                 .padding(.bottom, 40)
         }
         .fileImporter(
-            isPresented: $isPickerPresented,
+            isPresented: $viewModel.isPickerPresented,
             allowedContentTypes: [.audio, .movie, .pdf],
             allowsMultipleSelection: false
         ) { result in
@@ -44,7 +43,7 @@ public struct AttachFileModeView: View {
     @ViewBuilder
     private var contentArea: some View {
         switch viewModel.viewState {
-        case .idle:
+        case .idle, .fileTooLarge:
             Text("Upload your audio or video file.")
                 .foregroundStyle(.secondary)
 
@@ -77,7 +76,7 @@ public struct AttachFileModeView: View {
     @ViewBuilder
     private var bottomActions: some View {
         switch viewModel.viewState {
-        case .idle, .failed, .ready:
+        case .idle, .failed, .ready, .fileTooLarge:
             attachButton
 
         case .processing:
@@ -89,24 +88,17 @@ public struct AttachFileModeView: View {
 
     private var attachButton: some View {
         Button {
-            isPickerPresented = true
+            viewModel.isPickerPresented = true
         } label: {
             ZStack {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.secondary.opacity(0.08))
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.secondary.opacity(0.35), lineWidth: 1.5)
-                }
-                .frame(width: 72, height: 72)
-
                 Circle()
                     .fill(Color.secondary.opacity(0.25))
-                    .frame(width: 52, height: 52)
+                    .frame(width: 83, height: 83)
 
                 Image(systemName: "paperclip")
-                    .font(.title2.bold())
+                    .font(.system(size: 40).bold())
                     .foregroundStyle(Color.primary)
+                    .scaledToFit()
             }
         }
     }
@@ -162,6 +154,12 @@ private struct FailingPreviewFileImporter: FileImporting {
     }
 }
 
+private struct TooLargePreviewFileImporter: FileImporting {
+    func importFile(from url: URL) async throws -> ImportedMedia {
+        throw ShuoError.fileTooLarge
+    }
+}
+
 #Preview("Idle") {
     AttachFileModeView(viewModel: AttachFileModeViewModel(fileImporter: PreviewFileImporter()))
 }
@@ -180,6 +178,15 @@ private struct FailingPreviewFileImporter: FileImporting {
     return AttachFileModeView(viewModel: vm)
         .task {
             vm.fileSelected(url: URL(filePath: "/tmp/speech.m4a"))
+            await vm.importTask?.value
+        }
+}
+
+#Preview("File Too Large") {
+    let vm = AttachFileModeViewModel(fileImporter: TooLargePreviewFileImporter())
+    return AttachFileModeView(viewModel: vm)
+        .task {
+            vm.fileSelected(url: URL(filePath: "/tmp/huge.mp4"))
             await vm.importTask?.value
         }
 }

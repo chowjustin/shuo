@@ -10,6 +10,7 @@ public enum ShuoError: Error, Sendable, Equatable {
     case aiUnavailable
     case contextWindowExceeded
     case importFailed
+    case fileTooLarge
     case persistenceFailed
     /// The user declined microphone access, or it is restricted. Only Settings can
     /// change this — re-requesting will not prompt again.
