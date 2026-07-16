@@ -19,9 +19,9 @@ public enum SpeechPurpose: String, Codable, CaseIterable, Sendable, Identifiable
 
     public var title: String {
         switch self {
-        case .persuade: "Persuade"
-        case .inspire: "Inspire"
-        case .inform: "Inform"
+        case .persuade: "To Persuade"
+        case .inspire: "To Inspire"
+        case .inform: "To Inform"
         }
     }
 

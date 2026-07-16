@@ -77,7 +77,7 @@ public struct InputScriptView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: onClose) {
-                        Image(systemName: "xmark")
+                        Image(systemName: "checkmark")
                     }
                 }
             }
