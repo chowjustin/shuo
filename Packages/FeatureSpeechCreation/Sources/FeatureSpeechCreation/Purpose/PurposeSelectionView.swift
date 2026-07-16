@@ -30,41 +30,46 @@ public struct PurposeSelectionView: View {
     }
 
     public var body: some View {
-        ScrollView {
-            VStack(alignment: .center, spacing: ShuoSpacing.medium) {
-                Text("Tell us your purpose")
-                    .font(ShuoTypography.title)
-                    .foregroundStyle(ShuoColor.primaryText)
-                    .accessibilityAddTraits(.isHeader)
+        NavigationStack{
+            ScrollView {
+                VStack(alignment: .center, spacing: ShuoSpacing.large) {
+                    
+                    Text("Tell us your purpose")
+                        .font(ShuoTypography.title)
+                        .foregroundStyle(ShuoColor.primaryText)
+                        .accessibilityAddTraits(.isHeader)
+                    
+                    ForEach(SpeechPurpose.allCases) { purpose in
+                        PurposeCard(
+                            title: purpose.title,
+                            description: purpose.description,
+                            isSelected: selectedPurpose == purpose,
+                            action: { selectPurpose(purpose) }
+                        )
+                        .accessibilityElement(children: .combine)
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityValue(selectedPurpose == purpose ? "Selected" : "")
+                        .accessibilityAction {
+                            selectPurpose(purpose)
+                        }
+                    }
+                }
+                .padding(ShuoSpacing.large)
 
-                ForEach(SpeechPurpose.allCases) { purpose in
-                    PurposeCard(
-                        title: purpose.title,
-                        description: purpose.description,
-                        isSelected: selectedPurpose == purpose,
-                        action: { selectPurpose(purpose) }
-                    )
-                    .accessibilityElement(children: .combine)
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityValue(selectedPurpose == purpose ? "Selected" : "")
+            }
+            .background(ShuoColor.background)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        coordinator.close()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.title3)
+                            .foregroundStyle(ShuoColor.primaryText)
+                    }
+                    .accessibilityLabel("Close")
                 }
             }
-            .padding(ShuoSpacing.large)
-            .padding(.top, 70)
-        }
-        .background(ShuoColor.background)
-        .overlay(alignment: .topLeading) {
-            Button {
-                coordinator.close()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.title3)
-                    .foregroundStyle(ShuoColor.primaryText)
-                    .frame(width: 40, height: 40)
-                    .background(Circle().fill(ShuoColor.closeButtonBackground))
-            }
-            .accessibilityLabel("Close")
-            .padding(ShuoSpacing.medium)
         }
         .presentationDragIndicator(.visible)
         .sheet(isPresented: isShowingInputScript) {

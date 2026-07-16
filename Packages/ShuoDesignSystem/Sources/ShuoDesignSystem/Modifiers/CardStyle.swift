@@ -14,7 +14,7 @@ import SwiftUI
 struct CardStyle: ViewModifier {
     var isSelected: Bool = false
 
-    private var cornerRadius: CGFloat { 16 }
+    private var cornerRadius: CGFloat { 20 }
 
     func body(content: Content) -> some View {
         content

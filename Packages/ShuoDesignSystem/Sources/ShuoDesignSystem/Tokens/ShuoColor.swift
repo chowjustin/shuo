@@ -13,9 +13,10 @@ import SwiftUI
 
 public enum ShuoColor {
     public static let pink = Color(hex: 0xF7567C)
+    public static let pinkTint = Color(hex: 0xFFF0F4)
     public static let aqua = Color(hex: 0x99E1D9)
     public static let aquaTint = Color(hex: 0xF0FFFE)
-    public static let background = Color(uiColor: .systemBackground)
+    public static let background = Color(hex: 0xFFFDF5)
 
     public static let primaryText = Color(uiColor: .label)
     public static let secondaryText = Color(uiColor: .secondaryLabel)
