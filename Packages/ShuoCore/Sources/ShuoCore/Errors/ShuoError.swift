@@ -10,5 +10,6 @@ public enum ShuoError: Error, Sendable {
     case aiUnavailable
     case contextWindowExceeded
     case importFailed
+    case fileTooLarge
     case persistenceFailed
 }

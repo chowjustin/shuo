@@ -12,6 +12,8 @@ import UniformTypeIdentifiers
 
 public struct FileImportService: FileImporting {
 
+    static let maxFileSizeBytes: Int = 20 * 1_024 * 1_024 // 20 MB
+
     public init() {}
 
     public func importFile(from url: URL) async throws -> ImportedMedia {
@@ -22,12 +24,15 @@ public struct FileImportService: FileImporting {
             }
         }
 
-        let sandboxURL = try copyToSandbox(url)
+        try checkFileSize(url)
+
+        let bookmarkData = try createBookmark(url)
         let kind = mediaKind(for: url)
-        let duration: TimeInterval? = kind != .pdf ? await probeDuration(of: sandboxURL) : nil
+        let duration: TimeInterval? = kind != .pdf ? await probeDuration(of: url) : nil
 
         return ImportedMedia(
-            fileURL: sandboxURL,
+            fileURL: url,
+            bookmarkData: bookmarkData,
             kind: kind,
             originalFileName: url.lastPathComponent,
             duration: duration
@@ -36,39 +41,31 @@ public struct FileImportService: FileImporting {
 
     // MARK: - Helpers
 
-    // Copies the source file into `Application Support/Attachments/`, creating the
-    // directory if needed. Returns the destination URL.
-    private func copyToSandbox(_ source: URL) throws -> URL {
-        let support = try FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        let attachmentsDir = support.appendingPathComponent("Attachments", isDirectory: true)
-        try FileManager.default.createDirectory(
-            at: attachmentsDir,
-            withIntermediateDirectories: true
-        )
+    // Throws `ShuoError.fileTooLarge` if the file exceeds `maxFileSizeBytes`.
+    private func checkFileSize(_ url: URL) throws {
+        let attributes = (try? FileManager.default.attributesOfItem(atPath: url.path)) ?? [:]
+        let fileSize = attributes[.size] as? Int ?? 0
+        if fileSize > Self.maxFileSizeBytes {
+            throw ShuoError.fileTooLarge
+        }
+    }
 
-        let destination = attachmentsDir
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension(source.pathExtension)
-
+    // Creates a security-scoped bookmark so the file can be accessed in future sessions.
+    private func createBookmark(_ url: URL) throws -> Data {
         do {
-            try FileManager.default.copyItem(at: source, to: destination)
+            return try url.bookmarkData(
+                options: .minimalBookmark,
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            )
         } catch {
             throw ShuoError.importFailed
         }
-        return destination
     }
 
     // Maps the file's UTType to the domain `ImportedMedia.Kind`.
     private func mediaKind(for url: URL) -> ImportedMedia.Kind {
-        guard
-            let type = UTType(filenameExtension: url.pathExtension)
-        else { return .audio }
-
+        guard let type = UTType(filenameExtension: url.pathExtension) else { return .audio }
         if type.conforms(to: .movie) || type.conforms(to: .video) { return .video }
         if type.conforms(to: .pdf) { return .pdf }
         return .audio
