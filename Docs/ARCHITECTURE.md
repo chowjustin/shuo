@@ -101,10 +101,18 @@ Because Speak / Write / Attach File have meaningfully different state and behavi
 This keeps each mode independently unit-testable (Interface Segregation) and makes `hasValidContent` — which gates "proceed to Transcript" — trivial to test as a pure function of state.
 
 #### 3.1.3 Speak mode
-- **APIs:** `AVAudioEngine` (tap on the input node for live amplitude) or `AVAudioRecorder`, `AVAudioSession` category `.record`/`.playAndRecord`, `NSMicrophoneUsageDescription`.
-- **Concurrency:** wrap capture in an `actor AudioRecordingService: AudioCapturing` — the actor isolates the non-`Sendable` `AVAudioEngine`/recorder state and exposes `async` methods (`start()`, `pause()`, `resume()`, `finish() -> AudioRecording`) plus an `AsyncStream<[Float]>` of downsampled amplitude values for the waveform (throttled to ~10–20Hz so SwiftUI isn't redrawing on every audio buffer).
-- **Duration** comes from the recorder's `currentTime`, published on the same cadence as the waveform.
-- **Testing:** the `AudioCapturing` protocol lets ViewModel tests inject a fake (assert on start/pause/resume/finish call counts and the idle→recording→paused→recording→finished state machine) without ever touching real hardware — which also can't run reliably in CI. The real actor implementation gets a small number of manual/integration checks instead (record to a temp file, assert non-zero duration), not exhaustive unit coverage.
+**Implemented.** Revised from the original design in three places — the event stream shape, live transcription, and interruption handling — all noted below.
+
+- **APIs:** `AVAudioEngine` (tap on the input node), `AVAudioSession` category `.record` mode `.spokenAudio`, `NSMicrophoneUsageDescription`, `NSSpeechRecognitionUsageDescription`.
+- **One tap, three consumers.** Audio is captured once and fans out to an `AVAudioFile` on disk, the waveform/duration event stream, and a `LiveTranscriptionSession`. The tap runs on a realtime audio thread and cannot touch actor state, so it extracts plain `[Float]` (Sendable) and hands them over through an `AsyncStream`, which preserves ordering — spawning a `Task` per buffer would not.
+- **Concurrency:** capture lives in an `actor AudioRecordingService: AudioCapturing`, isolating the non-`Sendable` `AVAudioEngine` state behind `async` `prepare()`/`start()`/`pause()`/`resume()`/`finish() -> AudioRecording`/`discard()`.
+- **One event stream, not an amplitude stream** *(revised)*. The original design specified `AsyncStream<[Float]>` for amplitudes with duration published separately. It is instead a single `AsyncStream<AudioCaptureEvent>` carrying `.tick(amplitudes:duration:)`, `.interrupted`, and `.failed`. One stream means every state transition flows through one consumer loop in the view model, so an interruption cannot race a waveform update, and amplitude and duration cannot drift apart. Ticks arrive at ~12Hz (one 4096-frame tap buffer at 48kHz ≈ 85ms), which lands inside the intended 10–20Hz without a separate throttle.
+- **Duration comes from frames written** (`framesWritten / sampleRate`), not the recorder's `currentTime` *(revised)*. It cannot drift from the audio actually on disk and needs no special handling across pause/resume.
+- **Interruptions auto-pause** *(added)*. `AVAudioSession.interruptionNotification` (`.began`) and `routeChangeNotification` (`.oldDeviceUnavailable`) both emit `.interrupted`, which moves the UI to `.paused`. Without this the UI would sit in `.recording` capturing silence through an incoming call.
+- **Live transcription is an optimization, never a dependency** *(added)*. See §3.2.1.
+- **Waveform:** a rolling window of the most recent 25 amplitudes, pre-filled with silence so it spans its full width from the first frame — a started-but-silent session reads as a dashed line rather than growing in from the left. The full downsampled history is kept in `AudioRecording.waveformSamples`.
+- **Permissions are deliberately asymmetric.** Microphone is a hard gate (denied → explicit UI plus an Open Settings affordance). Speech recognition is soft: refusing it costs only the live-transcript optimization, so it never surfaces. Neither is requested when the screen merely appears — asking before the user has expressed intent to record is startling and likely to be refused — so `prepare()` warms assets only when already authorized, and the request happens behind the record tap, before `engine.start()` so no audio is captured while a modal is up.
+- **Testing:** `AudioCapturing` lets ViewModel tests inject `FakeAudioCapturing` and assert the idle→recording→paused→recording→finished machine without hardware. Critically, all the logic worth testing lives in a **synchronous** `SpeakModeViewModel.handle(_:)`, with the stream task doing nothing but call it — tests drive `handle` directly and stay deterministic instead of racing an `AsyncStream`. `WaveformSampler` is pure and fully covered. `AudioRecordingService` and `LiveTranscriptionSession` get manual/device checks only, per §8.
 
 #### 3.1.4 Write mode
 Straightforward: `TextEditor` bound to `writeVM.content`, an `.overlay` placeholder for "Start typing your ideas." when empty (native SwiftUI pattern, no extra library needed). Nearly all logic here is pure and trivially testable.
@@ -131,6 +139,10 @@ enum SpeechSource: Sendable {
 }
 ```
 A single `GenerateTranscriptUseCase(source: SpeechSource) async throws -> Transcript` pattern-matches: `.recordedAudio`/`.importedMedia` go through `SpeechTranscribing`; `.typedText` short-circuits straight to the "original transcript." This directly satisfies the acceptance criteria ("typed input is used directly as transcript content") without special-casing it in the UI layer.
+
+**Speak mode transcribes while recording, so `.recordedAudio` can short-circuit too.** `AudioRecording` carries an optional `liveTranscript`, populated by the `SpeechAnalyzer` pass that runs alongside capture (§3.1.3). `GenerateTranscriptUseCase` therefore gets a third route: `.recordedAudio` *with* a `liveTranscript` skips `SpeechTranscribing` entirely, exactly as `.typedText` does, and the create flow has no transcription wait at all.
+
+The reason this is worth the extra field is that it keeps live transcription a **pure optimization rather than a dependency**. `SpeechSource` stays at three cases; the audio file is always written even when the live pass succeeds; and if the model assets are still downloading, the locale is unsupported, speech authorization is refused, or the analyzer throws mid-session, `liveTranscript` is simply nil and the existing `SpeechTranscribing` path transcribes the file. Recording never fails because transcription did, which is why none of it needs to surface in the UI.
 
 `SpeechTranscribing` wraps `SpeechAnalyzer` + `SpeechTranscriber` with the **long-form preset**, since a speech draft is exactly the "lectures, meetings, multi-speaker conversation" case Apple built the new model for — a meaningful accuracy improvement over the old `SFSpeechRecognizer` for this specific use case. `SFSpeechRecognizer` remains as an automatic fallback when `SpeechTranscriber`'s locale/hardware requirements aren't met.
 
@@ -281,6 +293,27 @@ Shuo (app target — composition root)
 ```swift
 enum InputMode: String, Codable, Sendable { case speak, write, attachFile }
 
+struct AudioRecording: Sendable, Identifiable, Equatable {
+    let id: UUID
+    let fileURL: URL              // always written — the fallback transcription source
+    let duration: TimeInterval    // derived from frames written, not a wall clock
+    let waveformSamples: [Float]  // normalized 0...1, whole session
+    let createdAt: Date
+    // Captured during recording (§3.1.3). Nil when the live pass was unavailable or
+    // failed; callers then transcribe `fileURL`. An optimization, not a guarantee.
+    let liveTranscript: String?
+}
+
+// Everything an active capture session reports, on one stream so waveform updates and
+// system interruptions cannot race each other (§3.1.3).
+enum AudioCaptureEvent: Sendable, Equatable {
+    case tick(amplitudes: [Float], duration: TimeInterval)
+    case interrupted          // incoming call, or headphones unplugged
+    case failed(ShuoError)
+}
+
+enum MicrophonePermissionStatus: Sendable, Equatable { case notDetermined, granted, denied }
+
 struct SpeechPattern: Sendable, Identifiable, Equatable, Codable {
     let id: UUID
     let name: String
@@ -403,6 +436,9 @@ This split follows current (2026) Apple guidance directly: Swift Testing is the 
 | 4 | Chunking strategy for long transcripts vs. the Foundation Models context window? | **In scope for v1**, not deferred. See §3.2.4. |
 | 5 | Require Apple Intelligence–eligible hardware, or degrade gracefully? | **Required for v1.** No degraded "no-AI" mode. See §2.1. |
 | 6 | Multi-language beyond English for v1? | **English only** for v1. See §2.3. |
+| 7 | Does Speak mode transcribe live, or only record and let the next step transcribe? | **Transcribes live, hidden.** One `AVAudioEngine` tap feeds the file, the waveform, and a `SpeechAnalyzer` pass at the same time, so the transcript is ready the moment the user confirms and the create flow has no transcription wait. Carried forward on `AudioRecording.liveTranscript`, which keeps `SpeechSource` at three cases and makes the live pass a pure optimization over the always-written audio file. No transcript is shown while recording — the UI is waveform and timer only. See §3.1.3, §3.2.1. |
+| 8 | Amplitude stream plus separate duration, or one event stream? | **One `AsyncStream<AudioCaptureEvent>`**, superseding §3.1.3's original `AsyncStream<[Float]>`. Added when interruption handling came into scope: with two channels, an interruption could race a waveform tick. See §3.1.3. |
+| 9 | Handle microphone denial and audio interruptions now, or defer to a hardening pass? | **Now.** Retrofitting interruption handling into a finished state machine is more churn than building it once, and it is the difference between a demo and a shippable recorder. See §3.1.3. |
 
 ## 10. Tooling decisions (scaffolding phase)
 
@@ -411,7 +447,7 @@ This split follows current (2026) Apple guidance directly: Swift Testing is the 
 | 1 | Xcode project generation | **Plain, Xcode-native `.xcodeproj`** with local Swift packages added as local package references — no XcodeGen or Tuist. See §12–13 for the resulting layout. |
 | 2 | CI | **Skipped for now.** No GitHub Actions workflow scaffolded in this pass. `swift test` per package and the app's test plan remain the way to run tests locally; add CI later without any structural change. |
 | 3 | Design tokens / brand assets | **Placeholders for now.** `ShuoDesignSystem`'s token files ship with a sensible, clearly-marked placeholder palette/type scale — swap in real brand values whenever they're ready, nothing else in the app touches raw colors/fonts directly (see §12). |
-| 4 | Bundle identifier | **Not yet provided — placeholder `com.shuo.app` used.** This lives in exactly one place (the app target's build settings); change it there before archiving/shipping. |
+| 4 | Bundle identifier | **`com.seven.shuo`**, in the app target's build settings. Earlier revisions of this doc recorded a `com.shuo.app` placeholder, but the project does not use that value — corrected here rather than left to mislead. Still worth confirming before archiving/shipping. |
 
 ---
 
@@ -474,7 +510,10 @@ Packages/ShuoCore/
 │   │   ├── SpeechPurpose.swift        enum: persuade/inspire/inform + title/description
 │   │   ├── InputMode.swift            enum: speak/write/attachFile
 │   │   ├── SpeechSource.swift         enum: recordedAudio/importedMedia/typedText
-│   │   ├── AudioRecording.swift       struct: id, fileURL, duration, waveformSamples, createdAt
+│   │   ├── AudioRecording.swift       struct: id, fileURL, duration, waveformSamples,
+│   │   │                              createdAt, liveTranscript (§3.2.1)
+│   │   ├── AudioCaptureEvent.swift    enum: tick/interrupted/failed — one stream (§3.1.3)
+│   │   ├── MicrophonePermissionStatus.swift  enum: notDetermined/granted/denied
 │   │   ├── ImportedMedia.swift        struct: id, fileURL, kind (audio/video), originalFileName
 │   │   ├── Transcript.swift           struct: original, refined
 │   │   ├── SpeechPattern.swift        struct: id, name, summary, outline
@@ -487,7 +526,9 @@ Packages/ShuoCore/
 │   │
 │   ├── Protocols/                     the seams — domain owns these, Data/Presentation implement/consume them
 │   │   ├── ScriptRepository.swift         save/fetch(id:)/fetchSummaries()/search(query:)/delete(id:)
-│   │   ├── AudioCapturing.swift           start()/pause()/resume()/finish() -> AudioRecording, waveform stream
+│   │   ├── AudioCapturing.swift           prepare()/start()/pause()/resume()/finish() ->
+│   │   │                                  AudioRecording/discard(), plus `events` stream
+│   │   ├── MicrophonePermissionProviding.swift  currentStatus()/request()
 │   │   ├── SpeechTranscribing.swift       transcribe(_ source: SpeechSource) async throws -> String
 │   │   ├── FileImporting.swift            importFile(from: URL) async throws -> ImportedMedia
 │   │   ├── SpeechAnalyzing.swift          suggestPatterns / generateKeyPoints / refineTranscript / analyzeGrammar
@@ -579,7 +620,10 @@ Every other local package's `Package.swift` follows this same shape — a `.libr
 Packages/ShuoAudio/
 ├── Sources/ShuoAudio/
 │   ├── Recording/
-│   │   ├── AudioRecordingService.swift     actor; conforms to AudioCapturing; wraps AVAudioEngine
+│   │   ├── AudioRecordingService.swift     actor; conforms to AudioCapturing; wraps AVAudioEngine;
+│   │   │                                   one tap -> file + waveform + live transcription
+│   │   ├── LiveTranscriptionSession.swift  actor; SpeechAnalyzer/SpeechTranscriber alongside
+│   │   │                                   capture. Every failure is silent — see §3.2.1
 │   │   └── WaveformSampler.swift            pure function: audio buffer -> downsampled [Float]
 │   ├── Transcription/
 │   │   ├── SpeechAnalyzerTranscriptionService.swift   actor; SpeechAnalyzer/SpeechTranscriber (iOS 26+)
@@ -652,7 +696,8 @@ Depends on `ShuoCore`; depended on by every other package's test target. Keeps f
 Packages/ShuoTestSupport/
 └── Sources/ShuoTestSupport/
     ├── FakeScriptRepository.swift
-    ├── FakeAudioCapturing.swift
+    ├── FakeAudioCapturing.swift              actor; scripted events via emit(_:) + call counts
+    ├── FakeMicrophonePermissionProviding.swift
     ├── FakeSpeechTranscribing.swift
     ├── FakeFileImporting.swift
     ├── FakeSpeechAnalyzing.swift
@@ -686,16 +731,22 @@ Packages/FeatureSpeechCreation/
 │   │   ├── InputScriptViewModel.swift
 │   │   ├── Speak/
 │   │   │   ├── SpeakModeView.swift
-│   │   │   └── SpeakModeViewModel.swift
+│   │   │   ├── SpeakModeViewModel.swift
+│   │   │   └── SpeakModeViewState.swift   idle/requestingPermission/permissionDenied/
+│   │   │                                  recording/paused/finished/failed
 │   │   ├── Write/
 │   │   │   ├── WriteModeView.swift
 │   │   │   └── WriteModeViewModel.swift
 │   │   └── AttachFile/
 │   │       ├── AttachFileModeView.swift
 │   │       └── AttachFileModeViewModel.swift
-│   └── Loading/
-│       └── LoadingRouteView.swift    wires LoadingContext -> ShuoDesignSystem.LoadingView, drives
-│                                     the use cases (extract -> transcribe -> analyze) before pushing .analysis
+│   ├── Loading/
+│   │   └── LoadingRouteView.swift    wires LoadingContext -> ShuoDesignSystem.LoadingView, drives
+│   │                                 the use cases (extract -> transcribe -> analyze) before pushing .analysis
+│   └── Previews/
+│       └── PreviewDoubles.swift      #if DEBUG stand-ins so #Preview can build a view model
+│                                     without the composition root. Not test doubles — the
+│                                     runtime target must not depend on ShuoTestSupport.
 └── Tests/FeatureSpeechCreationTests/
     ├── CreateScriptCoordinatorTests.swift
     ├── InputScriptViewModelTests.swift
@@ -747,9 +798,9 @@ Shuo/                                (repo root — see §12.1–12.10 for what'
 ```
 
 - **Adding each package to the project:** File → Add Package Dependencies → Add Local… → point at each `Packages/<Name>` folder, then add it as a dependency of the `Shuo` app target (and of whichever other local packages need it, via that package's own `Package.swift`).
-- **Bundle identifier:** placeholder `com.shuo.app` (§10.4) — one place to change, in the `Shuo` app target's Signing & Capabilities.
+- **Bundle identifier:** `com.seven.shuo` (§10.4) — one place to change, in the `Shuo` app target's Signing & Capabilities.
 - **`.gitignore`:** standard Swift/Xcode — `.build/`, `.swiftpm/`, `DerivedData/`, `*.xcuserstate`, `xcuserdata/`.
-- **Running tests locally without CI (§10.2):** `swift test` inside any `Packages/<Name>` folder runs that package's tests in isolation; `⌘U` in Xcode with the `Shuo` scheme runs everything, including `ShuoUITests`.
+- **Running tests locally without CI (§10.2):** `swift test` inside `Packages/ShuoCore` runs the domain tests on the host toolchain — that package and `ShuoTestSupport` declare `.macOS(.v26)` alongside `.iOS(.v26)` purely to keep this fast loop working; iOS remains the only shipping platform. Every other package imports something iOS-only and must be tested against a simulator instead: `cd Packages/<Name> && xcodebuild test -scheme <Name> -destination 'platform=iOS Simulator,name=iPhone 17'`. Note that the `Shuo` scheme's test action covers only `ShuoTests`/`ShuoUITests` — it does **not** run the package test targets, so `⌘U` alone does not validate a change.
 - **SwiftLint/SwiftFormat:** not configured in this pass (kept lean per §10.2) — worth adding once the shape of the code settles; `CLAUDE.md` states the style rules to follow manually until then.
 
 This structure and this document are the design reference. `CLAUDE.md` (repo root) is the companion doc that turns this into day-to-day working rules for anyone — human or Claude — writing code in this repo.

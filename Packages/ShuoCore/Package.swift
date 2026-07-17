@@ -5,7 +5,10 @@ import PackageDescription
 
 let package = Package(
     name: "ShuoCore",
-    platforms: [.iOS(.v26)],
+    // iOS is the only shipping platform. macOS is declared solely so this package builds
+    // for the host toolchain, keeping `swift test` usable as the fast inner loop
+    // (CLAUDE.md §14) — ShuoCore is pure Foundation, so it costs nothing.
+    platforms: [.iOS(.v26), .macOS(.v26)],
     products: [
         .library(name: "ShuoCore", targets: ["ShuoCore"]),
     ],

@@ -27,6 +27,11 @@ public final class AttachFileModeViewModel {
         return nil
     }
 
+    /// The imported file as a domain `SpeechSource`, once there is one.
+    public var speechSource: SpeechSource? {
+        importedMedia.map(SpeechSource.importedMedia)
+    }
+
     private let fileImporter: any FileImporting
     public private(set) var importTask: Task<Void, Never>?
 

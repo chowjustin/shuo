@@ -25,6 +25,17 @@ public enum SpeechPurpose: String, Codable, CaseIterable, Sendable, Identifiable
         }
     }
 
+    /// The purpose as a gerund — "Persuading", "Inspiring", "Informing" — for composing
+    /// running text such as the Input Script sheet's "Input Persuading Script" title.
+    /// English-only, matching v1's scope (ARCHITECTURE.md §2.3).
+    public var gerund: String {
+        switch self {
+        case .persuade: "Persuading"
+        case .inspire: "Inspiring"
+        case .inform: "Informing"
+        }
+    }
+
     public var description: String {
         switch self {
         case .persuade: "The act of using spoken or nonverbal messages to influence an audience's beliefs, attitudes, or behaviors to convince listeners to voluntarily adopt a new perspective or take a specific action, without using force or manipulation."
