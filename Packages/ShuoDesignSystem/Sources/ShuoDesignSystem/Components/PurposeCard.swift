@@ -32,45 +32,43 @@ public struct PurposeCard: View {
     }
 
     public var body: some View {
-        Button(action: action) {
-            HStack(alignment: .top, spacing: ShuoSpacing.medium) {
-                VStack(alignment: .leading, spacing: ShuoSpacing.xSmall) {
-                    Text(title)
-                        .font(ShuoTypography.headline)
-                        .foregroundStyle(ShuoColor.primaryText)
-                    Text(description)
-                        .font(ShuoTypography.body)
-                        .foregroundStyle(ShuoColor.secondaryText)
+            Button(action: action) {
+                HStack(alignment: .bottom, spacing: ShuoSpacing.medium) {
+                    VStack(alignment: .leading, spacing: ShuoSpacing.small) {
+                        Text(title)
+                            .font(.title2.bold())
+                            .foregroundStyle(ShuoColor.primaryText)
+                        Text(description)
+                            .font(ShuoTypography.caption)
+                            .foregroundStyle(ShuoColor.primaryText)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: "play.fill")
+                        .font(.title2)
+                        .foregroundStyle(isSelected ? .white : ShuoColor.pink)
                 }
-
-                Spacer(minLength: 0)
-
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isSelected ? ShuoColor.accent : ShuoColor.secondaryText)
+                .cardStyle(isSelected: isSelected)
             }
-            .cardStyle(isSelected: isSelected)
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])
         }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])
     }
-}
 
-#Preview {
-    VStack(spacing: ShuoSpacing.medium) {
-        PurposeCard(
-            title: "Persuade",
-            description: "Convince your audience to think or act differently.",
-            isSelected: true,
-            action: {}
-        )
-        PurposeCard(
-            title: "Inspire",
-            description: "Motivate your audience with an emotional, memorable message.",
-            isSelected: false,
-            action: {}
-        )
+    #Preview {
+        VStack(spacing: ShuoSpacing.medium) {
+            PurposeCard(
+                title: "Persuade",
+                description: "The act of using spoken or nonverbal messages to influence an audience's beliefs, attitudes, or behaviors to convince listeners to voluntarily adopt a new perspective or take a specific action, without using force or manipulation.",
+                isSelected: true,
+                action: {}
+            )
+            PurposeCard(
+                title: "Inspire",
+                description: "Motivate your audience with an emotional, memorable message.",
+                isSelected: false,
+                action: {}
+            )
+        }
+        .padding()
     }
-    .padding()
-}

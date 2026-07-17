@@ -17,6 +17,7 @@ public final class InputScriptViewModel {
     public var mode: InputMode = .speak
 
     public let attachVM: AttachFileModeViewModel
+    public let writeVM: WriteModeViewModel
 
     /// `true` when the currently active mode has enough content to proceed.
     public var hasValidContent: Bool {
@@ -24,7 +25,7 @@ public final class InputScriptViewModel {
         case .speak:
             return false // SpeakModeViewModel not yet wired; always false for now.
         case .write:
-            return false // WriteModeViewModel not yet wired; always false for now.
+            return writeVM.hasValidContent
         case .attachFile:
             return attachVM.hasImportedFile
         }
@@ -33,5 +34,6 @@ public final class InputScriptViewModel {
     public init(purpose: SpeechPurpose, fileImporter: any FileImporting) {
         self.purpose = purpose
         self.attachVM = AttachFileModeViewModel(fileImporter: fileImporter)
+        self.writeVM = WriteModeViewModel()
     }
 }
