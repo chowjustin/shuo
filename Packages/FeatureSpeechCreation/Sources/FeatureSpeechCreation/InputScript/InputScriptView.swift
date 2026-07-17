@@ -109,6 +109,7 @@ public struct InputScriptView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     InputScriptPreviewHost()
 }
@@ -128,3 +129,4 @@ private struct InputScriptPreviewHost: View {
             }
     }
 }
+#endif

@@ -120,6 +120,7 @@ public struct PurposeSelectionView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     PurposeSelectionPreviewHost()
 }
@@ -138,3 +139,4 @@ private struct PurposeSelectionPreviewHost: View {
             }
     }
 }
+#endif
