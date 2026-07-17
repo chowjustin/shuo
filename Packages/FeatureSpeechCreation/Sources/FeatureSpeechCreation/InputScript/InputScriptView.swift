@@ -53,17 +53,10 @@ public struct InputScriptView: View {
                 }
                 .pickerStyle(.segmented)
 
-                Spacer(minLength: 40)
-
-                HStack {
-                    Spacer()
-                    modeContent
-                    Spacer()
-                }
-
-                Spacer()
+                modeContent
             }
             .padding()
+            .frame(maxHeight: .infinity, alignment: .top)
             .contentShape(Rectangle())
             .onTapGesture { isTitleFocused = false }
             .navigationTitle("Input Script")
@@ -93,7 +86,7 @@ public struct InputScriptView: View {
         case .speak:
             Text("Let's hear your ideas.")
         case .write:
-            Text("Let's write your ideas.")
+            WriteModeView(viewModel: viewModel.writeVM)
         }
     }
 }
