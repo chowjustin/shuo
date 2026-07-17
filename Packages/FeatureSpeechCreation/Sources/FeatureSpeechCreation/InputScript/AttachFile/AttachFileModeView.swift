@@ -45,8 +45,10 @@ public struct AttachFileModeView: View {
         switch viewModel.viewState {
         case .idle, .fileTooLarge:
             Text("Upload your audio or video file.")
+                .font(.body)
+                .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
-
+            
         case .processing:
             ProgressView("Importing…")
                 .foregroundStyle(.secondary)
@@ -96,7 +98,7 @@ public struct AttachFileModeView: View {
                     .frame(width: 83, height: 83)
 
                 Image(systemName: "paperclip")
-                    .font(.system(size: 40).bold())
+                    .font(.largeTitle.bold())
                     .foregroundStyle(Color.primary)
                     .scaledToFit()
             }
@@ -111,7 +113,7 @@ public struct AttachFileModeView: View {
                 RoundedRectangle(cornerRadius: 16)
                     .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
                 Image(systemName: systemIcon)
-                    .font(.system(size: 40))
+                    .font(.largeTitle)
                     .foregroundStyle(.secondary)
             }
             .frame(width: 220, height: 215)
