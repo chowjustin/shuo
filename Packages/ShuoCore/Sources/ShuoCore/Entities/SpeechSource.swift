@@ -10,3 +10,9 @@
 // special-case the input mode. See ARCHITECTURE.md §3.2.1.
 
 import Foundation
+
+public enum SpeechSource: Sendable, Equatable {
+    case recordedAudio(AudioRecording)
+    case importedMedia(ImportedMedia)
+    case typedText(String)
+}

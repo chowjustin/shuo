@@ -20,6 +20,7 @@ final class AppContainer {
     // MARK: - Services
 
     private let fileImportService: any FileImporting = FileImportService()
+    private let microphonePermissions: any MicrophonePermissionProviding = MicrophonePermissionProvider()
 
     // MARK: - Factories
 
@@ -32,6 +33,23 @@ final class AppContainer {
     }
 
     func makePurposeSelectionView(coordinator: CreateScriptCoordinator) -> PurposeSelectionView {
-        PurposeSelectionView(coordinator: coordinator, fileImporter: fileImportService)
+        PurposeSelectionView(
+            coordinator: coordinator,
+            makeInputScriptViewModel: makeInputScriptViewModel
+        )
+    }
+
+    @MainActor
+    private func makeInputScriptViewModel(purpose: SpeechPurpose) -> InputScriptViewModel {
+        InputScriptViewModel(
+            purpose: purpose,
+            fileImporter: fileImportService,
+            // A fresh capturer per session rather than one shared instance:
+            // `AudioRecordingService` is single-use by contract — its event stream
+            // completes when the session ends — so reusing one would hand the next
+            // recording a dead stream.
+            audioCapturer: AudioRecordingService(),
+            microphonePermissions: microphonePermissions
+        )
     }
 }

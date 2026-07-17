@@ -5,7 +5,9 @@ import PackageDescription
 
 let package = Package(
     name: "ShuoTestSupport",
-    platforms: [.iOS(.v26)],
+    // See ShuoCore/Package.swift — macOS is declared only to keep `swift test` working
+    // on the host toolchain. ShuoTestSupport depends on ShuoCore alone.
+    platforms: [.iOS(.v26), .macOS(.v26)],
     products: [
         .library(name: "ShuoTestSupport", targets: ["ShuoTestSupport"]),
     ],

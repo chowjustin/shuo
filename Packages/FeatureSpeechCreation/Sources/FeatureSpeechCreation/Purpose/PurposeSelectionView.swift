@@ -16,7 +16,7 @@ import SwiftUI
 
 public struct PurposeSelectionView: View {
     private let coordinator: CreateScriptCoordinator
-    private let fileImporter: any FileImporting
+    private let makeInputScriptViewModel: (SpeechPurpose) -> InputScriptViewModel
     @State private var inputScriptViewModel: InputScriptViewModel?
     @State private var selectedPurpose: SpeechPurpose?
     @State private var navigationTask: Task<Void, Never>?
@@ -24,9 +24,16 @@ public struct PurposeSelectionView: View {
     /// Lets the tapped card render its selected state before the Input Script sheet covers it.
     private static let selectionDelay: Duration = .milliseconds(200)
 
-    public init(coordinator: CreateScriptCoordinator, fileImporter: any FileImporting) {
+    /// - Parameter makeInputScriptViewModel: builds the next step's view model. A factory
+    ///   rather than the services themselves, so this view never grows a parameter each
+    ///   time Input Script needs another dependency — the composition root owns that
+    ///   wiring (ARCHITECTURE.md §5).
+    public init(
+        coordinator: CreateScriptCoordinator,
+        makeInputScriptViewModel: @escaping (SpeechPurpose) -> InputScriptViewModel
+    ) {
         self.coordinator = coordinator
-        self.fileImporter = fileImporter
+        self.makeInputScriptViewModel = makeInputScriptViewModel
     }
 
     public var body: some View {
@@ -93,7 +100,7 @@ public struct PurposeSelectionView: View {
         navigationTask = Task {
             try? await Task.sleep(for: Self.selectionDelay)
             guard !Task.isCancelled else { return }
-            inputScriptViewModel = InputScriptViewModel(purpose: purpose, fileImporter: fileImporter)
+            inputScriptViewModel = makeInputScriptViewModel(purpose)
             coordinator.selectPurpose(purpose)
         }
     }
@@ -120,19 +127,13 @@ public struct PurposeSelectionView: View {
 private struct PurposeSelectionPreviewHost: View {
     @State private var isPresented = true
 
-    private struct PreviewFileImporter: FileImporting {
-        func importFile(from url: URL) async throws -> ImportedMedia {
-            ImportedMedia(fileURL: url, kind: .audio, originalFileName: url.lastPathComponent)
-        }
-    }
-
     var body: some View {
         Color(uiColor: .systemGroupedBackground)
             .ignoresSafeArea()
             .sheet(isPresented: $isPresented) {
                 PurposeSelectionView(
                     coordinator: CreateScriptCoordinator(onFinish: { isPresented = false }),
-                    fileImporter: PreviewFileImporter()
+                    makeInputScriptViewModel: { .preview(purpose: $0) }
                 )
             }
     }

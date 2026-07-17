@@ -257,9 +257,9 @@ If a task seems to require any of the above, stop and ask rather than quietly ex
 - **Reopening a saved script and creating a new one share the same `.analysis` route and the
   same `ScriptDraft` type** — the only difference is whether `ScriptDraft.existingScriptID`
   is set (`Docs/ARCHITECTURE.md` §6). Don't build a separate "view saved script" screen.
-- **The bundle identifier is a placeholder** (`com.shuo.app`,
-  `Docs/ARCHITECTURE.md` §10.4) — flag it rather than treating it as final if it comes up in
-  a signing/App Store context.
+- **The bundle identifier is `com.seven.shuo`** (`Docs/ARCHITECTURE.md` §10.4) — flag it
+  rather than treating it as final if it comes up in a signing/App Store context. Older
+  notes called it a `com.shuo.app` placeholder; that value was never actually used.
 
 ## 13. Definition of done (PR / change checklist)
 
@@ -275,10 +275,21 @@ If a task seems to require any of the above, stop and ask rather than quietly ex
 ## 14. Build & test commands
 
 ```bash
-# Run a single package's tests in isolation (fast inner loop)
+# Fast inner loop — works only for packages that build on the macOS host, i.e. ShuoCore
+# and ShuoTestSupport. Those two declare `.macOS(.v26)` alongside `.iOS(.v26)` purely so
+# this keeps working; iOS is still the only shipping platform.
 cd Packages/ShuoCore && swift test
 
-# Run everything, including the app target and UI tests, via Xcode's test plan
+# Every other package imports something iOS-only (UIKit, AVAudioSession, SwiftData,
+# FoundationModels) and CANNOT build on the host — `swift test` will fail there with
+# confusing "only available in macOS ..." errors. Run those against a simulator instead.
+# Note the scheme is the package name, with no `-Package` suffix:
+cd Packages/ShuoAudio && xcodebuild test -scheme ShuoAudio \
+  -destination 'platform=iOS Simulator,name=iPhone 17'
+
+# Run everything, including the app target and UI tests, via Xcode's test plan.
+# Careful: the Shuo scheme only covers ShuoTests/ShuoUITests — it does NOT run the
+# package test targets, so this alone is not enough to validate a change.
 xcodebuild test -project Shuo.xcodeproj -scheme Shuo -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
 

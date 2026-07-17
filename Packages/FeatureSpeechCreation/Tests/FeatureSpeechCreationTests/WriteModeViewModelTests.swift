@@ -7,47 +7,83 @@
 
 // `@MainActor` Swift Testing suite for `WriteModeViewModel`'s content validity checks.
 
+import Foundation
 import Testing
+import ShuoCore
 @testable import FeatureSpeechCreation
 
 @MainActor
 @Suite("WriteModeViewModel")
 struct WriteModeViewModelTests {
 
-    @Test("starts with empty content and is invalid")
+    @Test("starts with no content")
     func startsEmpty() {
-        let vm = WriteModeViewModel()
+        let viewModel = WriteModeViewModel()
 
-        #expect(vm.content.isEmpty)
-        #expect(!vm.hasValidContent)
+        #expect(viewModel.content.isEmpty)
+        #expect(!viewModel.hasContent)
+        #expect(viewModel.speechSource == nil)
     }
 
-    @Test("whitespace-only content is invalid")
-    func whitespaceOnlyIsInvalid() {
-        let vm = WriteModeViewModel()
+    @Test("has content once something is typed")
+    func hasContentOnceTyped() {
+        let viewModel = WriteModeViewModel()
 
-        vm.content = "   \n\t  "
+        viewModel.content = "Why we must join campus organizations."
 
-        #expect(!vm.hasValidContent)
+        #expect(viewModel.hasContent)
     }
 
-    @Test("non-whitespace content is valid")
-    func nonWhitespaceIsValid() {
-        let vm = WriteModeViewModel()
+    @Test(
+        "treats whitespace alone as no content",
+        arguments: [" ", "   ", "\n", "\t", " \n\t "]
+    )
+    func treatsWhitespaceAsEmpty(content: String) {
+        // Otherwise a stray newline would enable the confirm button.
+        let viewModel = WriteModeViewModel()
 
-        vm.content = "My speech starts here."
+        viewModel.content = content
 
-        #expect(vm.hasValidContent)
+        #expect(!viewModel.hasContent)
+        #expect(viewModel.speechSource == nil)
     }
 
-    @Test("clearing content back to empty becomes invalid again")
-    func clearingContentBecomesInvalid() {
-        let vm = WriteModeViewModel()
+    @Test("typed text becomes a speech source directly, with no transcription")
+    func typedTextBecomesSpeechSource() {
+        let viewModel = WriteModeViewModel()
 
-        vm.content = "Some ideas."
-        #expect(vm.hasValidContent)
+        viewModel.content = "Why we must join campus organizations."
 
-        vm.content = ""
-        #expect(!vm.hasValidContent)
+        #expect(viewModel.speechSource == .typedText("Why we must join campus organizations."))
+    }
+
+    @Test("trims surrounding whitespace from the speech source")
+    func trimsSurroundingWhitespace() {
+        let viewModel = WriteModeViewModel()
+
+        viewModel.content = "\n  Why we must join campus organizations.  \n"
+
+        #expect(viewModel.speechSource == .typedText("Why we must join campus organizations."))
+    }
+
+    @Test("keeps whitespace inside the content intact")
+    func keepsInnerWhitespace() {
+        // Only the edges are noise; paragraph breaks the user typed are content.
+        let viewModel = WriteModeViewModel()
+
+        viewModel.content = "First point.\n\nSecond point."
+
+        #expect(viewModel.speechSource == .typedText("First point.\n\nSecond point."))
+    }
+
+    @Test("loses content again when cleared")
+    func losesContentWhenCleared() {
+        let viewModel = WriteModeViewModel()
+        viewModel.content = "Something"
+
+        viewModel.content = ""
+
+        #expect(!viewModel.hasContent)
+        #expect(viewModel.speechSource == nil)
     }
 }

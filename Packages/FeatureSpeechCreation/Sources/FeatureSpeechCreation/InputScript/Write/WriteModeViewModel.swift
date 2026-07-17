@@ -10,16 +10,28 @@
 
 import Foundation
 import Observation
+import ShuoCore
 
 @Observable
 @MainActor
 public final class WriteModeViewModel {
     public var content: String = ""
 
-    /// `true` once `content` has non-whitespace text.
-    public var hasValidContent: Bool {
-        !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    public init() {}
+
+    /// Whitespace alone is not content — otherwise a stray newline would enable the
+    /// confirm button.
+    public var hasContent: Bool {
+        !trimmedContent.isEmpty
     }
 
-    public init() {}
+    /// Typed text needs no transcription; it becomes the transcript directly
+    /// (ARCHITECTURE.md §3.2.1).
+    public var speechSource: SpeechSource? {
+        hasContent ? .typedText(trimmedContent) : nil
+    }
+
+    private var trimmedContent: String {
+        content.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }

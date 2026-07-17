@@ -76,7 +76,7 @@ public struct FileImportService: FileImporting {
 
     // Returns the media duration in seconds via `AVAsset`, or nil on failure.
     private func probeDuration(of url: URL) async -> TimeInterval? {
-        let asset = AVAsset(url: url)
+        let asset = AVURLAsset(url: url)
         guard let duration = try? await asset.load(.duration) else { return nil }
         let seconds = CMTimeGetSeconds(duration)
         return seconds.isFinite && seconds > 0 ? seconds : nil
