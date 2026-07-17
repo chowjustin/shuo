@@ -6,6 +6,7 @@
 //
 
 import Testing
+import Foundation
 import ShuoCore
 import ShuoTestSupport
 @testable import FeatureSpeechCreation
