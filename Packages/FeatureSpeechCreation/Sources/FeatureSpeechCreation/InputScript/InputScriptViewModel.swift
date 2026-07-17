@@ -22,7 +22,6 @@ public final class InputScriptViewModel {
     public let speakVM: SpeakModeViewModel
     public let writeVM: WriteModeViewModel
     public let attachVM: AttachFileModeViewModel
-    public let writeVM: WriteModeViewModel
 
     /// `true` when the currently active mode has enough content to proceed.
     public var hasValidContent: Bool {
