@@ -63,6 +63,20 @@ struct AttachFileModeViewModelTests {
         #expect(vm.importedMedia == nil)
     }
 
+    @Test("fileSelected transitions to fileTooLarge when file exceeds size limit")
+    func fileSelectedTransitionsToFileTooLarge() async {
+        let vm = AttachFileModeViewModel(
+            fileImporter: FakeFileImporting(throwing: ShuoError.fileTooLarge)
+        )
+
+        vm.fileSelected(url: testURL)
+        await vm.importTask?.value
+
+        if case .fileTooLarge = vm.viewState { } else { Issue.record("Expected fileTooLarge") }
+        #expect(!vm.hasImportedFile)
+        #expect(vm.importedMedia == nil)
+    }
+
     // MARK: - cancel
 
     @Test("cancel from ready resets to idle")

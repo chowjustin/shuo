@@ -12,13 +12,20 @@ public final class AttachFileModeViewModel {
         case idle
         case processing
         case ready(ImportedMedia)
+        case fileTooLarge
         case failed(String)
     }
 
     public private(set) var viewState: ViewState = .idle
+    public var isPickerPresented: Bool = false
 
     public var hasImportedFile: Bool {
         if case .ready = viewState { return true }
+        return false
+    }
+
+    public var isFileTooLarge: Bool {
+        if case .fileTooLarge = viewState { return true }
         return false
     }
 
@@ -42,12 +49,17 @@ public final class AttachFileModeViewModel {
     public func fileSelected(url: URL) {
         importTask?.cancel()
         importTask = nil
+        let previousState = viewState
         viewState = .processing
         importTask = Task {
             do {
                 let media = try await fileImporter.importFile(from: url)
                 guard !Task.isCancelled else { return }
                 viewState = .ready(media)
+            } catch ShuoError.fileTooLarge {
+                guard !Task.isCancelled else { return }
+                viewState = previousState
+                viewState = .fileTooLarge
             } catch {
                 guard !Task.isCancelled else { return }
                 viewState = .failed(error.localizedDescription)
