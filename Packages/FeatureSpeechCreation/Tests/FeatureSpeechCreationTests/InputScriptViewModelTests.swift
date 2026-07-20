@@ -26,13 +26,17 @@ struct InputScriptViewModelTests {
     private func makeViewModel(
         purpose: SpeechPurpose = .persuade,
         fileImporter: (any FileImporting)? = nil,
-        capturer: FakeAudioCapturing = FakeAudioCapturing()
+        capturer: FakeAudioCapturing = FakeAudioCapturing(),
+        transcriber: (any SpeechTranscribing)? = nil
     ) -> InputScriptViewModel {
         InputScriptViewModel(
             purpose: purpose,
             fileImporter: fileImporter ?? FakeFileImporting(returning: makeMedia()),
             audioCapturer: capturer,
-            microphonePermissions: FakeMicrophonePermissionProviding(status: .granted)
+            microphonePermissions: FakeMicrophonePermissionProviding(status: .granted),
+            generateTranscript: GenerateTranscriptUseCase(
+                transcriber: transcriber ?? FakeSpeechTranscribing(returning: "Transcribed speech.")
+            )
         )
     }
 

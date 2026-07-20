@@ -12,8 +12,6 @@ import UniformTypeIdentifiers
 
 public struct FileImportService: FileImporting {
 
-    static let maxFileSizeBytes: Int = 20 * 1_024 * 1_024 // 20 MB
-
     public init() {}
 
     public func importFile(from url: URL) async throws -> ImportedMedia {
@@ -24,11 +22,17 @@ public struct FileImportService: FileImporting {
             }
         }
 
+        // Ordered cheapest-first, and type before size: a picked PDF should be reported
+        // as the wrong kind of file, not as an oversized one.
+        let kind = try mediaKind(for: url)
         try checkFileSize(url)
 
+        let duration = await probeDuration(of: url)
+        guard MediaLimits.isDurationAllowed(duration) else {
+            throw ShuoError.mediaTooLong
+        }
+
         let bookmarkData = try createBookmark(url)
-        let kind = mediaKind(for: url)
-        let duration: TimeInterval? = kind != .pdf ? await probeDuration(of: url) : nil
 
         return ImportedMedia(
             fileURL: url,
@@ -41,11 +45,11 @@ public struct FileImportService: FileImporting {
 
     // MARK: - Helpers
 
-    // Throws `ShuoError.fileTooLarge` if the file exceeds `maxFileSizeBytes`.
+    // Throws `ShuoError.fileTooLarge` if the file exceeds `MediaLimits.maxFileSizeBytes`.
     private func checkFileSize(_ url: URL) throws {
         let attributes = (try? FileManager.default.attributesOfItem(atPath: url.path)) ?? [:]
         let fileSize = attributes[.size] as? Int ?? 0
-        if fileSize > Self.maxFileSizeBytes {
+        guard MediaLimits.isFileSizeAllowed(fileSize) else {
             throw ShuoError.fileTooLarge
         }
     }
@@ -64,11 +68,18 @@ public struct FileImportService: FileImporting {
     }
 
     // Maps the file's UTType to the domain `ImportedMedia.Kind`.
-    private func mediaKind(for url: URL) -> ImportedMedia.Kind {
-        guard let type = UTType(filenameExtension: url.pathExtension) else { return .audio }
+    //
+    // The picker already filters to audio and video, so reaching the throwing branch
+    // means the file arrived another way or carries a misleading extension. Unlike the
+    // previous version this no longer defaults unknown types to `.audio` — that turned
+    // "this file is not media" into an opaque transcription failure much later on.
+    private func mediaKind(for url: URL) throws -> ImportedMedia.Kind {
+        guard let type = UTType(filenameExtension: url.pathExtension) else {
+            throw ShuoError.unsupportedMediaType
+        }
         if type.conforms(to: .movie) || type.conforms(to: .video) { return .video }
-        if type.conforms(to: .pdf) { return .pdf }
-        return .audio
+        if type.conforms(to: .audio) { return .audio }
+        throw ShuoError.unsupportedMediaType
     }
 
     // Returns the media duration in seconds via `AVAsset`, or nil on failure.

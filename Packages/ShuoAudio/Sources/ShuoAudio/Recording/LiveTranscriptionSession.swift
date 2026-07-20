@@ -21,10 +21,6 @@ import Speech
 ///
 /// Used only by `AudioRecordingService`, which owns its lifecycle.
 actor LiveTranscriptionSession {
-    /// v1 is English-only (ARCHITECTURE.md §2.3). When more locales land, this becomes a
-    /// parameter rather than a constant.
-    private static let locale = Locale(identifier: "en-US")
-
     private var transcriber: SpeechTranscriber?
     private var analyzer: SpeechAnalyzer?
     private var analyzerFormat: AVAudioFormat?
@@ -60,25 +56,18 @@ actor LiveTranscriptionSession {
     /// `start(inputFormat:)`, behind an actual tap. The cost of skipping preparation is
     /// only that the first session installs assets slightly later.
     func prepare() async {
-        guard isAlreadyAuthorized else { return }
-        guard await SpeechTranscriber.supportedLocales.contains(where: Self.matchesLocale) else { return }
+        guard SpeechSetup.isAlreadyAuthorized else { return }
+        guard await SpeechSetup.isLocaleSupported() else { return }
 
-        let transcriber = makeTranscriber()
-        guard await !SpeechTranscriber.installedLocales.contains(where: Self.matchesLocale) else { return }
-
-        // `assetInstallationRequest` returns nil when nothing needs installing.
-        guard let request = try? await AssetInventory.assetInstallationRequest(supporting: [transcriber]) else {
-            return
-        }
-        try? await request.downloadAndInstall()
+        await SpeechSetup.ensureAssetsInstalled(for: makeTranscriber())
     }
 
     /// Starts transcribing, prompting for speech authorization on the first attempt.
     /// `inputFormat` is the format buffers passed to `append(_:)` will be in.
     func start(inputFormat: AVAudioFormat) async {
         guard !isRunning else { return }
-        guard await requestAuthorizationIfNeeded() else { return }
-        guard await SpeechTranscriber.supportedLocales.contains(where: Self.matchesLocale) else { return }
+        guard await SpeechSetup.requestAuthorizationIfNeeded() else { return }
+        guard await SpeechSetup.isLocaleSupported() else { return }
 
         let transcriber = makeTranscriber()
 
@@ -183,45 +172,17 @@ actor LiveTranscriptionSession {
 
     // MARK: - Helpers
 
+    // Locale, authorization, and asset installation live in `SpeechSetup`, shared with
+    // the file-based path so the two cannot drift on what counts as supported.
     private func makeTranscriber() -> SpeechTranscriber {
         SpeechTranscriber(
-            locale: Self.locale,
+            locale: SpeechSetup.locale,
             transcriptionOptions: [],
             // Volatile results are what make the transcript track speech in real time
             // instead of arriving in one lump at the end.
             reportingOptions: [.volatileResults],
             attributeOptions: []
         )
-    }
-
-    /// Whether speech recognition is authorized. Never prompts.
-    private var isAlreadyAuthorized: Bool {
-        SFSpeechRecognizer.authorizationStatus() == .authorized
-    }
-
-    /// Prompts only when the user has not been asked before.
-    private func requestAuthorizationIfNeeded() async -> Bool {
-        switch SFSpeechRecognizer.authorizationStatus() {
-        case .authorized:
-            return true
-        case .notDetermined:
-            return await withCheckedContinuation { continuation in
-                SFSpeechRecognizer.requestAuthorization { status in
-                    continuation.resume(returning: status == .authorized)
-                }
-            }
-        default:
-            // Refused or restricted. Re-asking would not prompt, and live transcription
-            // is optional anyway — the recorded file still gets transcribed later.
-            return false
-        }
-    }
-
-    // Compares by language and region only — `SpeechTranscriber` reports locales with
-    // extra components, so exact equality against "en-US" would miss valid matches.
-    private static func matchesLocale(_ candidate: Locale) -> Bool {
-        candidate.language.languageCode == locale.language.languageCode
-            && candidate.region == locale.region
     }
 
     private static func convert(

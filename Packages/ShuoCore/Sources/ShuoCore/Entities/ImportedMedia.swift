@@ -6,10 +6,17 @@
 import Foundation
 
 public struct ImportedMedia: Sendable, Identifiable, Equatable {
+    /// What kind of media was attached. Audio and video only — the picker filters to
+    /// these two, and both end up as audio by the time they reach transcription.
     public enum Kind: Sendable, Equatable {
         case audio
         case video
-        case pdf
+
+        /// Whether the audio track has to be extracted before transcription can run
+        /// (CLAUDE.md §12).
+        public var requiresAudioExtraction: Bool {
+            self == .video
+        }
     }
 
     public let id: UUID

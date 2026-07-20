@@ -22,6 +22,11 @@ public enum ShuoColor {
     public static let secondaryText = Color(uiColor: .secondaryLabel)
 
     public static let closeButtonBackground = Color(uiColor: .systemGray5)
+
+    /// Failure states — error sheet glyphs and destructive emphasis.
+    public static let error = Color(uiColor: .systemRed)
+    /// Surface for content presented above the app, e.g. a sheet background.
+    public static let elevatedSurface = Color(uiColor: .systemBackground)
 }
 
 private extension Color {

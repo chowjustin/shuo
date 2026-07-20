@@ -77,6 +77,57 @@ struct AttachFileModeViewModelTests {
         #expect(vm.importedMedia == nil)
     }
 
+    @Test("An over-long file is distinguished from an over-large one")
+    func overlongMediaKeepsItsOwnError() async {
+        // Size and duration are separate limits: a short 4K video can be huge, and a long
+        // podcast can be tiny. Collapsing them would show the wrong explanation.
+        let vm = AttachFileModeViewModel(
+            fileImporter: FakeFileImporting(throwing: ShuoError.mediaTooLong)
+        )
+
+        vm.fileSelected(url: testURL)
+        await vm.importTask?.value
+
+        #expect(vm.viewState == .failed(.mediaTooLong))
+        #expect(!vm.isFileTooLarge)
+        #expect(vm.failure == .mediaTooLong)
+    }
+
+    @Test("A non-media file is reported as an unsupported type")
+    func unsupportedTypeIsReported() async {
+        let vm = AttachFileModeViewModel(
+            fileImporter: FakeFileImporting(throwing: ShuoError.unsupportedMediaType)
+        )
+
+        vm.fileSelected(url: testURL)
+        await vm.importTask?.value
+
+        #expect(vm.failure == .unsupportedMediaType)
+    }
+
+    @Test("The domain error is preserved rather than flattened to a message string")
+    func domainErrorIsPreserved() async {
+        let vm = AttachFileModeViewModel(
+            fileImporter: FakeFileImporting(throwing: ShuoError.importFailed)
+        )
+
+        vm.fileSelected(url: testURL)
+        await vm.importTask?.value
+
+        // Keeping the error, not its `localizedDescription`, is what lets the view pick
+        // per-case copy instead of showing a framework string.
+        #expect(vm.failure == .importFailed)
+    }
+
+    @Test("A failing file picker surfaces a failure instead of silently doing nothing")
+    func pickerFailureIsSurfaced() {
+        let vm = AttachFileModeViewModel(fileImporter: FakeFileImporting(returning: makeMedia()))
+
+        vm.pickerFailed()
+
+        #expect(vm.failure == .importFailed)
+    }
+
     // MARK: - cancel
 
     @Test("cancel from ready resets to idle")

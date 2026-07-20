@@ -8,12 +8,14 @@ import ShuoCore
 
 @Observable @MainActor
 public final class AttachFileModeViewModel {
-    public enum ViewState {
+    public enum ViewState: Equatable {
         case idle
         case processing
         case ready(ImportedMedia)
+        /// Kept as its own case rather than folded into `.failed`: it is the one import
+        /// failure with a bespoke full-screen alert in `InputScriptView`.
         case fileTooLarge
-        case failed(String)
+        case failed(ShuoError)
     }
 
     public private(set) var viewState: ViewState = .idle
@@ -46,10 +48,15 @@ public final class AttachFileModeViewModel {
         self.fileImporter = fileImporter
     }
 
+    /// The error behind `.failed`, for the caller that turns it into an error sheet.
+    public var failure: ShuoError? {
+        if case .failed(let error) = viewState { return error }
+        return nil
+    }
+
     public func fileSelected(url: URL) {
         importTask?.cancel()
         importTask = nil
-        let previousState = viewState
         viewState = .processing
         importTask = Task {
             do {
@@ -58,13 +65,23 @@ public final class AttachFileModeViewModel {
                 viewState = .ready(media)
             } catch ShuoError.fileTooLarge {
                 guard !Task.isCancelled else { return }
-                viewState = previousState
                 viewState = .fileTooLarge
-            } catch {
+            } catch let error as ShuoError {
                 guard !Task.isCancelled else { return }
-                viewState = .failed(error.localizedDescription)
+                viewState = .failed(error)
+            } catch {
+                // A non-domain error escaping the import service is a boundary bug
+                // (CLAUDE.md §5), but the user still gets an explainable failure.
+                guard !Task.isCancelled else { return }
+                viewState = .failed(.importFailed)
             }
         }
+    }
+
+    /// The system file picker failed to present or returned an error, as opposed to the
+    /// user cancelling — which reports success with no URLs and is correctly a no-op.
+    public func pickerFailed() {
+        viewState = .failed(.importFailed)
     }
 
     public func cancel() {

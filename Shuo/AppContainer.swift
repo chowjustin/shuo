@@ -21,6 +21,9 @@ final class AppContainer {
 
     private let fileImportService: any FileImporting = FileImportService()
     private let microphonePermissions: any MicrophonePermissionProviding = MicrophonePermissionProvider()
+    // Stateless and safe to share, unlike `AudioRecordingService` below: each call
+    // builds its own analyzer session and tears it down again.
+    private let speechTranscriber: any SpeechTranscribing = SpeechTranscribingRouter()
 
     // MARK: - Factories
 
@@ -49,7 +52,8 @@ final class AppContainer {
             // completes when the session ends — so reusing one would hand the next
             // recording a dead stream.
             audioCapturer: AudioRecordingService(),
-            microphonePermissions: microphonePermissions
+            microphonePermissions: microphonePermissions,
+            generateTranscript: GenerateTranscriptUseCase(transcriber: speechTranscriber)
         )
     }
 }

@@ -88,6 +88,38 @@ public struct InputScriptView: View {
         .animation(.spring(duration: 0.25), value: viewModel.attachVM.isFileTooLarge)
         .presentationDragIndicator(.visible)
         .interactiveDismissDisabled(true)
+        // A sheet, so the transcription step reads as part of the same stacked flow as
+        // Purpose -> Input Script rather than as a separate screen. Swipe-dismiss is a
+        // real exit here, which is why the binding's setter cancels rather than just
+        // hiding the cover.
+        .sheet(isPresented: isLoadingPresented) {
+            if let loadingVM = viewModel.loadingVM {
+                LoadingRouteView(
+                    viewModel: loadingVM,
+                    onCancel: viewModel.dismissLoading,
+                    onPickAnotherFile: viewModel.retryWithAnotherFile,
+                    onFinished: { _ in
+                        // The `.analysis` route consumes the transcript here once pattern
+                        // generation exists (ARCHITECTURE.md §3.1.1). Until then,
+                        // finishing closes the flow.
+                        viewModel.dismissLoading()
+                        onClose()
+                    }
+                )
+            }
+        }
+    }
+
+    // The view model exposes `loadingVM` read-only — presentation is driven through its
+    // own methods so dismissing always cancels the in-flight transcription, whichever
+    // way the cover goes away.
+    private var isLoadingPresented: Binding<Bool> {
+        Binding(
+            get: { viewModel.loadingVM != nil },
+            set: { isPresented in
+                if !isPresented { viewModel.dismissLoading() }
+            }
+        )
     }
 
     private var fileTooLargeAlert: some View {
@@ -100,7 +132,9 @@ public struct InputScriptView: View {
                 .font(.title3.bold())
                 .foregroundStyle(.primary)
 
-            Text("Maximum file size: 20MB")
+            // Reads the limit from the domain rather than repeating it — the number and
+            // the check it describes used to be able to drift apart.
+            Text("Maximum file size: \(MediaLimits.formattedMaxFileSize)")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -145,17 +179,11 @@ public struct InputScriptView: View {
         onBack()
     }
 
-    // Finalizes the active mode before leaving — Speak has to end its session and flush
-    // the transcript, which cannot happen synchronously from a button action.
-    //
-    // The resulting `SpeechSource` is deliberately dropped for now: the step that
-    // consumes it (transcription and analysis) is not built yet. See ARCHITECTURE.md
-    // §3.1.1 on the unbuilt `.loading` route.
+    // Finalizes the active mode, then hands its `SpeechSource` to the transcription step
+    // — Speak has to end its session and flush the transcript first, which cannot happen
+    // synchronously from a button action.
     private func confirm() {
-        Task {
-            _ = await viewModel.prepareToProceed()
-            onClose()
-        }
+        Task { await viewModel.proceed() }
     }
 }
 

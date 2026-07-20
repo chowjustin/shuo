@@ -48,9 +48,15 @@ struct ImportedMediaTests {
         #expect(media.formattedDuration == "2:05.5")
     }
 
-    @Test("formattedDuration is nil for PDF")
-    func formattedDurationPDFNil() {
-        let media = ImportedMedia(fileURL: url, kind: .pdf, originalFileName: "test.pdf", duration: nil)
+    @Test("formattedDuration is nil when the duration could not be probed")
+    func formattedDurationNilWhenUnavailable() {
+        let media = ImportedMedia(fileURL: url, kind: .audio, originalFileName: "test.m4a", duration: nil)
         #expect(media.formattedDuration == nil)
+    }
+
+    @Test("Only video needs its audio track extracted before transcription")
+    func onlyVideoRequiresExtraction() {
+        #expect(ImportedMedia.Kind.video.requiresAudioExtraction)
+        #expect(!ImportedMedia.Kind.audio.requiresAudioExtraction)
     }
 }

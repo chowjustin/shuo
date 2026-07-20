@@ -27,13 +27,23 @@ public struct AttachFileModeView: View {
             bottomActions
                 .padding(.bottom, 40)
         }
+        // Audio and video only. `.movie` covers video-with-audio containers; `.audio`
+        // covers m4a/mp3/wav/caf. A video's audio track is extracted before
+        // transcription (CLAUDE.md §12).
         .fileImporter(
             isPresented: $viewModel.isPickerPresented,
-            allowedContentTypes: [.audio, .movie, .pdf],
+            allowedContentTypes: [.audio, .movie],
             allowsMultipleSelection: false
         ) { result in
-            if case .success(let urls) = result, let url = urls.first {
-                viewModel.fileSelected(url: url)
+            switch result {
+            case .success(let urls):
+                if let url = urls.first {
+                    viewModel.fileSelected(url: url)
+                }
+            case .failure:
+                // The picker itself failed rather than the user cancelling — surfaced so
+                // the screen does not sit silently on its previous state.
+                viewModel.pickerFailed()
             }
         }
     }
@@ -60,12 +70,19 @@ public struct AttachFileModeView: View {
                 durationLabel: media.formattedDuration
             )
 
-        case .failed(let message):
+        case .failed(let error):
+            // Inline rather than a sheet: the import failed before any long-running work
+            // started, so the user is still on this screen and the attach button below
+            // is already the way to retry.
+            let copy = TranscriptionErrorCopy(error: error)
             VStack(spacing: 12) {
-                Image(systemName: "exclamationmark.triangle")
+                Image(systemName: copy.systemImage)
                     .font(.largeTitle)
                     .foregroundStyle(.secondary)
-                Text(message)
+                Text(copy.title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Text(copy.message)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
@@ -137,7 +154,6 @@ public struct AttachFileModeView: View {
         switch kind {
         case .audio: "waveform"
         case .video: "video"
-        case .pdf: "doc.text"
         }
     }
 }

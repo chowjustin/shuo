@@ -71,11 +71,21 @@ Because it's just three `CaseIterable` cases, the Purpose screen is a `ForEach(S
 ```
 `RootView` (in the `Shuo` app target) constructs the coordinator with `onFinish: { coordinator = nil }`, so its own `@State private var coordinator: CreateScriptCoordinator?` is the single source of truth for "is the create flow showing" — there's no separate `isPresented` flag on the coordinator to keep in sync with it.
 
-A `.loading`/`.analysis` step, and the reopen-a-saved-script path, are **not built yet** — the `Route`/`ScriptDraft`-based sketch further down in this doc (§6) still reflects a target end-state, not what exists today. When those land, this single-optional model will likely need to grow into a real stack again (e.g. back to a `Route`/`path: [Route]` shape, or a proper `NavigationPath`) — don't reintroduce that complexity before it's actually needed.
+The `.analysis` step and the reopen-a-saved-script path are **not built yet** — the `Route`/`ScriptDraft`-based sketch further down in this doc (§6) still reflects a target end-state, not what exists today. When those land, this single-optional model will likely need to grow into a real stack again (e.g. back to a `Route`/`path: [Route]` shape, or a proper `NavigationPath`) — don't reintroduce that complexity before it's actually needed.
+
+**The loading step is built, and deliberately did *not* introduce that stack.** `InputScriptViewModel` owns an optional `loadingVM: LoadingRouteViewModel?`, presented by `InputScriptView` as a **`.sheet`** — keeping the whole create flow one stacked sheet chain (Purpose → Input Script → Loading) rather than breaking out into a full-screen cover. One presented child covers what the flow needs today; promote it to a coordinator-owned route when `.analysis` lands and the flow genuinely branches.
+
+Because a sheet is swipe-dismissable, dismissal is a real exit path and not just a hide: presentation is driven through a binding whose setter calls `dismissLoading()`, so leaving by *any* means — swipe, ✕, or the flow being torn down — cancels the in-flight transcription (CLAUDE.md §6).
 
 This keeps title/purpose state alive across every step without re-fetching or duplicating it, and the "X" button dismisses the *entire* chain from any step — since `close()` calling `onFinish()` tears down `RootView`'s single `coordinator` reference, which dismisses any sheet stacked on top of Purpose too — with one planned exception: inside Attach File, "X" is meant to only cancel the file picker sub-modal, not the whole creation flow (per the acceptance criteria, these are two different dismiss actions) — not yet implemented, since Attach File mode itself isn't built. Reopening a previously saved script from Home is intended to present the same sheet chain pre-hydrated at the analysis step, bypassing purpose/input/loading entirely — also not yet implemented.
 
-**Loading UI (planned, not yet implemented):** the transition after "Save"/"proceed" in Input Script — which may involve audio extraction (video attachments), speech-to-text, and the first AI analysis pass — is meant to be a dedicated, reusable `LoadingView` pushed as its own route (`.loading`), living in `ShuoDesignSystem` so any step can reuse it with a different status message ("Extracting audio…", "Transcribing…", "Analyzing your speech…"). It should stay inside the same sheet chain — the user should never see a screen transition outside the flow. This is distinct from the *inline* "Updating suggestions…" indicator used for incremental edits in the Transcript view (§3.2.2) — that one is a small in-place indicator, not a navigation to a new route, since navigating away for a small edit would be jarring.
+**Loading UI (implemented for extract → transcribe; `.analyzing` still pending):** the transition after "Save"/"proceed" in Input Script — which may involve audio extraction (video attachments), speech-to-text, and the first AI analysis pass — is meant to be a dedicated, reusable `LoadingView` pushed as its own route (`.loading`), living in `ShuoDesignSystem` so any step can reuse it with a different status message ("Extracting audio…", "Transcribing…", "Analyzing your speech…"). It should stay inside the same sheet chain — the user should never see a screen transition outside the flow. This is distinct from the *inline* "Updating suggestions…" indicator used for incremental edits in the Transcript view (§3.2.2) — that one is a small in-place indicator, not a navigation to a new route, since navigating away for a small edit would be jarring.
+
+**Error presentation.** Failures during the loading step surface as `ShuoDesignSystem.ErrorSheet` — a reusable component taking primitives only, so the design system stays free of domain types (CLAUDE.md §4). The `ShuoError → copy` mapping lives in `FeatureSpeechCreation/Loading/TranscriptionErrorCopy.swift` and switches exhaustively over every case, so adding a `ShuoError` fails the build there rather than silently shipping generic wording. Each case also carries an explicit `Action` (`.pickAnotherFile` / `.retry` / `.close`) rather than inferring behaviour from the button's title — notably, a denied permission never offers a retry that cannot work, since re-requesting will not prompt again.
+
+**Actions live in the toolbar, not in the content.** `LoadingRouteView` wraps every state in a `NavigationStack` with fixed chrome: **✕ leading** to leave, **✓ trailing** to move forward — the same left/right arrangement as Input Script beneath it, so the controls never move as the flow advances. What ✓ *does* varies by state (retry, pick another file, finish) and is derived from the state rather than stored, so `disabled` and the tap handler can't fall out of step; during `.loading` there is nothing to confirm, so it is disabled rather than hidden and the chrome stays put. Consequently `ErrorSheet` and `LoadingView` are **content-only** — a button pinned inside either would compete with the toolbar for the same action.
+
+Two failure surfaces coexist by design: import failures (which happen before any long-running work, while the user is still on the input screen) render *inline* in `AttachFileModeView`, and the pre-existing full-screen file-too-large overlay in `InputScriptView` is retained as-is. Only failures during the loading step get an `ErrorSheet`.
 
 #### 3.1.2 Input Script — shared shell
 Because Speak / Write / Attach File have meaningfully different state and behavior, I'd avoid one giant `InputScriptViewModel` with a dozen optional properties (a common anti-pattern) and instead compose three focused child ViewModels owned by a parent:
@@ -144,7 +154,15 @@ A single `GenerateTranscriptUseCase(source: SpeechSource) async throws -> Transc
 
 The reason this is worth the extra field is that it keeps live transcription a **pure optimization rather than a dependency**. `SpeechSource` stays at three cases; the audio file is always written even when the live pass succeeds; and if the model assets are still downloading, the locale is unsupported, speech authorization is refused, or the analyzer throws mid-session, `liveTranscript` is simply nil and the existing `SpeechTranscribing` path transcribes the file. Recording never fails because transcription did, which is why none of it needs to surface in the UI.
 
-`SpeechTranscribing` wraps `SpeechAnalyzer` + `SpeechTranscriber` with the **long-form preset**, since a speech draft is exactly the "lectures, meetings, multi-speaker conversation" case Apple built the new model for — a meaningful accuracy improvement over the old `SFSpeechRecognizer` for this specific use case. `SFSpeechRecognizer` remains as an automatic fallback when `SpeechTranscriber`'s locale/hardware requirements aren't met.
+`SpeechTranscribing` wraps `SpeechAnalyzer` + `SpeechTranscriber` with the **long-form preset**, since a speech draft is exactly the "lectures, meetings, multi-speaker conversation" case Apple built the new model for — a meaningful accuracy improvement over the old `SFSpeechRecognizer` for this specific use case.
+
+> **Decision (v1, superseding the `SFSpeechRecognizer` fallback above):** the fallback is *defined but not built*. `SpeechTranscribingRouter` uses `SpeechAnalyzer` only, and raises `ShuoError.speechModelUnavailable` when it is unavailable rather than silently downgrading. Apple Intelligence–eligible hardware is already a hard requirement (§2.1), so `SpeechAnalyzer` is effectively always present and a second implementation would be untestable dead code. `LegacySpeechRecognitionService` remains a stub marking the deferred path.
+
+**`SpeechTranscribing` takes `TranscriptionInput`, not `SpeechSource`.** `.typedText` can never legitimately reach a transcriber, so admitting it would force every conformer to handle an impossible case; `GenerateTranscriptUseCase` owns that filtering. The two remaining cases stay distinct because their file access genuinely differs — an `ImportedMedia` lives outside the sandbox and must be reached through `resolveURL()`, while an `AudioRecording` is a file the app wrote itself.
+
+**Import limits are duration-first.** `MediaLimits` (domain, so it is testable without AVFoundation and quotable by the UI) caps audio at **30 minutes** with a **500 MB** byte guard. Duration carries the real policy: bytes vary by orders of magnitude across codecs at identical lengths, and it is transcription time and model context — not file size — that actually bound the experience. The two limits raise distinct errors (`mediaTooLong` vs `fileTooLarge`) so the user is told which one they hit.
+
+**Attachments are audio and video only.** `ImportedMedia.Kind` is `.audio`/`.video`; the `.pdf` case was removed rather than left unused, since nothing downstream extracted PDF text and an unreachable case invites half-built handling. Video routes through `VideoAudioExtractor` (`AVAssetExportSession` → temporary m4a, deleted after transcription) before reaching the analyzer.
 
 #### 3.2.2 Transcript view
 - Segmented control (Original/Refined) and accordion expand/collapse are cheap: a mode enum in the ViewModel and local `@State` per section respectively — expand/collapse doesn't need to survive app relaunch, so it's fine to keep as ephemeral view state rather than persisted.
@@ -545,8 +563,14 @@ Packages/ShuoCore/
 │   │   └── SearchScriptsUseCase.swift          title search over summaries
 │   │
 │   └── Errors/
-│       └── ShuoError.swift             domain error enum: transcriptionFailed, aiUnavailable,
-│                                        contextWindowExceeded, importFailed, persistenceFailed…
+│       └── ShuoError.swift             domain error enum, grouped by stage: import
+│                                        (fileTooLarge, mediaTooLong, unsupportedMediaType,
+│                                        importFailed), extraction (audioExtractionFailed),
+│                                        transcription (speechPermissionDenied,
+│                                        speechModelUnavailable, noSpeechDetected,
+│                                        transcriptionFailed), AI, persistence, recording.
+│                                        Each case maps to its own user-facing copy in
+│                                        FeatureSpeechCreation's TranscriptionErrorCopy.
 │
 └── Tests/ShuoCoreTests/
     ├── GenerateTranscriptUseCaseTests.swift
