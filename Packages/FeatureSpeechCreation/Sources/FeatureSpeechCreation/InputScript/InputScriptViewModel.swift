@@ -23,6 +23,15 @@ public final class InputScriptViewModel {
     public let writeVM: WriteModeViewModel
     public let attachVM: AttachFileModeViewModel
 
+    /// Non-nil while the transcription step is on screen.
+    ///
+    /// The loading step lives here rather than on `CreateScriptCoordinator` on purpose:
+    /// ARCHITECTURE.md §3.1.1 warns against reintroducing a full `Route`/`path` stack
+    /// before it earns its keep, and one presented child covers what this flow actually
+    /// needs today. Promote it to the coordinator when `.analysis` lands and the flow
+    /// genuinely branches.
+    public private(set) var loadingVM: LoadingRouteViewModel?
+
     /// `true` when the currently active mode has enough content to proceed.
     public var hasValidContent: Bool {
         switch mode {
@@ -32,13 +41,17 @@ public final class InputScriptViewModel {
         }
     }
 
+    private let generateTranscript: GenerateTranscriptUseCase
+
     public init(
         purpose: SpeechPurpose,
         fileImporter: any FileImporting,
         audioCapturer: any AudioCapturing,
-        microphonePermissions: any MicrophonePermissionProviding
+        microphonePermissions: any MicrophonePermissionProviding,
+        generateTranscript: GenerateTranscriptUseCase
     ) {
         self.purpose = purpose
+        self.generateTranscript = generateTranscript
         self.speakVM = SpeakModeViewModel(capturer: audioCapturer, permissions: microphonePermissions)
         self.writeVM = WriteModeViewModel()
         self.attachVM = AttachFileModeViewModel(fileImporter: fileImporter)
@@ -52,6 +65,31 @@ public final class InputScriptViewModel {
     public func discard() {
         speakVM.cancel()
         attachVM.cancel()
+        dismissLoading()
+    }
+
+    /// Finalizes the active mode and moves to the transcription step.
+    ///
+    /// Does nothing when the active mode has no content — the confirm button is disabled
+    /// in that case, but Speak mode can still finish empty.
+    public func proceed() async {
+        guard let source = await prepareToProceed() else { return }
+        loadingVM = LoadingRouteViewModel(source: source, generateTranscript: generateTranscript)
+    }
+
+    /// Leaves the transcription step, cancelling any in-flight work.
+    public func dismissLoading() {
+        loadingVM?.cancel()
+        loadingVM = nil
+    }
+
+    /// Leaves the transcription step and reopens the file picker, for the failures where
+    /// a different file is the fix.
+    public func retryWithAnotherFile() {
+        dismissLoading()
+        attachVM.cancel()
+        mode = .attachFile
+        attachVM.isPickerPresented = true
     }
 
     /// Finalizes the active mode and returns its content as a domain `SpeechSource` —

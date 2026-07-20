@@ -11,8 +11,6 @@
 
 import Foundation
 import SwiftUI
-//import ShuoCore
-import ShuoDesignSystem
 
 public struct PatternCard: View {
     private let name: String

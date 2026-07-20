@@ -28,7 +28,8 @@ extension InputScriptViewModel {
             purpose: purpose,
             fileImporter: PreviewFileImporting(),
             audioCapturer: PreviewAudioCapturing(),
-            microphonePermissions: PreviewMicrophonePermissionProviding(status: permissionStatus)
+            microphonePermissions: PreviewMicrophonePermissionProviding(status: permissionStatus),
+            generateTranscript: GenerateTranscriptUseCase(transcriber: PreviewSpeechTranscribing())
         )
     }
 }
@@ -52,6 +53,22 @@ struct PreviewFileImporting: FileImporting {
             originalFileName: url.lastPathComponent,
             duration: 83.7
         )
+    }
+}
+
+/// Pauses before returning, so previews show the loading screen rather than snapping
+/// straight to the finished transcript.
+struct PreviewSpeechTranscribing: SpeechTranscribing {
+    var delay: Duration = .seconds(2)
+    var result: Result<String, ShuoError> = .success(
+        "Joining a campus organization is the fastest way to find people who care about "
+        + "the same things you do, and the skills you build there follow you long after "
+        + "you graduate."
+    )
+
+    func transcribe(_ input: TranscriptionInput) async throws -> String {
+        try? await Task.sleep(for: delay)
+        return try result.get()
     }
 }
 
