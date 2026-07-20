@@ -10,3 +10,19 @@
 // DTOs before reaching this layer.
 
 import Foundation
+
+public struct SpeechPattern: Sendable, Identifiable, Equatable, Codable {
+    public let id: UUID
+    public let name: String
+    public let summary: String
+
+    public init(
+        id: UUID = UUID(),
+        name: String,
+        summary: String
+    ) {
+        self.id = id
+        self.name = name
+        self.summary = summary
+    }
+}
