@@ -201,6 +201,69 @@ struct KeyPointNormalizerTests {
         #expect(!result.contains { $0.text == "Orphaned content." })
     }
 
+    // MARK: - Absence prose
+    //
+    // The model is told to omit an uncovered component, and usually does. When it instead
+    // narrates the gap, that sentence must not reach the UI as if the speaker said it.
+
+    @Test(
+        "Prose describing a gap is treated as absent",
+        arguments: [
+            "There is no call to action in the transcript.",
+            "There are no statistics in this speech.",
+            "The transcript does not cover this component.",
+            "The speaker never mentions a solution in the recording.",
+            "Not mentioned in the transcript.",
+            "No information about this section was provided.",
+            "None",
+            "n/a",
+            "Not addressed.",
+            "  Nothing.  ",
+        ]
+    )
+    func absenceProseBecomesAbsent(text: String) throws {
+        let result = normalizer.normalize([keyPoint("category1", "Category 1", text)], for: topical)
+
+        let slot = try #require(result.first { $0.componentID == "category1" })
+        #expect(slot.isAbsent)
+    }
+
+    @Test(
+        "Real content that merely sounds negative is kept",
+        arguments: [
+            "There are no easy answers here, the speaker admits.",
+            "No one expected the migration to take three quarters.",
+            "Nothing about the legacy routing code was documented.",
+            "The transcript of the keynote became the basis for the proposal.",
+            "Not every team adopted the new process, which slowed the rollout.",
+            "The speaker does not believe microservices suit this scale.",
+        ]
+    )
+    func negativeSoundingContentSurvives(text: String) throws {
+        let result = normalizer.normalize([keyPoint("category1", "Category 1", text)], for: topical)
+
+        let slot = try #require(result.first { $0.componentID == "category1" })
+        #expect(!slot.isAbsent)
+        #expect(slot.text == text.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    @Test("A narrated gap becomes \"-\" in place — the component keeps its slot")
+    func absenceProseGetsGhostText() throws {
+        let result = normalizer.normalize(
+            [keyPoint("category1", "Category 1", "There is no content for this component.")],
+            for: topical
+        )
+
+        // Discarding the prose must not discard the component: the set stays complete and
+        // in order, with "-" standing in, so the speaker still sees the slot they missed.
+        #expect(result.count == topical.components.count)
+        #expect(result.map(\.componentID) == topical.components.map(\.id))
+
+        let slot = try #require(result.first { $0.componentID == "category1" })
+        #expect(slot.text == KeyPoint.absentText)
+        #expect(slot.suggestion != nil)
+    }
+
     @Test("Normalizes correctly for a three-component pattern too")
     func worksForShortPatterns() throws {
         let cer = try #require(SpeechPatternCatalog.pattern(id: "persuade.cer"))

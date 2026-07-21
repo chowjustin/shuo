@@ -69,9 +69,12 @@ public struct LoadingRouteView: View {
                 }
         }
         .task { viewModel.start() }
-        // Covers every way out — swipe-dismiss, the ✕ button, or the whole flow being
-        // torn down — so no transcription outlives the screen that asked for it.
+        // Covers every way out — the ‹ button or the whole flow being torn down — so no
+        // transcription outlives the screen that asked for it.
         .onDisappear { viewModel.cancel() }
+        // Matches Input Script: the create flow is one sheet, so a swipe here would tear
+        // the whole session down rather than step back. ‹ is the only exit.
+        .interactiveDismissDisabled(true)
     }
 
     @ViewBuilder
