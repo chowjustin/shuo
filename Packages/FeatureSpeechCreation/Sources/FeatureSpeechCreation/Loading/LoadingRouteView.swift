@@ -25,6 +25,11 @@ public struct LoadingRouteView: View {
     private let onPickAnotherFile: () -> Void
     private let onFinished: (Transcript) -> Void
 
+    /// The user's edits to the generated original transcript, if any. `nil` until they
+    /// type something — distinguishes "hasn't touched it yet" from "cleared it back to
+    /// empty," so the accordion always has a real value to seed from.
+    @State private var editedOriginalText: String?
+
     /// - Parameters:
     ///   - onPickAnotherFile: dismisses this screen and reopens the file picker, for the
     ///     failures where a different file is the actual fix.
@@ -88,9 +93,12 @@ public struct LoadingRouteView: View {
 
         case .finished(let transcript):
             // Temporary terminus. The `.analysis` route consumes this transcript once
-            // `SpeechAnalyzing` lands; until then the flow ends by showing what it
-            // produced, so the transcription path is verifiable end to end.
-            TranscriptPreviewView(transcript: transcript)
+            // `SpeechAnalyzing` lands; until then the flow ends here, letting the user
+            // review and correct the transcript before it's locked in.
+            OriginalTranscriptReviewView(
+                transcript: transcript,
+                editedText: $editedOriginalText
+            )
         }
     }
 
@@ -115,7 +123,13 @@ public struct LoadingRouteView: View {
             return nil
 
         case .finished(let transcript):
-            return { onFinished(transcript) }
+            return {
+                let reviewedTranscript = Transcript(
+                    original: editedOriginalText ?? transcript.original,
+                    refined: transcript.refined
+                )
+                onFinished(reviewedTranscript)
+            }
 
         case .failed(let error):
             switch TranscriptionErrorCopy(error: error).primaryAction {
@@ -168,29 +182,102 @@ public struct LoadingRouteView: View {
     }
 }
 
-/// Shows the finished transcript.
+/// Shows the generated original transcript in an editable card, so the user can fix
+/// transcription mistakes before it's locked in and handed off to analysis.
 ///
-/// Scaffolding for the seam described above: it exists so the attach-file path can be
-/// verified before analysis is built, and should be *replaced* by the `.analysis` route
-/// rather than grown.
-private struct TranscriptPreviewView: View {
+/// This is the seam described above: it exists so the attach-file/speak/write paths
+/// can be verified end to end before pattern analysis is built, and it's the
+/// component the eventual `.analysis` route's Original section will reuse
+/// (`ShuoDesignSystem.AccordionView`), not a one-off throwaway.
+private struct OriginalTranscriptReviewView: View {
     let transcript: Transcript
+    @Binding var editedText: String?
+
+    /// Falls back to the generated text until the user actually types something, and
+    /// writes any edit straight back to the parent's state.
+    private var text: Binding<String> {
+        Binding(
+            get: { editedText ?? transcript.original },
+            set: { editedText = $0 }
+        )
+    }
+
+    private var wordCount: Int {
+        text.wrappedValue.split(whereSeparator: \.isWhitespace).count
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: ShuoSpacing.medium) {
-            Text("\(transcript.originalWordCount) words")
-                .font(ShuoTypography.caption)
-                .foregroundStyle(ShuoColor.secondaryText)
-
-            ScrollView {
-                Text(transcript.original)
+            AccordionView(title: "Original Transcript") {
+                TextField("Transcript", text: text, axis: .vertical)
                     .font(ShuoTypography.body)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
+                    .foregroundStyle(ShuoColor.primaryText)
+                    .lineLimit(1...15)
             }
+            Spacer(minLength: 0)
         }
         .padding(ShuoSpacing.large)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(ShuoColor.background)
     }
+}
+
+#Preview("Original transcript card, isolated"){
+    struct PreviewHost: View {
+        @State private var editedText: String?
+
+        var body: some View {
+            OriginalTranscriptReviewView(
+                transcript: Transcript(
+                    original: """
+                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum \
+                    nulla neque, lacinia et risus et, pharetra hendrerit ipsum. Nunc eu \
+                    dolor velit. Praesent ac ornare enim. Maecenas accumsan felis ut \
+                    massa mollis facilisis.
+                    """
+                ),
+                editedText: $editedText
+            )
+        }
+    }
+
+    return PreviewHost()
+}
+
+#Preview("Transcribing") {
+    LoadingRouteView(
+        viewModel: LoadingRouteViewModel(previewState: .loading(.transcribing)),
+        onCancel: {},
+        onPickAnotherFile: {},
+        onFinished: { _ in }
+    )
+}
+
+#Preview("Finished — editable transcript") {
+    LoadingRouteView(
+        viewModel: LoadingRouteViewModel(
+            previewState: .finished(
+                Transcript(
+                    original: """
+                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum \
+                    nulla neque, lacinia et risus et, pharetra hendrerit ipsum. Nunc eu \
+                    dolor velit. Praesent ac ornare enim. Maecenas accumsan felis ut \
+                    massa mollis facilisis.
+                    """
+                )
+            )
+        ),
+        onCancel: {},
+        onPickAnotherFile: {},
+        onFinished: { _ in }
+    )
+}
+
+#Preview("Failed") {
+    LoadingRouteView(
+        viewModel: LoadingRouteViewModel(previewState: .failed(.transcriptionFailed)),
+        onCancel: {},
+        onPickAnotherFile: {},
+        onFinished: { _ in }
+    )
 }

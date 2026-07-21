@@ -92,3 +92,25 @@ public final class LoadingRouteViewModel {
         return .transcribing
     }
 }
+
+#if DEBUG
+extension LoadingRouteViewModel {
+    /// Preview-only convenience: sits directly in `state` without a real
+    /// `SpeechSource`/`GenerateTranscriptUseCase`, so previews don't need a working
+    /// `SpeechTranscribing` implementation (that lives in ShuoAudio, which this target
+    /// doesn't depend on). `start()` is never called on a view model built this way.
+    convenience init(previewState state: ViewState) {
+        self.init(
+            source: .typedText(""),
+            generateTranscript: GenerateTranscriptUseCase(transcriber: PreviewNoopTranscriber())
+        )
+        viewState = state
+    }
+}
+
+/// Never actually invoked — `previewState` skips `start()` — but
+/// `GenerateTranscriptUseCase` needs a real `SpeechTranscribing` to construct one.
+private struct PreviewNoopTranscriber: SpeechTranscribing {
+    func transcribe(_ input: TranscriptionInput) async throws -> String { "" }
+}
+#endif
