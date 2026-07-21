@@ -7,46 +7,62 @@
 
 import SwiftUI
 
-struct ScriptCard: View {
-    let title: String
-    let dateText: String
-    let durationText: String
-    let purposeLabel: String
-    var isSelected: Bool
-    let onTap: () -> Void
+public struct ScriptCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    private let title: String
+    private let dateText: String
+    private let durationText: String
+    private let purposeLabel: String
+    private let isSelected: Bool
+    private let onTap: () -> Void
+    
+    public init(
+        title: String,
+        dateText: String,
+        durationText: String,
+        purposeLabel: String,
+        isSelected: Bool,
+        onTap: @escaping () -> Void
+    ) {
+        self.title = title
+        self.dateText = dateText
+        self.durationText = durationText
+        self.purposeLabel = purposeLabel
+        self.isSelected = isSelected
+        self.onTap = onTap
+    }
 
-    var body: some View {
+    public var body: some View {
         Button(action: onTap) {
-            HStack(alignment: .bottom, spacing: 12) {
-                VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .bottom, spacing: ShuoSpacing.small) {
+                VStack(alignment: .leading, spacing: ShuoSpacing.small) {
                     Text(title)
-                        .font(.headline)
-                        .foregroundStyle(isSelected ? .white : ShuoColor.primaryText)
-//                        .lineLimit(1)
-
+                        .font(ShuoTypography.headline)
+                        .foregroundStyle(isSelected ? ShuoColor.primaryTextPinkTint : ShuoColor.primaryTextCream)
+                    
                     HStack(spacing: 6) {
                         Text(dateText)
                         Text("•")
                         Text(durationText)
                         purposeBadge
                     }
-                    .font(.caption)
-                    .foregroundStyle(isSelected ? .white.opacity(0.9) : ShuoColor.secondaryText)
+                    .font(ShuoTypography.caption)
+                    .foregroundStyle(isSelected ? ShuoColor.secondaryTextPinkTint : ShuoColor.secondaryTextCream)
                 }
 
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .foregroundStyle(isSelected ? .white : ShuoColor.secondaryText)
+                    .foregroundStyle(ShuoColor.pink)
             }
-            .padding(20) //buat atur besar cardnya (diatur dr paddingnya)
+            .padding(20) //buat atur besar cardnya
             .background(
-                isSelected ? ShuoColor.pink : ShuoColor.pinkTint,
-                in: RoundedRectangle(cornerRadius: 16)
+                isSelected ? ShuoColor.pinkTint : ShuoColor.background,
+                in: RoundedRectangle(cornerRadius: 18)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(ShuoColor.pink, lineWidth: isSelected ? 0 : 1)
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(ShuoColor.pink, lineWidth: 3)
             )
         }
         .buttonStyle(.plain)
@@ -56,8 +72,8 @@ struct ScriptCard: View {
         Text(purposeLabel)
             .font(.caption2.weight(.semibold))
             .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(ShuoColor.aquaTint, in: .capsule)
+            .padding(.vertical, 3)
+            .background(ShuoColor.aqua, in: .capsule)
             .foregroundStyle(ShuoColor.primaryText)
     }
 }
@@ -67,16 +83,30 @@ struct ScriptCard: View {
         @State private var isSelected = false
 
         var body: some View {
-            ScriptCard(
-                title: "Why must join campus organization",
-                dateText: "3 July 2026",
-                durationText: "15:10:40",
-                purposeLabel: "To Persuade",
-                isSelected: isSelected,
-                onTap: { isSelected.toggle() }
-            )
-            .padding()
-//            .background(ShuoColor.background)
+            List {
+                ScriptCard(
+                            title: "Why must join campus organization",
+                            dateText: "3 July 2026",
+                            durationText: "15:10:40",
+                            purposeLabel: "To Persuade",
+                            isSelected: isSelected,
+                            onTap: { isSelected.toggle() }
+                        )
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 12, trailing: 16))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button(role: .destructive) {
+                    print("delete tapped — not wired to real data yet")
+                } label: {
+                    Image(systemName: "trash")
+                }
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+//        .background(ShuoColor.background)
+                            
         }
     }
     return PreviewWrapper()

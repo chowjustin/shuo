@@ -17,6 +17,10 @@ public enum ShuoColor {
     public static let aqua = Color(hex: 0x99E1D9)
     public static let aquaTint = Color(hex: 0xF0FFFE)
     public static let background = Color(hex: 0xFFFDF5)
+    public static let primaryTextPinkTint = Color(hex: 0x8C0030)
+    public static let secondaryTextPinkTint = Color(hex: 0xC7365A)
+    public static let primaryTextCream = Color(hex: 0x2c2420)
+    public static let secondaryTextCream = Color(hex: 0x5D576B)
 
     public static let primaryText = Color(uiColor: .label)
     public static let secondaryText = Color(uiColor: .secondaryLabel)
