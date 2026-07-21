@@ -82,6 +82,8 @@ enum PromptBuilder {
         entirely. Do not guess, and do not write filler.
         - Omitting a component is the correct, expected answer whenever the draft does not \
         cover it. An incomplete draft is normal.
+        - Never describe what is missing. "There is no call to action in the transcript" \
+        is not an extraction — leave that component out instead.
         - Use only the component names you are given, copied exactly.
         - Keep each extraction to one or two sentences.
         """
@@ -122,8 +124,11 @@ enum PromptBuilder {
         structure defines.
 
         Rules:
-        - Preserve the speaker's own content, voice, and examples. You are reorganizing and \
-        tightening, not writing a new speech.
+        - The transcript is your material. Reorder it, and keep essentially all of it.
+        - Preserve the speaker's own content, voice, and examples. You are reorganizing \
+        their words, not writing a new speech and not summarizing one.
+        - Keep the rewrite close to the length of the original. Removing filler should \
+        shorten it slightly, never substantially.
         - Never invent facts, statistics, anecdotes, or conclusions the speaker did not give.
         - Where the draft does not cover part of the structure, leave it out. Do not write \
         material to fill the gap.
@@ -131,11 +136,25 @@ enum PromptBuilder {
         - Return only the rewritten speech, with no headings, labels, or commentary.
         """
 
+    /// Words below which a length target is noise rather than guidance — a two-line draft
+    /// has no meaningful budget to hit.
+    static let minimumWordsForLengthTarget = 40
+
+    /// The floor is 80% of the original rather than an exact match: removing filler and
+    /// false starts genuinely should shorten a spoken draft a little.
+    static func minimumRewriteWords(forOriginalWords count: Int) -> Int {
+        count * 4 / 5
+    }
+
     /// The refinement prompt.
     ///
     /// Absent key points are named as gaps rather than dropped silently. Making the gaps
     /// explicit turns "don't invent content" into a concrete, checkable instruction, which
     /// holds up better on a small model than the general rule alone.
+    ///
+    /// The outline is labelled as running order, and the length target is stated in words,
+    /// because without both the model reads the outline as its source material and returns
+    /// something outline-length — a few sentences standing in for a whole speech.
     static func refinementPrompt(
         transcript: String,
         pattern: SpeechPattern,
@@ -147,7 +166,8 @@ enum PromptBuilder {
         var prompt = """
             Structure: \(pattern.name) — \(pattern.summary)
 
-            Outline, in order:
+            Running order — these name the sections and their sequence. They are not the \
+            material to write from; the transcript below is.
             \(covered.map { "- \($0.componentName): \($0.text)" }.joined(separator: "\n"))
             """
 
@@ -169,8 +189,20 @@ enum PromptBuilder {
             \(transcript)
             \"\"\"
 
-            Rewrite the speech to follow the outline above.
+            Rewrite the transcript above so its content runs in the order given, keeping \
+            everything the speaker said.
             """
+
+        let wordCount = transcript.split(whereSeparator: \.isWhitespace).count
+        if wordCount >= minimumWordsForLengthTarget {
+            prompt += """
+
+
+                The transcript is about \(wordCount) words. Your rewrite should be a \
+                similar length — at least \(minimumRewriteWords(forOriginalWords: wordCount)) \
+                words. Do not summarize.
+                """
+        }
 
         return prompt
     }

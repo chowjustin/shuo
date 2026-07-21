@@ -21,10 +21,14 @@ import ShuoCore
 /// `concurrentRequests`. Actor isolation serializes them instead, which also matches the
 /// hardware: the neural engine runs one generation at a time regardless.
 ///
-/// **Three sessions, one per task.** Each carries its own `instructions`, so the model is
-/// never asked to hold "you are a classifier" and "you are a rewriter" in the same
-/// context. It also means each can be prewarmed independently, and a long refinement
-/// can't push a classification's instructions out of its window.
+/// **One session per request, never reused.** Each kind of call carries its own
+/// `instructions`, so the model is never asked to hold "you are a classifier" and "you are
+/// a rewriter" in the same context.
+///
+/// Reuse is what makes this wrong: `LanguageModelSession` replays its accumulated
+/// transcript on every `respond`, so a cached session eventually overflows the window on a
+/// transcript that fit fine before. `ContextWindowChunker` cannot see that history, so its
+/// budget check passes while the real request fails.
 ///
 /// This is a humble object by design (CLAUDE.md §7): it translates, it does not decide.
 /// Ranking, validation, normalization, and the "-" rule all live in `ShuoCore` where they
@@ -35,11 +39,8 @@ public actor FoundationModelSpeechAnalyzer: SpeechAnalyzing {
     private let model: SystemLanguageModel
     private let chunker: ContextWindowChunker
 
-    /// Sessions are created lazily and then reused. Building one is not free, and the
-    /// common path runs several calls in a row as the user browses patterns.
-    private var classificationSession: LanguageModelSession?
-    private var keyPointsSession: LanguageModelSession?
-    private var refinementSession: LanguageModelSession?
+    /// Consumed by the next classification call, so the warm-up isn't thrown away.
+    private var prewarmedSession: LanguageModelSession?
 
     public init(model: SystemLanguageModel = .default) {
         self.model = model
@@ -51,7 +52,9 @@ public actor FoundationModelSpeechAnalyzer: SpeechAnalyzing {
     /// Best-effort and non-blocking: call it when the user starts recording or typing, and
     /// the first real request lands on an already-loaded model.
     public func prewarm() {
-        session(for: .classification).prewarm()
+        let session = makeSession(for: .classification)
+        session.prewarm()
+        prewarmedSession = session
     }
 
     // MARK: - SpeechAnalyzing
@@ -143,34 +146,24 @@ public actor FoundationModelSpeechAnalyzer: SpeechAnalyzing {
         case classification, keyPoints, refinement
     }
 
+    /// A session for exactly one request, with an empty transcript either way.
     private func session(for kind: SessionKind) -> LanguageModelSession {
+        if case .classification = kind, let prewarmedSession {
+            self.prewarmedSession = nil
+            return prewarmedSession
+        }
+        return makeSession(for: kind)
+    }
+
+    private func makeSession(for kind: SessionKind) -> LanguageModelSession {
+        LanguageModelSession(model: model, instructions: instructions(for: kind))
+    }
+
+    private func instructions(for kind: SessionKind) -> String {
         switch kind {
-        case .classification:
-            if let classificationSession { return classificationSession }
-            let created = LanguageModelSession(
-                model: model,
-                instructions: PromptBuilder.classificationInstructions
-            )
-            classificationSession = created
-            return created
-
-        case .keyPoints:
-            if let keyPointsSession { return keyPointsSession }
-            let created = LanguageModelSession(
-                model: model,
-                instructions: PromptBuilder.keyPointsInstructions
-            )
-            keyPointsSession = created
-            return created
-
-        case .refinement:
-            if let refinementSession { return refinementSession }
-            let created = LanguageModelSession(
-                model: model,
-                instructions: PromptBuilder.refinementInstructions
-            )
-            refinementSession = created
-            return created
+        case .classification: PromptBuilder.classificationInstructions
+        case .keyPoints: PromptBuilder.keyPointsInstructions
+        case .refinement: PromptBuilder.refinementInstructions
         }
     }
 

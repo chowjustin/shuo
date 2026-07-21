@@ -57,9 +57,12 @@ public struct TranscriptAnalysisView: View {
         // The prefetch must not outlive the screen: a background generation firing after
         // the user has dismissed this sheet is the bug class CLAUDE.md §6 calls out.
         .onDisappear { viewModel.cancelAll() }
-        // Swipe-to-dismiss is disabled only while there is unsaved work, so the guard
-        // appears exactly when it has something to protect rather than as blanket friction.
-        .interactiveDismissDisabled(viewModel.hasUnsavedChanges)
+        // Locked whenever ‹ is the only way out, since a swipe there would abandon the
+        // whole create flow rather than step back. On `.loaded`, where ✕ is offered, the
+        // swipe returns and is guarded only while there is unsaved work.
+        .interactiveDismissDisabled(
+            viewModel.viewState.toolbarLayout == .back || viewModel.hasUnsavedChanges
+        )
         .confirmationDialog(
             "Leave without saving your changes?",
             isPresented: $isConfirmingLeave,
