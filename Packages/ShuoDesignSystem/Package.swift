@@ -12,6 +12,7 @@ let package = Package(
     targets: [
         .target(
             name: "ShuoDesignSystem",
+            resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
     ]
