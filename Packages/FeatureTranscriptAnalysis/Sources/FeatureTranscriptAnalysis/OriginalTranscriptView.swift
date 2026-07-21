@@ -1,0 +1,166 @@
+//
+//  OriginalTranscriptView.swift
+//  FeatureTranscriptAnalysis
+//
+//  Created by rasyel on 21/07/26.
+//
+
+import ShuoDesignSystem
+import SwiftUI
+
+/// Shows the original transcript full-screen, editable, with its own ✕ / ✓ toolbar.
+///
+/// ✕ discards whatever was typed in this session and leaves the transcript untouched —
+/// nothing is committed until ✓. ✓ hands the (possibly edited) text to `onSave` and
+/// dismisses; an empty transcript can't be saved, since a blank original would only
+/// bounce straight back as a rejected script with nothing on screen to explain why.
+struct OriginalTranscriptView: View {
+
+    let scriptTitle: String
+    let purposeLabel: String
+    let onSave: (String) -> Void
+    let onCancel: () -> Void
+
+    @State private var editedText: String
+    @Environment(\.dismiss) private var dismiss
+
+    init(
+        scriptTitle: String,
+        purposeLabel: String,
+        originalText: String,
+        onSave: @escaping (String) -> Void,
+        onCancel: @escaping () -> Void = {}
+    ) {
+        self.scriptTitle = scriptTitle
+        self.purposeLabel = purposeLabel
+        self.onSave = onSave
+        self.onCancel = onCancel
+        _editedText = State(initialValue: originalText)
+    }
+    
+    private var wordCount: Int {
+        editedText.split(whereSeparator: \.isWhitespace).count
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: ShuoSpacing.medium) {
+                    header
+                    transcriptCard
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .top)
+            }
+            .background(ShuoColor.background)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { toolbarContent }
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: ShuoSpacing.xSmall) {
+            Text(scriptTitle)
+                .font(ShuoTypography.title)
+                .foregroundStyle(ShuoColor.primaryText)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            HStack(spacing: ShuoSpacing.small) {
+                Text("Purpose:")
+                    .font(ShuoTypography.headline)
+                    .foregroundStyle(ShuoColor.primaryText)
+                purposeBadge
+            }
+        }
+    }
+
+    private var purposeBadge: some View {
+        Text(purposeLabel)
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, ShuoSpacing.small)
+            .padding(.vertical, 4)
+            .background(ShuoColor.closeButtonBackground, in: .capsule)
+            .foregroundStyle(ShuoColor.primaryText)
+    }
+
+    private var transcriptCard: some View {
+        VStack(alignment: .leading, spacing: ShuoSpacing.small) {
+            Text("Original Transcript")
+                .font(ShuoTypography.headline)
+                .foregroundStyle(ShuoColor.primaryText)
+                .accessibilityAddTraits(.isHeader)
+
+            editor
+        }
+        .padding(ShuoSpacing.medium)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(ShuoColor.background)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(ShuoColor.pink, lineWidth: 2)
+        )
+    }
+
+    private var editor: some View {
+        TextField("Transcript", text: $editedText, axis: .vertical)
+            .font(ShuoTypography.body)
+            .foregroundStyle(ShuoColor.primaryText)
+            .lineLimit(1...12)
+            .accessibilityLabel("Original transcript, editable")
+            .accessibilityHint("Contains \(wordCount) words. Double tap to edit.")
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button {
+                onCancel()
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(ShuoColor.primaryText)
+                    .padding(4)
+            }
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.circle)
+            .tint(ShuoColor.closeButtonBackground)
+            .accessibilityLabel("Discard changes")
+        }
+
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                onSave(editedText)
+                dismiss()
+            } label: {
+                Image(systemName: "checkmark")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(4)
+            }
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.circle)
+            .tint(ShuoColor.pink)
+            .disabled(editedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityLabel("Save changes")
+        }
+    }
+}
+
+// MARK: - Preview
+
+#Preview("Original Transcript") {
+    OriginalTranscriptView(
+        scriptTitle: "Why must join campus organization",
+        purposeLabel: "To Persuade",
+        originalText: """
+            Um, okay, so hi everyone. Today I kind of wanted to talk about clubs and \
+            organizations on campus...
+            """,
+        onSave: { _ in }
+    )
+}
