@@ -16,29 +16,40 @@ import SwiftUI
 /// The screen shown while a speech is being turned into text — and the screen shown when
 /// that fails.
 ///
-/// Every state shares one chrome: ✕ on the left to leave, ✓ on the right to move forward.
-/// What ✓ *does* changes with the state (retry, pick another file, finish) but its
-/// position never does, matching the Input Script screen underneath.
+/// **One button, one meaning: ‹ goes back to Input Script.** Every state shows it, in the
+/// same place. While transcribing it cancels the work; on a failure it simply returns. It
+/// is deliberately not a ✕ — this is a step inside the flow, not an exit from it, and the
+/// user always lands back on the screen they submitted from with their work intact.
+///
+/// There is no ✓, and the omission is the fix for a real bug rather than a simplification.
+/// A per-error "primary action" had to guess what produced the failure, so `noSpeechDetected`
+/// offered "choose another file" — reopening a file picker for a user who had just *recorded*
+/// something. Errors here describe what went wrong; the input screen is where every one of
+/// them is actually resolved, and going back and confirming again is the retry.
 public struct LoadingRouteView: View {
     @Bindable private var viewModel: LoadingRouteViewModel
-    private let onCancel: () -> Void
-    private let onPickAnotherFile: () -> Void
+    private let onBack: () -> Void
     private let onFinished: (Transcript) -> Void
 
+    /// Hand-off is one-way and must happen exactly once.
+    ///
+    /// `.onAppear` fires again whenever the view re-enters the hierarchy — returning from
+    /// the background, or SwiftUI re-inserting it — and a second hand-off would build a
+    /// fresh draft and restart an analysis already in progress.
+    @State private var didHandOff = false
+
     /// - Parameters:
-    ///   - onPickAnotherFile: dismisses this screen and reopens the file picker, for the
-    ///     failures where a different file is the actual fix.
-    ///   - onFinished: hands the original transcript on. This is the seam the `.analysis`
-    ///     route plugs into once pattern generation exists.
+    ///   - onBack: returns to Input Script. The caller cancels any in-flight transcription
+    ///     and leaves every input mode as the user left it.
+    ///   - onFinished: hands the original transcript on to analysis. Called automatically
+    ///     as soon as there is a transcript — there is no confirmation step.
     public init(
         viewModel: LoadingRouteViewModel,
-        onCancel: @escaping () -> Void,
-        onPickAnotherFile: @escaping () -> Void,
+        onBack: @escaping () -> Void,
         onFinished: @escaping (Transcript) -> Void
     ) {
         self.viewModel = viewModel
-        self.onCancel = onCancel
-        self.onPickAnotherFile = onPickAnotherFile
+        self.onBack = onBack
         self.onFinished = onFinished
     }
 
@@ -50,19 +61,10 @@ public struct LoadingRouteView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button(action: cancel) {
-                            Image(systemName: "xmark")
+                        Button(action: goBack) {
+                            Image(systemName: "chevron.left")
                         }
-                        .accessibilityLabel("Cancel")
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button(action: confirm) {
-                            Image(systemName: "checkmark")
-                        }
-                        // Nothing to confirm until there is a result or a failure to act
-                        // on; the button stays in place so the chrome does not jump.
-                        .disabled(confirmAction == nil)
-                        .accessibilityLabel(confirmAccessibilityLabel)
+                        .accessibilityLabel("Back to input")
                     }
                 }
         }
@@ -87,62 +89,39 @@ public struct LoadingRouteView: View {
             ErrorSheet(systemImage: copy.systemImage, title: copy.title, message: copy.message)
 
         case .finished(let transcript):
-            // Temporary terminus. The `.analysis` route consumes this transcript once
-            // `SpeechAnalyzing` lands; until then the flow ends by showing what it
-            // produced, so the transcription path is verifiable end to end.
-            TranscriptPreviewView(transcript: transcript)
+            // No confirmation step: the user already chose to transcribe, so showing them
+            // the raw transcript and asking them to approve it adds a tap without adding a
+            // decision. Analysis takes over from here and shows the transcript anyway.
+            //
+            // The spinner is what they see for the frame between handing off and the
+            // analysis screen replacing this sheet — it continues the loading state rather
+            // than flashing a different screen.
+            LoadingView(
+                systemImage: systemImage(for: .analyzing),
+                message: message(for: .analyzing),
+                detail: viewModel.sourceDescription
+            )
+            .onAppear {
+                guard !didHandOff else { return }
+                didHandOff = true
+                onFinished(transcript)
+            }
         }
     }
 
     // MARK: - Actions
 
-    private func cancel() {
+    /// ‹. Cancels first, then hands control back, so a transcription can never outlive the
+    /// screen that asked for it (CLAUDE.md §6). Safe to call in any state — cancelling
+    /// work that already finished or failed is a no-op.
+    private func goBack() {
         viewModel.cancel()
-        onCancel()
+        onBack()
     }
 
-    private func confirm() {
-        confirmAction?()
-    }
-
-    /// What ✓ does in the current state, or nil when there is nothing to confirm yet.
-    ///
-    /// Derived rather than stored so the button cannot fall out of step with the state,
-    /// and so `disabled` and the tap handler are always driven by the same value.
-    private var confirmAction: (() -> Void)? {
-        switch viewModel.viewState {
-        case .loading:
-            return nil
-
-        case .finished(let transcript):
-            return { onFinished(transcript) }
-
-        case .failed(let error):
-            switch TranscriptionErrorCopy(error: error).primaryAction {
-            case .pickAnotherFile: return onPickAnotherFile
-            case .retry: return { viewModel.start() }
-            // Nothing in-app will fix a denied permission, so ✓ leaves rather than
-            // offering a retry that cannot work.
-            case .close: return cancel
-            }
-        }
-    }
-
-    private var confirmAccessibilityLabel: String {
-        switch viewModel.viewState {
-        case .loading: "Confirm"
-        case .finished: "Done"
-        case .failed(let error): TranscriptionErrorCopy(error: error).primaryActionTitle
-        }
-    }
-
-    private var navigationTitle: String {
-        switch viewModel.viewState {
-        case .loading: ""
-        case .failed: ""
-        case .finished: "Transcript"
-        }
-    }
+    // Every state of this screen is transitional, so none of them names itself — a title
+    // appearing for one frame on the way to analysis reads as a screen the user landed on.
+    private let navigationTitle = ""
 
     // MARK: - LoadingContext -> copy
     //
@@ -165,32 +144,5 @@ public struct LoadingRouteView: View {
         case .analyzing: "sparkles"
         case .waitingForModel: "arrow.down.circle.dotted"
         }
-    }
-}
-
-/// Shows the finished transcript.
-///
-/// Scaffolding for the seam described above: it exists so the attach-file path can be
-/// verified before analysis is built, and should be *replaced* by the `.analysis` route
-/// rather than grown.
-private struct TranscriptPreviewView: View {
-    let transcript: Transcript
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: ShuoSpacing.medium) {
-            Text("\(transcript.originalWordCount) words")
-                .font(ShuoTypography.caption)
-                .foregroundStyle(ShuoColor.secondaryText)
-
-            ScrollView {
-                Text(transcript.original)
-                    .font(ShuoTypography.body)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-            }
-        }
-        .padding(ShuoSpacing.large)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(ShuoColor.background)
     }
 }

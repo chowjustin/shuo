@@ -1,6 +1,6 @@
 # Shuo — iOS Architecture & Feature Analysis
 
-**Status:** Design document — implementation in progress; Purpose selection and Input Script are built (§3.1.1), everything else is still the original design
+**Status:** Design document — implementation in progress. Built: Purpose selection, Input Script (all three modes), the transcription loading step, and the transcript analysis screen with catalog classification, component-mapped key points and on-demand refinement, over SwiftData persistence. **Not built: the entire `FeatureHome` package** — `HomeViewModel`, `HomeViewState`, `ScriptRowView`, `SearchScriptsUseCase` and `FetchScriptSummariesUseCase` are empty stubs and `HomeView` is a placeholder, so saved scripts currently have no list to appear in and reopening one is unreachable. Also unbuilt: several `ShuoDesignSystem` components (`AccordionView`, `GhostTextField`, `HighlightedText`, `SegmentedModeControl`, `EmptyStateView`), `LegacySpeechRecognitionService`, and all three XCUITest paths. Sections describing those still read as design, not as description.
 **Scope:** User Stories 1–3 (speech creation, transcription & AI analysis, save/search/history)
 **Target platform:** iOS 26+, Swift 6.2, SwiftUI
 
@@ -71,9 +71,19 @@ Because it's just three `CaseIterable` cases, the Purpose screen is a `ForEach(S
 ```
 `RootView` (in the `Shuo` app target) constructs the coordinator with `onFinish: { coordinator = nil }`, so its own `@State private var coordinator: CreateScriptCoordinator?` is the single source of truth for "is the create flow showing" — there's no separate `isPresented` flag on the coordinator to keep in sync with it.
 
-The `.analysis` step and the reopen-a-saved-script path are **not built yet** — the `Route`/`ScriptDraft`-based sketch further down in this doc (§6) still reflects a target end-state, not what exists today. When those land, this single-optional model will likely need to grow into a real stack again (e.g. back to a `Route`/`path: [Route]` shape, or a proper `NavigationPath`) — don't reintroduce that complexity before it's actually needed.
+The **`.analysis` step is now built**; the reopen-a-saved-script path is not. Neither needed a `Route`/`path` stack — see the presentation model below — so the §6 sketch still describes a target end-state rather than what exists. Don't reintroduce that complexity before it's actually needed.
 
-**The loading step is built, and deliberately did *not* introduce that stack.** `InputScriptViewModel` owns an optional `loadingVM: LoadingRouteViewModel?`, presented by `InputScriptView` as a **`.sheet`** — keeping the whole create flow one stacked sheet chain (Purpose → Input Script → Loading) rather than breaking out into a full-screen cover. One presented child covers what the flow needs today; promote it to a coordinator-owned route when `.analysis` lands and the flow genuinely branches.
+**The loading step deliberately did *not* introduce that stack.** `InputScriptViewModel` owns an optional `loadingVM: LoadingRouteViewModel?`, presented by `InputScriptView` as a **`.sheet`** — keeping the forward path one stacked sheet chain (Purpose → Input Script → Loading) rather than breaking out into a full-screen cover.
+
+**Current implementation: one sheet, one step at a time (decision #20).** `CreateScriptCoordinator` owns a `Step` enum — `.purpose` / `.input` / `.loading` / `.analysis(ScriptDraft)` — and the flow is a content swap on that value inside a single sheet. `CreateFlowView` (in `FeatureSpeechCreation`) renders the first three; `CreateFlowSheet` (app target) swaps that whole view for `TranscriptAnalysisView` once there is a draft, since only the app target may know both features (CLAUDE.md §4). The coordinator also owns the live `InputScriptViewModel`, built through an injected factory, so the loading step can read its source and a retryable failure comes straight back to a screen with the user's content still on it.
+
+The consequences of the earlier design still hold: the user is never returned to Input Script after a *successful* transcription, and leaving analysis ends the create flow rather than revealing a purpose picker three steps stale. What changed is that no presentation is ever stacked, so nothing has to be unwound.
+
+> **Superseded — the flicker was real, and the fix was the route stack.** The stacked design fired three presentation changes in one synchronous update: `LoadingRouteView`'s `.onAppear` dismissed the loading sheet, then `beginAnalysis` cleared `selectedPurpose` (dismissing Input Script) and set `analysisDraft` (swapping the root sheet's content) while `PurposeSelectionView` was itself being removed. Observed on device as a visible blink. Replaced by the single-sheet step model in decision #20 — see that row for the current design. Sequencing the dismissals across a runloop tick was considered and rejected: it would have hidden a symptom produced by modelling one linear flow as three independent presentations.
+>
+> `LoadingRouteView` also guards hand-off with a `didHandOff` flag, because `.onAppear` fires again whenever the view re-enters the hierarchy — returning from the background would otherwise build a second draft and restart an analysis already running.
+
+**Rejection is the one exception — it goes backwards.** `returnToInput(rejecting:)` clears `analysisDraft`, restores `selectedPurpose` from the draft, and stashes the transcript, which `PurposeSelectionView` picks up via `consumeRejectedTranscript()` to rebuild Input Script seeded in Write mode. Everywhere else, replacing the earlier steps is right because the user is done with them; a "this isn't a speech" verdict is precisely the case where the earlier step *is* the fix, and discarding the transcript would make the user re-record a speech the app is already holding. Input Script is rebuilt rather than restored — the original session's recorder and file handles are long gone — which is why the seed is text in Write mode rather than a resumed Speak session.
 
 Because a sheet is swipe-dismissable, dismissal is a real exit path and not just a hide: presentation is driven through a binding whose setter calls `dismissLoading()`, so leaving by *any* means — swipe, ✕, or the flow being torn down — cancels the in-flight transcription (CLAUDE.md §6).
 
@@ -81,9 +91,9 @@ This keeps title/purpose state alive across every step without re-fetching or du
 
 **Loading UI (implemented for extract → transcribe; `.analyzing` still pending):** the transition after "Save"/"proceed" in Input Script — which may involve audio extraction (video attachments), speech-to-text, and the first AI analysis pass — is meant to be a dedicated, reusable `LoadingView` pushed as its own route (`.loading`), living in `ShuoDesignSystem` so any step can reuse it with a different status message ("Extracting audio…", "Transcribing…", "Analyzing your speech…"). It should stay inside the same sheet chain — the user should never see a screen transition outside the flow. This is distinct from the *inline* "Updating suggestions…" indicator used for incremental edits in the Transcript view (§3.2.2) — that one is a small in-place indicator, not a navigation to a new route, since navigating away for a small edit would be jarring.
 
-**Error presentation.** Failures during the loading step surface as `ShuoDesignSystem.ErrorSheet` — a reusable component taking primitives only, so the design system stays free of domain types (CLAUDE.md §4). The `ShuoError → copy` mapping lives in `FeatureSpeechCreation/Loading/TranscriptionErrorCopy.swift` and switches exhaustively over every case, so adding a `ShuoError` fails the build there rather than silently shipping generic wording. Each case also carries an explicit `Action` (`.pickAnotherFile` / `.retry` / `.close`) rather than inferring behaviour from the button's title — notably, a denied permission never offers a retry that cannot work, since re-requesting will not prompt again.
+**Error presentation.** Failures during the loading step surface as `ShuoDesignSystem.ErrorSheet` — a reusable component taking primitives only, so the design system stays free of domain types (CLAUDE.md §4). The `ShuoError → copy` mapping lives in `FeatureSpeechCreation/Loading/TranscriptionErrorCopy.swift` and switches exhaustively over every case, so adding a `ShuoError` fails the build there rather than silently shipping generic wording. It carries **copy only, no action** — see decision #23. An earlier version attached a `primaryAction` per case, which forced the copy to guess what produced the failure and offered "choose another file" to users who had recorded.
 
-**Actions live in the toolbar, not in the content.** `LoadingRouteView` wraps every state in a `NavigationStack` with fixed chrome: **✕ leading** to leave, **✓ trailing** to move forward — the same left/right arrangement as Input Script beneath it, so the controls never move as the flow advances. What ✓ *does* varies by state (retry, pick another file, finish) and is derived from the state rather than stored, so `disabled` and the tap handler can't fall out of step; during `.loading` there is nothing to confirm, so it is disabled rather than hidden and the chrome stays put. Consequently `ErrorSheet` and `LoadingView` are **content-only** — a button pinned inside either would compete with the toolbar for the same action.
+**Actions live in the toolbar, not in the content.** `LoadingRouteView` wraps every state in a `NavigationStack` with fixed chrome — but only **one** control: **‹ leading**, meaning "back to Input Script" in every state (decision #23). While transcribing it cancels the work; on a failure it simply returns. There is no ✓ and no ✕. **Success needs no confirmation**: `.finished` hands the transcript to analysis on appearance, guarded by a `didHandOff` flag so a re-appearing view cannot hand off twice. Consequently `ErrorSheet` and `LoadingView` are **content-only** — a button pinned inside either would compete with the toolbar for the same action.
 
 Two failure surfaces coexist by design: import failures (which happen before any long-running work, while the user is still on the input screen) render *inline* in `AttachFileModeView`, and the pre-existing full-screen file-too-large overlay in `InputScriptView` is retained as-is. Only failures during the loading step get an `ErrorSheet`.
 
@@ -170,10 +180,41 @@ The reason this is worth the extra field is that it keeps live transcription a *
 - **Editable transcript → auto-updated key points:** debounce edits (roughly 800ms–1.5s after typing stops), then re-invoke `GenerateKeyPointsUseCase`. Store the in-flight `Task` on the ViewModel and cancel-and-replace it on every new debounce firing, so rapid edits don't queue up redundant AI calls or race each other. Show a lightweight "Updating suggestions…" indicator while this runs.
 
 #### 3.2.3 Pattern suggestions
-- "Max 3 patterns" maps directly onto Foundation Models' guided generation: `@Guide(.count(3))` on an array **forces** exactly 3 items back from the model — no client-side truncation needed.
+
+> **Revised during implementation.** The original design below had the model *inventing*
+> patterns freely. It now **classifies against a fixed catalog** — see
+> `Docs/SPEECH_PATTERNS.md` for the catalog itself and the reasoning. The rest of this
+> subsection reflects what is built.
+
+- **Patterns are a closed set of 23 catalog entries** (8 inform / 7 persuade / 8 inspire),
+  encoded as `SpeechPatternCatalog` in `ShuoCore`. The model never authors a pattern name
+  or summary; it only ranks the catalog subset for the user's chosen purpose. A closed set
+  is far more reliable on a small on-device model, and — decisively — a *fixed component
+  list per pattern* is what makes component-mapped key points possible at all.
+- **Each pattern owns ordered, named components** (`SpeechPatternComponent`): Topical has
+  Topic Overview / Category 1–3 / Closing Summary; PREP has Point / Reason / Example /
+  Reinforced Point. These components *are* the key-point slots.
+- **Key points are one-per-component, always.** Where the transcript covers nothing for a
+  component, its key point text is the literal `"-"`. `KeyPointNormalizer` (domain layer,
+  pure, heavily tested) enforces this against whatever the model actually returned —
+  dropping invented components, collapsing duplicates, reordering, and filling gaps. The
+  UI can therefore render positionally and trust the shape.
+- **Validity is judged in the same call as ranking.** A cheap non-AI
+  `TranscriptUsabilityPrecheck` rejects empty/garbage input for free first; anything past it
+  goes into one model call returning both a usability verdict and the ranked ids.
+  `ClassifyTranscriptUseCase` validates every returned id against the *candidate* set, so a
+  hallucinated id — or a real id from another purpose — never reaches the UI.
+- **Scheduling: eager first, background prefetch after.** Key points for the top-ranked
+  pattern are awaited and shown; the other two generate sequentially in the background so
+  switching is a cache hit. Sequential, not concurrent — the analyzer is an actor and the
+  neural engine serializes generations anyway.
+- **The refined transcript is user-triggered**, via a "Regenerate Transcript" button, not
+  produced on every pattern switch. It is the most expensive call in the flow, and it is
+  cached per pattern.
 - `ScrollView(.horizontal) { LazyHStack { ... } }` over `[SpeechPattern]`.
-- Selecting a pattern re-runs generation scoped to that pattern: `ApplyPatternUseCase(original: Transcript, pattern: SpeechPattern) async throws -> (keyPoints: [KeyPoint], refinedTranscript: String)` — this is a second, smaller AI call conditioned on the already-generated original transcript, matching "selected pattern updates key points preview + refined transcript."
-- "Suggestion under every empty key point textfield" is a near-perfect fit for SwiftUI's native placeholder parameter: `TextField(keyPoint.suggestion ?? "", text: $keyPoint.text)` gives you ghost-text for free.
+- "Suggestion under every empty key point textfield" is a near-perfect fit for SwiftUI's
+  native placeholder parameter — the ghost text comes from the component's own `contains`
+  hints, not from the model.
 
 #### 3.2.4 AI Foundation Model integration (deep dive)
 
@@ -181,34 +222,42 @@ This is the feature with the most architectural weight, so it gets its own proto
 
 ```swift
 protocol SpeechAnalyzing: Sendable {
-    func suggestPatterns(for transcript: String) async throws -> [SpeechPattern]
+    func classify(transcript: String, purpose: SpeechPurpose,
+                  candidates: [SpeechPattern]) async throws -> PatternClassification
     func generateKeyPoints(transcript: String, pattern: SpeechPattern) async throws -> [KeyPoint]
-    func refineTranscript(_ transcript: String, pattern: SpeechPattern) async throws -> String
+    func refineTranscript(_ transcript: String, pattern: SpeechPattern,
+                          keyPoints: [KeyPoint]) async throws -> String
     func analyzeGrammar(_ transcript: String) async throws -> [GrammarSuggestion]
 }
 ```
-Domain use cases depend only on this protocol — never on `import FoundationModels` directly. The concrete `FoundationModelSpeechAnalyzer` lives in its own package and defines **AI response schemas separate from domain entities**:
+Domain use cases depend only on this protocol — never on `import FoundationModels` directly.
+
+**Schemas are dynamic, not `@Generable` structs.** The original sketch here used
+`@Generable`/`@Guide(.count(3))` DTOs. That does not work for a catalog-backed design:
+`@Guide(.anyOf(...))` needs its values at compile time, but the legal pattern ids depend on
+the user's chosen purpose, and the legal component names depend on which pattern is being
+applied. So `ClassificationSchema` and `KeyPointsSchema` build a `DynamicGenerationSchema`
+per request, baking the *exact* candidate ids / component names into the grammar:
 
 ```swift
-import FoundationModels
-
-@Generable
-struct GeneratedPatternSet {
-    @Guide(.count(3))
-    let patterns: [GeneratedPattern]
-}
-
-@Generable
-struct GeneratedPattern {
-    @Guide(description: "Short structural pattern name, e.g. Problem-Solution")
-    let name: String
-    @Guide(description: "One sentence on when to use this pattern")
-    let summary: String
-    @Guide(description: "3 to 5 ordered structural beats")
-    let outline: [String]
-}
+DynamicGenerationSchema.Property(
+    name: "rankedPatternIDs",
+    schema: DynamicGenerationSchema(
+        arrayOf: DynamicGenerationSchema(name: "PatternIdentifier",
+                                         anyOf: candidates.map(\.id)),
+        maximumElements: 3
+    )
+)
 ```
-The service maps these `@Generable` DTOs to the domain's `SpeechPattern` — keeping the macro-generated schema out of the domain layer entirely.
+This makes it structurally impossible for the model to return an id from another purpose or
+a component the pattern doesn't have. `GeneratedContentMapper` decodes the resulting
+`GeneratedContent` into domain entities, sharing property-name constants with the schema
+builders so the two halves cannot drift. Refinement uses no schema at all — it produces free
+prose, and constraining that would only get in the way.
+
+Constrained decoding is treated as a strong guarantee, not an absolute one: the domain layer
+still validates ids and normalizes key points, so the app never depends on a framework
+detail holding perfectly.
 
 A few things worth designing in from the start, based on how the framework actually behaves:
 
@@ -332,15 +381,23 @@ enum AudioCaptureEvent: Sendable, Equatable {
 
 enum MicrophonePermissionStatus: Sendable, Equatable { case notDetermined, granted, denied }
 
+// Superseded by decision #10: the id is a stable catalog slug ("inform.topical"), not a
+// UUID, and `outline: [String]` became ordered `SpeechPatternComponent`s — the fixed
+// per-pattern component list is what makes component-mapped key points possible at all.
+// `SpeechPatternCatalog` owns all 23; Docs/SPEECH_PATTERNS.md is their source of truth.
 struct SpeechPattern: Sendable, Identifiable, Equatable, Codable {
-    let id: UUID
+    let id: String
     let name: String
     let summary: String
-    let outline: [String]
+    let purpose: SpeechPurpose
+    let components: [SpeechPatternComponent]
 }
 
+// One per component, always, in component order — `"-"` where the transcript covered
+// nothing. `KeyPointNormalizer` enforces that shape against whatever the model returned.
 struct KeyPoint: Sendable, Identifiable, Equatable, Codable {
-    let id: UUID
+    let componentID: String
+    let componentName: String
     var text: String
     var orderIndex: Int
     var suggestion: String?     // ghost-text placeholder when text is empty
@@ -394,7 +451,7 @@ struct ScriptDraft: Sendable, Identifiable {
     var purpose: SpeechPurpose
     var source: SpeechSource?
     var transcript: Transcript
-    var suggestedPatterns: [SpeechPattern]
+    var suggestedPatternIDs: [SpeechPattern.ID]   // catalog slugs, not copies (#10)
     var selectedPatternID: SpeechPattern.ID?
     var keyPoints: [KeyPoint]
     var recordingDuration: TimeInterval?
@@ -436,8 +493,9 @@ This split follows current (2026) Apple guidance directly: Swift Testing is the 
 **Representative test list** (illustrative, not exhaustive):
 - `hasValidContent` returns `false` for empty write-mode text, `true` after a finished recording
 - `GenerateTranscriptUseCase` routes `.typedText` directly to the transcript without invoking `SpeechTranscribing`
-- Editing the transcript cancels an in-flight key-point regeneration `Task` and starts a new one
-- `ApplyPatternUseCase` returns key points and a refined transcript scoped to the newly selected pattern, not the previous one
+- `KeyPointNormalizer` returns exactly one key point per component, with `"-"` for anything the transcript did not cover
+- `ClassifyTranscriptUseCase` discards a returned pattern id belonging to a different purpose
+- `TranscriptAnalysisViewModel.cancelAll()` stops the background prefetch so no AI call fires after the sheet is dismissed
 - `SwiftDataScriptRepository.save` then `.fetch(id:)` round-trips a `Script` with all fields intact, including patterns and grammar suggestions
 - `HomeViewModel` search filters by title case-insensitively and updates synchronously as the query changes
 - `AIAvailabilityGate` surfaces a non-blocking fallback state when `SystemLanguageModel.default.availability` is `.unavailable`
@@ -457,6 +515,22 @@ This split follows current (2026) Apple guidance directly: Swift Testing is the 
 | 7 | Does Speak mode transcribe live, or only record and let the next step transcribe? | **Transcribes live, hidden.** One `AVAudioEngine` tap feeds the file, the waveform, and a `SpeechAnalyzer` pass at the same time, so the transcript is ready the moment the user confirms and the create flow has no transcription wait. Carried forward on `AudioRecording.liveTranscript`, which keeps `SpeechSource` at three cases and makes the live pass a pure optimization over the always-written audio file. No transcript is shown while recording — the UI is waveform and timer only. See §3.1.3, §3.2.1. |
 | 8 | Amplitude stream plus separate duration, or one event stream? | **One `AsyncStream<AudioCaptureEvent>`**, superseding §3.1.3's original `AsyncStream<[Float]>`. Added when interruption handling came into scope: with two channels, an interruption could race a waveform tick. See §3.1.3. |
 | 9 | Handle microphone denial and audio interruptions now, or defer to a hardening pass? | **Now.** Retrofitting interruption handling into a finished state machine is more churn than building it once, and it is the difference between a demo and a shippable recorder. See §3.1.3. |
+| 10 | Does the model invent structure patterns, or classify against a fixed set? | **Classifies against a fixed catalog of 23 entries** (`SpeechPatternCatalog`, documented in `Docs/SPEECH_PATTERNS.md`), reversing the original §3.2.4 design. Two reasons: closed-set classification is far more reliable than free generation on a ~3B on-device model, and a fixed *component list per pattern* is what makes component-mapped key points possible at all. Patterns are persisted as stable slug ids, not copies, so improving a pattern's wording updates every saved script. See §3.2.3. |
+| 11 | Where does the "transcript isn't a speech" check live? | **A free non-AI precheck, then merged into the classification call.** `TranscriptUsabilityPrecheck` rejects empty/gibberish/silent input for zero cost; everything past it gets one model call returning both a usability verdict and the ranked patterns. A separate validity call would add a full round trip to every happy path, and the two judgements come from the same reading of the text anyway. Rejection reasons are a closed enum, not model free-text, so the UI can map each to specific actionable copy. See §3.2.3. |
+| 12 | Generate all three patterns' key points up front, in parallel, or lazily? | **Eager first, sequential background prefetch after.** The user waits only for the top-ranked pattern; the other two generate in the background so switching is instant. Not parallel: the analyzer is an actor and the neural engine serializes generations regardless, so three concurrent sessions would add memory pressure without finishing sooner. Prefetch failures are swallowed — it is speculative work, and selecting that pattern retries and reports in context. See §3.2.3. |
+| 13 | `@Generable` structs or dynamic schemas for AI output? | **`DynamicGenerationSchema`, built per request.** `@Guide(.anyOf(...))` needs compile-time values, but the legal pattern ids depend on the chosen purpose and the legal component names on the chosen pattern. Building the schema at runtime bakes the exact candidates into the grammar, making an out-of-purpose or invented identifier structurally impossible. The domain layer still validates, on the principle that constrained decoding is a strong guarantee rather than an absolute one. See §3.2.4. |
+| 14 | Does the user confirm the finished transcript before analysis runs? | **No.** The transcription step hands off automatically on success, and analysis *replaces* the Purpose → Input Script → Loading sheet chain rather than stacking on it. A confirmation screen showing the raw transcript added a tap without adding a decision — the user had already chosen to transcribe, and the analysis screen shows the transcript anyway. Failure states still stop and ask, because those do carry a decision (retry, pick another file, leave). See §3.1.1. |
+| 15 | Does the analysis screen get its own loading and failure UI, or reuse the transcription step's? | **Reuses `LoadingView` and `ErrorSheet`.** The two screens are consecutive states of one continuous wait — transcribe, then analyze — and the user crosses from one sheet into the other with no interaction in between, so a different spinner or a bare `VStack` of error text reads as having landed somewhere unrelated. The `ShuoError → copy` mapping is duplicated as `AnalysisErrorCopy` rather than shared, because Feature packages must not depend on each other (CLAUDE.md §4) and the same error warrants different advice here — this screen has no file picker to send the user back to. Both mappings switch exhaustively, so a new `ShuoError` case fails the build in each place rather than silently shipping generic wording. See §3.2. |
+| 16 | When is a script persisted — only on an explicit save, or earlier? | **Automatically as soon as classification succeeds, then again on ✓.** Reaching `.loaded` means the transcript passed both the precheck and the model's usability verdict, which is the point at which it is worth keeping. From there the user can leave by ✕, by swipe, or by the app being killed, and none of those can be intercepted reliably — so waiting for an explicit save made every one of them silent data loss. The final ✓ *updates* that record rather than inserting a second, because `save` writes the returned id back onto `ScriptDraft.existingScriptID`, which is exactly what that field is for (§6). Consequence to watch: this creates saved scripts the user never explicitly asked to keep, and v1 has no deletion path (CLAUDE.md §11) — revisit together with `FeatureHome`. See §3.2. |
+| 17 | What happens when the user leaves the loaded analysis screen without saving? | **A confirmation dialog, phrased around what is actually at risk.** Because of #16 the speech itself is already persisted, so the honest wording is "leave without saving your *changes*" — Save and Close / Leave / Cancel — not "discard", which would imply the whole speech is lost and would also promise a deletion the app cannot perform. `.interactiveDismissDisabled` is bound to `hasUnsavedChanges` rather than set unconditionally, so the swipe guard appears only when it has something to protect instead of as blanket friction. See §3.2. |
+| 18 | Where does a rejected transcript go? | **Back to Input Script, seeded in Write mode.** Re-running the same transcript reaches the same verdict, so ✓ on a rejection is not a retry — it is "edit your draft". Without it the only exit was ✕, which meant re-recording a speech the app already had. This is the single place the flow moves backwards, and it is justified because it is the single place where the earlier step is the actual fix. See §3.1.1. |
+| 19 | Does `cancelAll()` cancel an in-flight save? | **No — generations only.** Prefetch and refinement are speculative and safe to abandon when the screen goes away. A save is the one operation whose entire purpose is to outlive the screen, so cancelling it from `.onDisappear` would have re-created the loss that #16 exists to prevent. It is short, bounded, and holds only a detached draft value. See §3.2, CLAUDE.md §6. |
+| 20 | Stacked sheets or one sheet with a step enum? | **One sheet, content switched on `CreateScriptCoordinator.Step`** — reversing #1 and the §3.1.1 warning against reintroducing a route stack. The chained version was not merely inelegant, it was **visibly broken**: handing off to analysis dismissed two stacked sheets and replaced the presenter's content in a single update, which rendered as a flicker (confirmed on device, and predicted by the verification note in §3.1.1). The route stack has now earned its keep — the flow branches, since a rejected transcript goes back to input, and the stacked alternative could not be made to transition cleanly. `CreateFlowView` owns purpose/input/loading inside `FeatureSpeechCreation`; the app target swaps that whole view for `TranscriptAnalysisView`, so the cross-feature join stays in the one place allowed to know both (CLAUDE.md §4). `dismissAnalysis()` was deleted along with this: no step in the flow wants "leave analysis but stay in the flow". |
+| 21 | The user can fill in all three input modes — which one counts? | **The one they are on when they confirm; the other two are released then and there.** Confirming is the commitment point: `InputScriptViewModel.prepareToProceed()` captures the active mode's source and then calls `discardUnconfirmedModes()`. This matters beyond tidiness — Speak writes a real audio file, and `cancel()` discards it; leaving it would leak storage v1 gives the user no way to reclaim. Attach File needs no file cleanup, because import is **bookmark-based and never copies into the sandbox**. **Release happens at `beginAnalysis`, not at confirm** — corrected after an initial implementation put it at confirm time. Confirming *looks* like commitment but isn't: transcription can still fail, and #23 sends the user straight back to this screen expecting their work intact. Discarding at confirm would have deleted a recording the app was about to hand back. `beginAnalysis` is the first moment nothing can reach the other modes, since the one route back from there (a rejected transcript) rebuilds the step from text rather than resuming it. `recordingDuration` is likewise read from the confirmed mode only — it previously read Speak unconditionally, stamping typed text with an abandoned recording's duration and dropping imported media's duration entirely. |
+| 22 | Is AI availability checked before generation? | **Yes, and it wasn't before.** `AIAvailabilityGate` was constructed in `AppContainer` and injected into nothing, so CLAUDE.md §8's "check before any generation call" was violated everywhere and the two runtime states §3.2.4 designs were unreachable — a user whose model was still downloading got a generic retryable failure that retrying could not fix. `TranscriptAnalysisViewModel` now takes an `AIAvailabilityChecking` and gates `runInitialAnalysis()`. `.modelNotReady` → `.waitingForModel`, polled on an interval until it clears, then analysis continues on its own; the wait is a suspended `Task.sleep` inside `analysisTask`, so existing `cancelAll()` teardown covers it with no new path. `.appleIntelligenceNotEnabled` and `.deviceNotEligible` → `.unavailable(status)`, carrying the status because `ShuoError.aiUnavailable` has no payload and the two need different copy — one points at Settings, the other states a hard block without implying a fix. |
+| 23 | What actions does the transcription/error screen offer? | **One button: ‹ back to Input Script, in every state, same position.** Replaces the ✕/✓ pair, and the removal of ✓ fixes a real bug rather than simplifying for its own sake. `TranscriptionErrorCopy` carried a per-error `primaryAction`, and it had to guess what produced the failure: `noSpeechDetected` mapped to `.pickAnotherFile`, so a user who **recorded** something silent was shown a file browser. Errors here describe what went wrong; every one of them is resolved on the input screen, which is one ‹ away, so going back and confirming again *is* the retry. `Action`, `primaryAction` and `primaryActionTitle` are gone from that type, along with `retryWithAnotherFile`. During `.loading` the same ‹ cancels the in-flight transcription, so a long file is never unabortable. Copy is now the only channel, so a test asserts no reachable error's wording assumes the source was a file. |
+| 24 | Is there a minimum media duration? | **Yes — 3 seconds, enforced in the domain.** A 1-second take was transcribed, came back empty, and surfaced as "we couldn't hear any speech": a wasted round trip reported as a fault rather than as guidance. `MediaLimits.minDurationSeconds` and `ShuoError.mediaTooShort` sit alongside the existing maximum, and `GenerateTranscriptUseCase` checks **before** the live-transcript short-circuit — placing it after would let a short recording through whenever the live pass happened to succeed (§3.2.1). Both boundaries are inclusive, so exactly 3.0s passes. An unknown duration is never rejected, matching the existing stance that a failed probe is not a user error. `FileImportService` checks it too, so all three import limits report at pick time while the picker is still what the user is looking at; the use-case check remains the real guarantee, since a recording never passes through the importer. |
+| 25 | Where does the script title live on the analysis screen? | **An editable field at the top of the content, with the purpose beneath it** — not a renameable navigation title, which was the first attempt. The nav bar keeps a static "Speech Analysis" label: ✕ and ✓ sit there with nothing else, and an empty bar between them reads as an unnamed modal, while a second bound copy of the title could disagree with the field mid-edit. An empty title is allowed *during* editing — a user clearing the field to retype passes through empty on every keystroke, and snapping a placeholder back under their cursor fights them — then normalized to "Untitled Script" on commit, and again inside `save()`, because ✓ can be tapped straight from the keyboard and the view cannot be trusted to have committed first. |
 
 ## 10. Tooling decisions (scaffolding phase)
 
@@ -534,8 +608,13 @@ Packages/ShuoCore/
 │   │   ├── MicrophonePermissionStatus.swift  enum: notDetermined/granted/denied
 │   │   ├── ImportedMedia.swift        struct: id, fileURL, kind (audio/video), originalFileName
 │   │   ├── Transcript.swift           struct: original, refined
-│   │   ├── SpeechPattern.swift        struct: id, name, summary, outline
-│   │   ├── KeyPoint.swift             struct: id, text, orderIndex, suggestion
+│   │   ├── SpeechPattern.swift        struct: id (stable slug), name, summary, purpose, components
+│   │   ├── SpeechPatternComponent.swift  struct: id, name, contains, aiGuideline, order — one key-point slot
+│   │   ├── SpeechPatternCatalog.swift    the fixed 23-entry catalog (see Docs/SPEECH_PATTERNS.md)
+│   │   ├── PatternClassification.swift   struct: isUsable, rejectionReason, rankedPatternIDs
+│   │   ├── TranscriptRejectionReason.swift  enum: tooShort/mostlySilence/unintelligible/notASpeech
+│   │   ├── AIAvailabilityStatus.swift    enum mirroring SystemLanguageModel.Availability
+│   │   ├── KeyPoint.swift             struct: componentID, componentName, text, orderIndex, suggestion
 │   │   ├── GrammarSuggestion.swift    struct — defined, unused in v1 (§2.5)
 │   │   ├── Script.swift               aggregate root — the persisted, finished record
 │   │   ├── ScriptSummary.swift        lightweight Home-list projection
@@ -543,20 +622,21 @@ Packages/ShuoCore/
 │   │   └── LoadingContext.swift       enum driving the shared LoadingView's copy
 │   │
 │   ├── Protocols/                     the seams — domain owns these, Data/Presentation implement/consume them
-│   │   ├── ScriptRepository.swift         save/fetch(id:)/fetchSummaries()/search(query:)/delete(id:)
+│   │   ├── ScriptRepository.swift         save/fetch(id:)/fetchSummaries()/search(query:)
+│   │   │                                  (no delete — out of scope for v1, CLAUDE.md §11)
 │   │   ├── AudioCapturing.swift           prepare()/start()/pause()/resume()/finish() ->
 │   │   │                                  AudioRecording/discard(), plus `events` stream
 │   │   ├── MicrophonePermissionProviding.swift  currentStatus()/request()
 │   │   ├── SpeechTranscribing.swift       transcribe(_ source: SpeechSource) async throws -> String
 │   │   ├── FileImporting.swift            importFile(from: URL) async throws -> ImportedMedia
-│   │   ├── SpeechAnalyzing.swift          suggestPatterns / generateKeyPoints / refineTranscript / analyzeGrammar
+│   │   ├── SpeechAnalyzing.swift          classify / generateKeyPoints / refineTranscript / analyzeGrammar
 │   │   └── AIAvailabilityChecking.swift   availability() async -> AIAvailabilityStatus
 │   │
 │   ├── UseCases/
 │   │   ├── GenerateTranscriptUseCase.swift    routes SpeechSource -> Transcript (§3.2.1)
-│   │   ├── SuggestPatternsUseCase.swift        transcript -> up to 3 SpeechPattern
-│   │   ├── ApplyPatternUseCase.swift           pattern -> (keyPoints, refinedTranscript)
-│   │   ├── RegenerateKeyPointsUseCase.swift    edited transcript -> updated keyPoints (debounced caller-side)
+│   │   ├── ClassifyTranscriptUseCase.swift     precheck + classify -> up to 3 SpeechPattern (validated)
+│   │   ├── GenerateKeyPointsUseCase.swift      pattern -> normalized [KeyPoint], one per component
+│   │   ├── RegenerateTranscriptUseCase.swift   pattern + keyPoints -> refined transcript (user-triggered)
 │   │   ├── SaveScriptUseCase.swift             ScriptDraft -> persisted Script (insert or update)
 │   │   ├── FetchScriptSummariesUseCase.swift   Home list source
 │   │   ├── FetchScriptUseCase.swift            full Script by id, for reopen -> hydrates a ScriptDraft
@@ -574,8 +654,12 @@ Packages/ShuoCore/
 │
 └── Tests/ShuoCoreTests/
     ├── GenerateTranscriptUseCaseTests.swift
-    ├── SuggestPatternsUseCaseTests.swift
-    ├── ApplyPatternUseCaseTests.swift
+    ├── ClassifyTranscriptUseCaseTests.swift
+    ├── GenerateKeyPointsUseCaseTests.swift
+    ├── RegenerateTranscriptUseCaseTests.swift
+    ├── KeyPointNormalizerTests.swift
+    ├── TranscriptUsabilityPrecheckTests.swift
+    ├── SpeechPatternCatalogTests.swift
     ├── SaveScriptUseCaseTests.swift
     ├── FetchScriptUseCaseTests.swift
     └── SearchScriptsUseCaseTests.swift
@@ -668,17 +752,14 @@ Packages/ShuoAudio/
 ```
 Packages/ShuoAI/
 ├── Sources/ShuoAI/
-│   ├── Schemas/                         the @Generable DTOs — never exposed outside this package
-│   │   ├── GeneratedPatternSet.swift
-│   │   ├── GeneratedPattern.swift
-│   │   ├── GeneratedKeyPointSet.swift
-│   │   ├── GeneratedKeyPoint.swift
-│   │   ├── GeneratedRefinedTranscript.swift
+│   ├── Schemas/                         DynamicGenerationSchema builders — never exposed outside this package
+│   │   ├── ClassificationSchema.swift    constrains output to the purpose's candidate ids
+│   │   ├── KeyPointsSchema.swift         constrains output to the pattern's component names
 │   │   └── GeneratedGrammarSuggestion.swift    defined, unused in v1 (§2.5)
 │   ├── Mapping/
-│   │   └── GeneratedContentMapper.swift  DTO -> ShuoCore domain entity
-│   ├── FoundationModelSpeechAnalyzer.swift     conforms to SpeechAnalyzing; owns LanguageModelSession(s),
-│   │                                           prewarm(), streamResponse() usage
+│   │   └── GeneratedContentMapper.swift  GeneratedContent -> ShuoCore domain entity
+│   ├── FoundationModelSpeechAnalyzer.swift     actor conforming to SpeechAnalyzing; owns one
+│   │                                           LanguageModelSession per task, plus prewarm()
 │   ├── AIAvailabilityGate.swift                conforms to AIAvailabilityChecking; wraps
 │   │                                           SystemLanguageModel.default.availability
 │   ├── ContextWindowChunker.swift              chunk/summarize-then-analyze strategy for long transcripts
@@ -702,6 +783,9 @@ Packages/ShuoDesignSystem/
 │   ├── Components/
 │   │   ├── PurposeCard.swift
 │   │   ├── PatternCard.swift
+│   │   ├── CircularIconButton.swift    primary action for every Input Script mode —
+│   │   │                                  one shape so switching modes never implies
+│   │   │                                  a different kind of action
 │   │   ├── WaveformView.swift
 │   │   ├── AccordionView.swift
 │   │   ├── SegmentedModeControl.swift   reusable for Speak/Write/Attach and Original/Refined
@@ -764,6 +848,9 @@ Packages/FeatureSpeechCreation/
 │   │   └── AttachFile/
 │   │       ├── AttachFileModeView.swift
 │   │       └── AttachFileModeViewModel.swift
+│   ├── Coordinator/
+│   │   └── CreateFlowView.swift      switches purpose -> input -> loading on
+│   │                                 CreateScriptCoordinator.Step, in ONE sheet (#20)
 │   ├── Loading/
 │   │   └── LoadingRouteView.swift    wires LoadingContext -> ShuoDesignSystem.LoadingView, drives
 │   │                                 the use cases (extract -> transcribe -> analyze) before pushing .analysis
@@ -784,14 +871,19 @@ Packages/FeatureSpeechCreation/
 Packages/FeatureTranscriptAnalysis/
 ├── Sources/FeatureTranscriptAnalysis/
 │   ├── TranscriptAnalysisView.swift
-│   ├── TranscriptAnalysisViewModel.swift   Original/Refined toggle, debounced edit -> regenerate,
-│   │                                       pattern selection, save
+│   ├── TranscriptAnalysisViewModel.swift   classify -> key points -> prefetch -> refine,
+│   │                                       per-pattern caches, save-on-load, cancellation
+│   ├── TranscriptAnalysisViewState.swift   .analyzing / .rejected / .loaded / .failed
 │   ├── TranscriptSectionView.swift         accordion + highlighting
 │   ├── PatternCarouselView.swift
+│   ├── PatternCarouselViewModel.swift      child VM: the up-to-3 cards and the selection
 │   ├── KeyPointsListView.swift
-│   └── KeyPointRow.swift
+│   ├── KeyPointRow.swift
+│   └── AnalysisErrorCopy.swift             ShuoError/TranscriptRejectionReason -> glyph +
+│                                           two strings, with an explicit retry-or-not
 └── Tests/FeatureTranscriptAnalysisTests/
-    └── TranscriptAnalysisViewModelTests.swift   debounce/cancel, pattern switch, save wiring
+    ├── TranscriptAnalysisViewModelTests.swift   debounce/cancel, pattern switch, save wiring
+    └── AnalysisErrorCopyTests.swift             every reason distinct, nothing renders blank
 ```
 
 ---

@@ -7,14 +7,17 @@
 
 // Composition root. The only file in the app allowed to import concrete implementations
 // alongside the protocols they satisfy — see CLAUDE.md §4, §9 and ARCHITECTURE.md §5,
-// §12.1. As each concrete service lands (ShuoPersistence, ShuoAudio, ShuoAI) it is
-// owned here and handed to Feature packages through factory methods, never imported
-// directly by a Feature package.
+// §12.1. Each concrete service is owned here and handed to Feature packages through
+// factory methods, never imported directly by a Feature package.
 
 import FeatureHome
 import FeatureSpeechCreation
+import FeatureTranscriptAnalysis
+import ShuoAI
 import ShuoAudio
 import ShuoCore
+import ShuoPersistence
+import SwiftData
 
 final class AppContainer {
     // MARK: - Services
@@ -25,25 +28,64 @@ final class AppContainer {
     // builds its own analyzer session and tears it down again.
     private let speechTranscriber: any SpeechTranscribing = SpeechTranscribingRouter()
 
+    // Shared deliberately: the analyzer is an actor that caches its `LanguageModelSession`s,
+    // so reusing one instance keeps prewarming and session reuse working across the flow.
+    private let speechAnalyzer = FoundationModelSpeechAnalyzer()
+    private let availabilityChecker: any AIAvailabilityChecking = AIAvailabilityGate()
+
+    private let scriptRepository: any ScriptRepository
+
+    init() {
+        scriptRepository = SwiftDataScriptRepository(
+            modelContainer: Self.makeModelContainer()
+        )
+    }
+
     // MARK: - Factories
 
     func makeHomeView(onTapCreate: @escaping () -> Void) -> HomeView {
         HomeView(onTapCreate: onTapCreate)
     }
 
+    @MainActor
     func makeCreateScriptCoordinator(onFinish: @escaping () -> Void) -> CreateScriptCoordinator {
-        CreateScriptCoordinator(onFinish: onFinish)
-    }
-
-    func makePurposeSelectionView(coordinator: CreateScriptCoordinator) -> PurposeSelectionView {
-        PurposeSelectionView(
-            coordinator: coordinator,
+        // Warm the model while the user is still choosing a purpose and speaking, so the
+        // first real request lands on an already-loaded model rather than paying the
+        // load cost inside the loading screen.
+        Task { [speechAnalyzer] in
+            await speechAnalyzer.prewarm()
+        }
+        return CreateScriptCoordinator(
+            onFinish: onFinish,
             makeInputScriptViewModel: makeInputScriptViewModel
         )
     }
 
     @MainActor
-    private func makeInputScriptViewModel(purpose: SpeechPurpose) -> InputScriptViewModel {
+    func makeTranscriptAnalysisView(
+        draft: ScriptDraft,
+        onClose: @escaping () -> Void,
+        onBack: @escaping (ScriptDraft) -> Void
+    ) -> TranscriptAnalysisView {
+        TranscriptAnalysisView(
+            viewModel: TranscriptAnalysisViewModel(
+                draft: draft,
+                availability: availabilityChecker,
+                classifyTranscript: ClassifyTranscriptUseCase(analyzer: speechAnalyzer),
+                generateKeyPoints: GenerateKeyPointsUseCase(analyzer: speechAnalyzer),
+                regenerateTranscript: RegenerateTranscriptUseCase(analyzer: speechAnalyzer),
+                saveScript: SaveScriptUseCase(repository: scriptRepository)
+            ),
+            onClose: onClose,
+            onBack: onBack
+        )
+    }
+
+    @MainActor
+    private func makeInputScriptViewModel(
+        purpose: SpeechPurpose,
+        initialText: String?
+    ) -> InputScriptViewModel {
         InputScriptViewModel(
             purpose: purpose,
             fileImporter: fileImportService,
@@ -53,7 +95,30 @@ final class AppContainer {
             // recording a dead stream.
             audioCapturer: AudioRecordingService(),
             microphonePermissions: microphonePermissions,
-            generateTranscript: GenerateTranscriptUseCase(transcriber: speechTranscriber)
+            generateTranscript: GenerateTranscriptUseCase(transcriber: speechTranscriber),
+            initialText: initialText
         )
+    }
+
+    // MARK: - Persistence
+
+    /// Builds the SwiftData container, falling back to an in-memory store if the on-disk
+    /// one cannot be opened.
+    ///
+    /// The fallback is a deliberate stopgap, not a finished answer: it keeps the app usable
+    /// when the store is corrupt or unreadable, but the user's scripts then silently fail
+    /// to survive a relaunch. Surfacing that properly — a migration path, or an explicit
+    /// "your library couldn't be opened" screen — is follow-up work worth doing before
+    /// shipping.
+    private static func makeModelContainer() -> ModelContainer {
+        if let container = try? ModelContainerFactory.make() {
+            return container
+        }
+        if let inMemory = try? ModelContainerFactory.make(isStoredInMemoryOnly: true) {
+            return inMemory
+        }
+        // Neither an on-disk nor an in-memory store could be created, which means the
+        // schema itself is invalid — a build-time mistake, not a runtime condition.
+        preconditionFailure("Could not create a ModelContainer for the Shuo schema")
     }
 }

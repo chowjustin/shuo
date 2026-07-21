@@ -5,10 +5,6 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// Swift Testing suite for `GenerateTranscriptUseCase`, injecting fakes from
-// ShuoTestSupport (e.g. asserting `.typedText` never invokes `SpeechTranscribing`). See
-// ARCHITECTURE.md §8.
-
 import Foundation
 import Testing
 import ShuoCore
@@ -123,23 +119,110 @@ struct GenerateTranscriptUseCaseTests {
         #expect(transcript.original == "Padded text.")
     }
 
+    // MARK: - Minimum duration
+
+    @Test("A recording shorter than the minimum is rejected without any transcription")
+    func shortRecordingIsRejectedBeforeTranscribing() async {
+        let transcriber = FakeSpeechTranscribing(returning: "should never be used")
+        let sut = GenerateTranscriptUseCase(transcriber: transcriber)
+        let recording = makeRecording(liveTranscript: nil, duration: 1)
+
+        await #expect(throws: ShuoError.mediaTooShort) {
+            _ = try await sut(source: .recordedAudio(recording))
+        }
+        // The whole point of checking duration in the domain layer: no round trip is
+        // spent only to come back empty.
+        await #expect(transcriber.callCount == 0)
+    }
+
+    @Test("A short recording is rejected even when live transcription already produced text")
+    func shortRecordingWithLiveTranscriptIsStillRejected() async {
+        let transcriber = FakeSpeechTranscribing(returning: "should never be used")
+        let sut = GenerateTranscriptUseCase(transcriber: transcriber)
+        // The ordering trap: the live-transcript route returns without transcribing, so a
+        // duration check placed after it would let this take through and this test fail.
+        let recording = makeRecording(liveTranscript: "A stray second of speech.", duration: 1)
+
+        await #expect(throws: ShuoError.mediaTooShort) {
+            _ = try await sut(source: .recordedAudio(recording))
+        }
+        await #expect(transcriber.callCount == 0)
+    }
+
+    @Test("A recording at exactly the minimum duration is accepted")
+    func recordingAtMinimumDurationIsAccepted() async throws {
+        let transcriber = FakeSpeechTranscribing(returning: "Just long enough.")
+        let sut = GenerateTranscriptUseCase(transcriber: transcriber)
+        // The boundary is inclusive — exactly the minimum passes, only below it fails.
+        let recording = makeRecording(
+            liveTranscript: nil,
+            duration: MediaLimits.minDurationSeconds
+        )
+
+        let transcript = try await sut(source: .recordedAudio(recording))
+
+        #expect(transcript.original == "Just long enough.")
+        await #expect(transcriber.callCount == 1)
+    }
+
+    @Test("An attachment shorter than the minimum is rejected without any transcription")
+    func shortImportedMediaIsRejected() async {
+        let transcriber = FakeSpeechTranscribing(returning: "should never be used")
+        let sut = GenerateTranscriptUseCase(transcriber: transcriber)
+
+        await #expect(throws: ShuoError.mediaTooShort) {
+            _ = try await sut(source: .importedMedia(makeMedia(kind: .audio, duration: 2)))
+        }
+        await #expect(transcriber.callCount == 0)
+    }
+
+    @Test("An attachment whose duration could not be read is transcribed rather than rejected")
+    func importedMediaWithUnknownDurationIsAccepted() async throws {
+        let transcriber = FakeSpeechTranscribing(returning: "Transcribed anyway.")
+        let sut = GenerateTranscriptUseCase(transcriber: transcriber)
+        // A failed probe is not a short file; only a duration we actually have is judged.
+        let media = makeMedia(kind: .audio, duration: nil)
+
+        let transcript = try await sut(source: .importedMedia(media))
+
+        #expect(transcript.original == "Transcribed anyway.")
+        await #expect(transcriber.callCount == 1)
+    }
+
+    @Test("Typed text is never rejected for length, however short it is")
+    func shortTypedTextIsNotRejected() async throws {
+        let transcriber = FakeSpeechTranscribing(returning: "should never be used")
+        let sut = GenerateTranscriptUseCase(transcriber: transcriber)
+
+        let transcript = try await sut(source: .typedText("Hi."))
+
+        #expect(transcript.original == "Hi.")
+        await #expect(transcriber.callCount == 0)
+    }
+
     // MARK: - Helpers
 
-    private func makeMedia(kind: ImportedMedia.Kind) -> ImportedMedia {
+    private func makeMedia(
+        kind: ImportedMedia.Kind,
+        duration: TimeInterval? = 42
+    ) -> ImportedMedia {
         ImportedMedia(
             id: UUID(uuidString: "00000000-0000-0000-0000-0000000000AA") ?? UUID(),
             fileURL: URL(filePath: "/tmp/speech.m4a"),
             kind: kind,
             originalFileName: "speech.m4a",
-            duration: 42
+            duration: duration
         )
     }
 
-    private func makeRecording(liveTranscript: String?) -> AudioRecording {
+    private func makeRecording(
+        liveTranscript: String?,
+        duration: TimeInterval = 12
+    ) -> AudioRecording {
         AudioRecording(
             id: UUID(uuidString: "00000000-0000-0000-0000-0000000000BB") ?? UUID(),
             fileURL: URL(filePath: "/tmp/recording.caf"),
-            duration: 12,
+            duration: duration,
             createdAt: Date(timeIntervalSince1970: 0),
             liveTranscript: liveTranscript
         )

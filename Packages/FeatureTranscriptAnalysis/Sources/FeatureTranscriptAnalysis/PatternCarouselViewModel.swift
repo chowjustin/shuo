@@ -5,17 +5,17 @@
 //  Created by rasyel on 13/07/26.
 //
 
-// `@Observable @MainActor`. Owns the up-to-3 suggested `SpeechPattern`s and the current
-// selection for `PatternCarouselView`. Deliberately scoped to just the carousel — a
-// child view model composed into `TranscriptAnalysisViewModel` (CLAUDE.md §5: prefer
-// composition over one large view model). Patterns are handed in from the parent (which
-// owns the `SuggestPatternsUseCase` call); `onSelect` lets the parent react to a
-// selection (e.g. re-run `ApplyPatternUseCase`) without this view model knowing about
-// AI regeneration at all.
-
 import Foundation
 import ShuoCore
 
+/// Owns the up-to-3 suggested `SpeechPattern`s and the current selection for
+/// `PatternCarouselView`.
+///
+/// Deliberately scoped to just the carousel — a child view model composed into
+/// `TranscriptAnalysisViewModel` (CLAUDE.md §5: prefer composition over one large view
+/// model). Patterns are handed in from the parent, which owns the classification call;
+/// `onSelect` lets the parent react to a selection without this view model knowing about
+/// AI regeneration at all.
 @Observable
 @MainActor
 public final class PatternCarouselViewModel {

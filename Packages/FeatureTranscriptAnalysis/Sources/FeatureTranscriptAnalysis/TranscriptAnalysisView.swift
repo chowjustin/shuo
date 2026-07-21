@@ -5,8 +5,297 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// Root view for the Transcript & pattern suggestions screen: Original/Refined
-// segmented control, accordion sections, pattern carousel, key points list. See
-// ARCHITECTURE.md §3.2.
+// Root view for the Transcript & pattern suggestions screen.
+//
+// The `.loaded` state is deliberately unstyled: it exists to make the classify → map →
+// regenerate flow runnable and inspectable end to end. The designed screen —
+// Original/Refined segmented control, accordions, highlight ranges (ARCHITECTURE.md §3.2)
+// — is a separate pass. The loading and failure states are *not* placeholders: they share
+// `LoadingView`/`ErrorSheet` and the ✕/✓ toolbar with the transcription step, because the
+// user crosses from one to the other mid-flow and a change of visual language there reads
+// as having landed somewhere unrelated.
 
-import Foundation
+import ShuoCore
+import ShuoDesignSystem
+import SwiftUI
+
+/// The analysis screen.
+///
+/// Switches on `TranscriptAnalysisViewState` rather than on a set of booleans, so there is
+/// exactly one thing on screen at a time by construction (CLAUDE.md §5).
+public struct TranscriptAnalysisView: View {
+
+    @State private var viewModel: TranscriptAnalysisViewModel
+    @State private var isConfirmingLeave = false
+    @FocusState private var isTitleFocused: Bool
+    private let onClose: () -> Void
+    private let onBack: (ScriptDraft) -> Void
+
+    /// - Parameter onClose: leaves the create flow entirely. Offered only once the analysis
+    ///   has loaded, where ✕ means done rather than back.
+    /// - Parameter onBack: returns to Input Script carrying the transcript. This is the only
+    ///   control on every state *except* `.loaded` — see `toolbarContent`.
+    public init(
+        viewModel: TranscriptAnalysisViewModel,
+        onClose: @escaping () -> Void,
+        onBack: @escaping (ScriptDraft) -> Void
+    ) {
+        _viewModel = State(wrappedValue: viewModel)
+        self.onClose = onClose
+        self.onBack = onBack
+    }
+
+    public var body: some View {
+        NavigationStack {
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(ShuoColor.background)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { toolbarContent }
+        }
+        .task { viewModel.start() }
+        // The prefetch must not outlive the screen: a background generation firing after
+        // the user has dismissed this sheet is the bug class CLAUDE.md §6 calls out.
+        .onDisappear { viewModel.cancelAll() }
+        // Swipe-to-dismiss is disabled only while there is unsaved work, so the guard
+        // appears exactly when it has something to protect rather than as blanket friction.
+        .interactiveDismissDisabled(viewModel.hasUnsavedChanges)
+        .confirmationDialog(
+            "Leave without saving your changes?",
+            isPresented: $isConfirmingLeave,
+            titleVisibility: .visible
+        ) {
+            Button("Save and Close") { viewModel.save { _ in onClose() } }
+            // Not "Discard": the analysed draft was already saved when it loaded, so what
+            // is actually lost is the pattern or refinement chosen since. Naming it
+            // "discard" would imply the whole speech goes, which would be a lie.
+            Button("Leave", role: .destructive, action: onClose)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Your speech is saved. The pattern and transcript changes you made since aren't.")
+        }
+    }
+
+    // MARK: - Toolbar
+
+    /// **Two buttons on `.loaded`, one everywhere else.**
+    ///
+    /// `.loaded` is the only state holding something to keep, so it is the only state that
+    /// offers ✕ (leave) and ✓ (save). Every other state is a wait or a failure with nothing
+    /// to confirm, and gets a single ‹ back to Input Script — the same control, in the same
+    /// place, as the transcription screen the user just came from.
+    ///
+    /// Earlier this toolbar was unconditional, so a spinner and an error sheet both showed a
+    /// ✕ and a permanently-disabled ✓. A disabled button is still a button: it invites a tap
+    /// and answers with nothing, which reads as broken rather than as "not yet".
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        switch viewModel.viewState.toolbarLayout {
+        case .leaveAndSave:
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: leave) {
+                    Image(systemName: "xmark")
+                }
+                .accessibilityLabel("Close")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: save) {
+                    Image(systemName: "checkmark")
+                }
+                .disabled(viewModel.isSaving)
+                .accessibilityLabel("Save")
+            }
+
+        case .back:
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: goBack) {
+                    Image(systemName: "chevron.left")
+                }
+                .accessibilityLabel("Back to input")
+            }
+        }
+    }
+
+    // MARK: - Actions
+
+    /// ✕, from `.loaded` only. Asks first when there are changes the automatic save has not
+    /// captured; otherwise there is nothing to lose and a dialog would be noise.
+    private func leave() {
+        if viewModel.hasUnsavedChanges {
+            isConfirmingLeave = true
+        } else {
+            onClose()
+        }
+    }
+
+    /// ✓, from `.loaded` only.
+    private func save() {
+        viewModel.save { _ in onClose() }
+    }
+
+    /// ‹, from every state except `.loaded`.
+    ///
+    /// Cancels the analysis first so a generation cannot outlive the screen (CLAUDE.md §6),
+    /// then hands the transcript back to Input Script. This is uniform across waiting,
+    /// rejection, failure and unavailability because the recourse is identical in all four:
+    /// the transcript is the thing worth keeping, and the input screen is where it can be
+    /// changed or re-submitted. Re-confirming there is the retry.
+    private func goBack() {
+        viewModel.cancelAll()
+        onBack(viewModel.draft)
+    }
+
+    // MARK: - States
+
+    @ViewBuilder
+    private var content: some View {
+        switch viewModel.viewState {
+        case .analyzing:
+            // The same component and copy the transcription step ends on, so crossing from
+            // that sheet into this one is continuous rather than a visible handover.
+            LoadingView(systemImage: "sparkles", message: "Analyzing your speech…")
+
+        case .waitingForModel:
+            // A wait, not a failure: the same `LoadingView` as `.analyzing`, differing only
+            // in what it says it is waiting on (ARCHITECTURE.md §3.2.4).
+            LoadingView(systemImage: "sparkles", message: "Setting up on-device AI…")
+
+        case .unavailable(let status):
+            errorSheet(AnalysisErrorCopy(availability: status))
+
+        case .rejected(let reason):
+            errorSheet(AnalysisErrorCopy(reason: reason))
+
+        case .failed(let error):
+            errorSheet(AnalysisErrorCopy(error: error))
+
+        case .loaded:
+            loadedView
+        }
+    }
+
+    private func errorSheet(_ copy: AnalysisErrorCopy) -> some View {
+        ErrorSheet(systemImage: copy.systemImage, title: copy.title, message: copy.message)
+    }
+
+    private var loadedView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                if let error = viewModel.actionError {
+                    actionErrorBanner(error)
+                }
+
+                titleHeader
+
+                PatternCarouselView(viewModel: viewModel.carousel)
+
+                KeyPointsListView(
+                    keyPoints: viewModel.keyPoints,
+                    isGenerating: viewModel.isGeneratingKeyPoints
+                )
+
+                regenerateSection
+
+                TranscriptSectionView(
+                    title: "Original Transcript",
+                    text: viewModel.originalTranscript
+                )
+
+                if let refined = viewModel.refinedTranscript {
+                    TranscriptSectionView(title: "Refined Transcript", text: refined)
+                }
+            }
+            .padding()
+        }
+        // Static, not `$viewModel.title`: the name is now editable in the content, and
+        // leaving a second editable copy of it in the nav bar would give the same value two
+        // controls that can disagree mid-edit. A fixed label rather than nothing, because
+        // ✕ and ✓ sit in this bar with no other context — an empty bar between them reads
+        // as a modal with no name, and this is the one state where the screen has actually
+        // produced something to label. Scoped to `.loaded` for that reason: the loading and
+        // error states stay deliberately chrome-light, as they were.
+        .navigationTitle("Speech Analysis")
+    }
+
+    /// The script name and the purpose it was written for, at the top of the content.
+    ///
+    /// The name is editable here rather than as a bound `navigationTitle` because the input
+    /// step makes it optional — a user who skipped it arrives holding "Untitled Script",
+    /// and a plain field they can see and tap is a more discoverable way out of that than
+    /// the nav bar's rename gesture. Styled to echo Input Script's own title field, since
+    /// the user crosses directly from that screen to this one.
+    private var titleHeader: some View {
+        VStack(alignment: .leading, spacing: ShuoSpacing.xSmall) {
+            TextField("Title", text: $viewModel.title)
+                .font(ShuoTypography.title)
+                .foregroundStyle(ShuoColor.primaryText)
+                .focused($isTitleFocused)
+                .submitLabel(.done)
+                // Both exits from the field settle it: whichever way the user leaves, an
+                // emptied title is normalized rather than left blank on screen.
+                .onSubmit { viewModel.commitTitle() }
+                .accessibilityLabel("Script title")
+
+            // Read-only context. Labelled rather than left as a bare value, so VoiceOver
+            // announces what the word means instead of reading "To Inform" on its own with
+            // nothing to attach it to.
+            Text(viewModel.draft.purpose.title)
+                .font(ShuoTypography.subtitle)
+                .foregroundStyle(ShuoColor.secondaryText)
+                .accessibilityLabel("Speech purpose: \(viewModel.draft.purpose.title)")
+        }
+        .onChange(of: isTitleFocused) { _, isFocused in
+            if !isFocused { viewModel.commitTitle() }
+        }
+    }
+
+    /// A failure from a pattern switch, a regeneration, or a save.
+    ///
+    /// At the top of the screen rather than beside the Regenerate button, because since
+    /// auto-save landed the most likely error here is a *persistence* failure, which has
+    /// nothing to do with regeneration — pinned next to that button it would name the wrong
+    /// cause. Still inline and dismissible rather than an alert or a state change: a failed
+    /// action must not tear down key points the user can still read.
+    private func actionErrorBanner(_ error: ShuoError) -> some View {
+        let copy = AnalysisErrorCopy(error: error)
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: copy.systemImage)
+                .foregroundStyle(ShuoColor.error)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(copy.title)
+                    .font(.subheadline.weight(.semibold))
+                Text(copy.message)
+                    .font(.caption)
+                    .foregroundStyle(ShuoColor.secondaryText)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button("Dismiss") { viewModel.dismissActionError() }
+                .font(.caption)
+        }
+        .padding(12)
+        .background(ShuoColor.error.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var regenerateSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                viewModel.regenerate()
+            } label: {
+                if viewModel.isRegeneratingTranscript {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Rewriting…")
+                    }
+                } else {
+                    Text("Regenerate Transcript")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!viewModel.canRegenerateTranscript)
+        }
+    }
+
+}

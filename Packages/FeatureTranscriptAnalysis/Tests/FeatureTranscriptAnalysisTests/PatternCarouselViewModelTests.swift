@@ -13,8 +13,19 @@ import ShuoCore
 @MainActor
 @Suite("PatternCarouselViewModel")
 struct PatternCarouselViewModelTests {
+    /// A throwaway pattern with a name-derived id. The carousel is generic over
+    /// `SpeechPattern` and only reads name/summary/id, so these stay synthetic rather than
+    /// pulling real catalog entries — it keeps each test's intent readable.
     private static func makePattern(_ name: String) -> SpeechPattern {
-        SpeechPattern(name: name, summary: "\(name) summary")
+        SpeechPattern(
+            id: "test.\(name)",
+            name: name,
+            summary: "\(name) summary",
+            purpose: .inform,
+            components: [
+                SpeechPatternComponent(id: "only", name: "Only", contains: ["Content"], order: 0),
+            ]
+        )
     }
 
     @Test("Clamps to at most 3 patterns, preserving order")

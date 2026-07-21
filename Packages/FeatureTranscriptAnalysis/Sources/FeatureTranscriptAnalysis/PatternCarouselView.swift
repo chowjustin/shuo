@@ -5,16 +5,6 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// `ScrollView(.horizontal) { LazyHStack }` over the up-to-3 suggested `SpeechPattern`s,
-// using `ShuoDesignSystem.PatternCard`. See ARCHITECTURE.md §3.2.3.
-
-//
-//  PatternCarouselView.swift
-//  FeatureTranscriptAnalysis
-//
-//  Created by Justin Chow on 13/07/26.
-//
-
 import Foundation
 import ShuoCore
 import ShuoDesignSystem
@@ -95,21 +85,10 @@ public struct PatternCarouselView: View {
 }
 
 private struct PatternCarouselPreviewHost: View {
+    // Real catalog entries rather than invented ones: patterns are fixed app data now, so
+    // the preview shows exactly what ships (see `SpeechPatternCatalog`).
     @State private var viewModel = PatternCarouselViewModel(
-        patterns: [
-            SpeechPattern(
-                name: "Problem-Solution",
-                summary: "Presents a challenge the audience recognizes, then walks them toward your solution."
-            ),
-            SpeechPattern(
-                name: "Chronological",
-                summary: "Walks the audience through events in the order they happened."
-            ),
-            SpeechPattern(
-                name: "Cause-Effect",
-                summary: "Explains a cause, then unpacks its consequences for the audience."
-            )
-        ],
+        patterns: Array(SpeechPatternCatalog.patterns(for: .persuade).prefix(3)),
         selectedPatternID: nil
     )
 

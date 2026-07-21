@@ -62,7 +62,6 @@ enum SpeechSetup {
         if await SpeechTranscriber.installedLocales.contains(where: matchesLocale) {
             return true
         }
-        // `assetInstallationRequest` returns nil when nothing needs installing.
         guard let request = try? await AssetInventory.assetInstallationRequest(supporting: [transcriber]) else {
             return await SpeechTranscriber.installedLocales.contains(where: matchesLocale)
         }

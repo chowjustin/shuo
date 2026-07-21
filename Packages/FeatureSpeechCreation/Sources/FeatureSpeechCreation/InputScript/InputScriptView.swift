@@ -13,16 +13,22 @@ public struct InputScriptView: View {
     @Bindable private var viewModel: InputScriptViewModel
     private let onBack: () -> Void
     private let onClose: () -> Void
+    private let onProceed: () -> Void
     @FocusState private var isTitleFocused: Bool
 
+    /// - Parameter onProceed: Advances the flow to the transcription step. Called only once
+    ///   the active mode has actually produced a source, so a mode that finishes empty
+    ///   leaves the user here rather than on a loading screen with nothing to transcribe.
     public init(
         viewModel: InputScriptViewModel,
         onBack: @escaping () -> Void,
-        onClose: @escaping () -> Void
+        onClose: @escaping () -> Void,
+        onProceed: @escaping () -> Void
     ) {
         self.viewModel = viewModel
         self.onBack = onBack
         self.onClose = onClose
+        self.onProceed = onProceed
 
         UISegmentedControl.appearance().selectedSegmentTintColor = UIColor(ShuoColor.aqua)
 
@@ -87,39 +93,10 @@ public struct InputScriptView: View {
         }
         .animation(.spring(duration: 0.25), value: viewModel.attachVM.isFileTooLarge)
         .presentationDragIndicator(.visible)
+        // The whole flow is one sheet, so swipe-dismiss here would tear down the create
+        // flow entirely rather than stepping back — a half-filled session is not something
+        // to lose to an accidental gesture. ✕/back are the deliberate exits.
         .interactiveDismissDisabled(true)
-        // A sheet, so the transcription step reads as part of the same stacked flow as
-        // Purpose -> Input Script rather than as a separate screen. Swipe-dismiss is a
-        // real exit here, which is why the binding's setter cancels rather than just
-        // hiding the cover.
-        .sheet(isPresented: isLoadingPresented) {
-            if let loadingVM = viewModel.loadingVM {
-                LoadingRouteView(
-                    viewModel: loadingVM,
-                    onCancel: viewModel.dismissLoading,
-                    onPickAnotherFile: viewModel.retryWithAnotherFile,
-                    onFinished: { _ in
-                        // The `.analysis` route consumes the transcript here once pattern
-                        // generation exists (ARCHITECTURE.md §3.1.1). Until then,
-                        // finishing closes the flow.
-                        viewModel.dismissLoading()
-                        onClose()
-                    }
-                )
-            }
-        }
-    }
-
-    // The view model exposes `loadingVM` read-only — presentation is driven through its
-    // own methods so dismissing always cancels the in-flight transcription, whichever
-    // way the cover goes away.
-    private var isLoadingPresented: Binding<Bool> {
-        Binding(
-            get: { viewModel.loadingVM != nil },
-            set: { isPresented in
-                if !isPresented { viewModel.dismissLoading() }
-            }
-        )
     }
 
     private var fileTooLargeAlert: some View {
@@ -182,8 +159,14 @@ public struct InputScriptView: View {
     // Finalizes the active mode, then hands its `SpeechSource` to the transcription step
     // — Speak has to end its session and flush the transcript first, which cannot happen
     // synchronously from a button action.
+    /// ✓. Finalizes the active mode, discards the other two, and — only if that produced a
+    /// source — advances to transcription.
     private func confirm() {
-        Task { await viewModel.proceed() }
+        Task {
+            await viewModel.proceed()
+            guard viewModel.loadingVM != nil else { return }
+            onProceed()
+        }
     }
 }
 
@@ -202,7 +185,8 @@ private struct InputScriptPreviewHost: View {
                 InputScriptView(
                     viewModel: .preview(purpose: .persuade),
                     onBack: {},
-                    onClose: { isPresented = false }
+                    onClose: { isPresented = false },
+                    onProceed: {}
                 )
             }
     }

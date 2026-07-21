@@ -53,7 +53,6 @@ public struct PatternCard: View {
     }
 
     private var accessibilityText: String {
-//        let recommendedText = isMostRecommended ? "Most Recommended. " : ""
         let mainText = isFocused ? "\(name). \(summary)" : name
         return mainText
     }

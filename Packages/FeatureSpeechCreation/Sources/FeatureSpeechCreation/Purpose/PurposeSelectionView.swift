@@ -5,9 +5,8 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// `ForEach(SpeechPurpose.allCases)` over `ShuoDesignSystem.PurposeCard`s. No dedicated
-// ViewModel — the coordinator handles which purpose was tapped directly. See
-// ARCHITECTURE.md §3.1.1.
+// No dedicated ViewModel — the coordinator handles which purpose was tapped directly.
+// See ARCHITECTURE.md §3.1.1.
 
 import Foundation
 import ShuoCore
@@ -16,24 +15,14 @@ import SwiftUI
 
 public struct PurposeSelectionView: View {
     private let coordinator: CreateScriptCoordinator
-    private let makeInputScriptViewModel: (SpeechPurpose) -> InputScriptViewModel
-    @State private var inputScriptViewModel: InputScriptViewModel?
     @State private var selectedPurpose: SpeechPurpose?
     @State private var navigationTask: Task<Void, Never>?
 
-    /// Lets the tapped card render its selected state before the Input Script sheet covers it.
+    /// Lets the tapped card render its selected state before the flow moves on.
     private static let selectionDelay: Duration = .milliseconds(200)
 
-    /// - Parameter makeInputScriptViewModel: builds the next step's view model. A factory
-    ///   rather than the services themselves, so this view never grows a parameter each
-    ///   time Input Script needs another dependency — the composition root owns that
-    ///   wiring (ARCHITECTURE.md §5).
-    public init(
-        coordinator: CreateScriptCoordinator,
-        makeInputScriptViewModel: @escaping (SpeechPurpose) -> InputScriptViewModel
-    ) {
+    public init(coordinator: CreateScriptCoordinator) {
         self.coordinator = coordinator
-        self.makeInputScriptViewModel = makeInputScriptViewModel
     }
 
     public var body: some View {
@@ -79,15 +68,6 @@ public struct PurposeSelectionView: View {
             }
         }
         .presentationDragIndicator(.visible)
-        .sheet(isPresented: isShowingInputScript) {
-            if let inputScriptViewModel {
-                InputScriptView(
-                    viewModel: inputScriptViewModel,
-                    onBack: { coordinator.dismissInputScript() },
-                    onClose: { coordinator.close() }
-                )
-            }
-        }
         .onDisappear {
             navigationTask?.cancel()
         }
@@ -100,23 +80,8 @@ public struct PurposeSelectionView: View {
         navigationTask = Task {
             try? await Task.sleep(for: Self.selectionDelay)
             guard !Task.isCancelled else { return }
-            inputScriptViewModel = makeInputScriptViewModel(purpose)
             coordinator.selectPurpose(purpose)
         }
-    }
-
-    private var isShowingInputScript: Binding<Bool> {
-        Binding(
-            get: { coordinator.selectedPurpose != nil },
-            set: { isPresented in
-                if !isPresented {
-                    navigationTask?.cancel()
-                    coordinator.dismissInputScript()
-                    inputScriptViewModel = nil
-                    selectedPurpose = nil
-                }
-            }
-        )
     }
 }
 
@@ -132,9 +97,14 @@ private struct PurposeSelectionPreviewHost: View {
         Color(uiColor: .systemGroupedBackground)
             .ignoresSafeArea()
             .sheet(isPresented: $isPresented) {
-                PurposeSelectionView(
-                    coordinator: CreateScriptCoordinator(onFinish: { isPresented = false }),
-                    makeInputScriptViewModel: { .preview(purpose: $0) }
+                CreateFlowView(
+                    coordinator: CreateScriptCoordinator(
+                        onFinish: { isPresented = false },
+                        makeInputScriptViewModel: { purpose, text in
+                            .preview(purpose: purpose, initialText: text)
+                        }
+                    ),
+                    onAnalyze: { _ in }
                 )
             }
     }

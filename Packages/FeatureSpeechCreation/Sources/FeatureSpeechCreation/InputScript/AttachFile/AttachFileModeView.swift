@@ -11,6 +11,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import ShuoCore
+import ShuoDesignSystem
 
 public struct AttachFileModeView: View {
     @Bindable var viewModel: AttachFileModeViewModel
@@ -106,19 +107,8 @@ public struct AttachFileModeView: View {
     // MARK: - Helpers
 
     private var attachButton: some View {
-        Button {
+        CircularIconButton(systemImage: "paperclip", accessibilityTitle: "Attach a file") {
             viewModel.isPickerPresented = true
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(Color.secondary.opacity(0.25))
-                    .frame(width: 83, height: 83)
-
-                Image(systemName: "paperclip")
-                    .font(.largeTitle.bold())
-                    .foregroundStyle(Color.primary)
-                    .scaledToFit()
-            }
         }
     }
 

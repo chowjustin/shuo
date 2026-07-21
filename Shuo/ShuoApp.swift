@@ -6,8 +6,7 @@
 //
 
 // App entry point (@main). Builds the AppContainer composition root and shows
-// FeatureHome.HomeView as the root view inside a NavigationStack — see
-// ARCHITECTURE.md §12.1.
+// RootView inside a NavigationStack — see ARCHITECTURE.md §12.1.
 
 import SwiftUI
 

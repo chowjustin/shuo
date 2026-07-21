@@ -31,6 +31,13 @@ public struct FileImportService: FileImporting {
         guard MediaLimits.isDurationAllowed(duration) else {
             throw ShuoError.mediaTooLong
         }
+        // Checked here as well as in `GenerateTranscriptUseCase`, so all three limits report
+        // at the same moment — at pick time, while the picker is still the thing the user is
+        // looking at. The use-case check remains the real guarantee, since a recording never
+        // passes through here.
+        guard MediaLimits.isDurationLongEnough(duration) else {
+            throw ShuoError.mediaTooShort
+        }
 
         let bookmarkData = try createBookmark(url)
 
@@ -45,7 +52,6 @@ public struct FileImportService: FileImporting {
 
     // MARK: - Helpers
 
-    // Throws `ShuoError.fileTooLarge` if the file exceeds `MediaLimits.maxFileSizeBytes`.
     private func checkFileSize(_ url: URL) throws {
         let attributes = (try? FileManager.default.attributesOfItem(atPath: url.path)) ?? [:]
         let fileSize = attributes[.size] as? Int ?? 0
@@ -67,8 +73,6 @@ public struct FileImportService: FileImporting {
         }
     }
 
-    // Maps the file's UTType to the domain `ImportedMedia.Kind`.
-    //
     // The picker already filters to audio and video, so reaching the throwing branch
     // means the file arrived another way or carries a misleading extension. Unlike the
     // previous version this no longer defaults unknown types to `.audio` — that turned
@@ -82,7 +86,6 @@ public struct FileImportService: FileImporting {
         throw ShuoError.unsupportedMediaType
     }
 
-    // Returns the media duration in seconds via `AVAsset`, or nil on failure.
     private func probeDuration(of url: URL) async -> TimeInterval? {
         let asset = AVURLAsset(url: url)
         guard let duration = try? await asset.load(.duration) else { return nil }

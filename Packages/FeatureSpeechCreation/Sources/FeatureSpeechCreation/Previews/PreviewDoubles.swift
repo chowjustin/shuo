@@ -22,14 +22,16 @@ import ShuoCore
 extension InputScriptViewModel {
     static func preview(
         purpose: SpeechPurpose = .persuade,
-        permissionStatus: MicrophonePermissionStatus = .granted
+        permissionStatus: MicrophonePermissionStatus = .granted,
+        initialText: String? = nil
     ) -> InputScriptViewModel {
         InputScriptViewModel(
             purpose: purpose,
             fileImporter: PreviewFileImporting(),
             audioCapturer: PreviewAudioCapturing(),
             microphonePermissions: PreviewMicrophonePermissionProviding(status: permissionStatus),
-            generateTranscript: GenerateTranscriptUseCase(transcriber: PreviewSpeechTranscribing())
+            generateTranscript: GenerateTranscriptUseCase(transcriber: PreviewSpeechTranscribing()),
+            initialText: initialText
         )
     }
 }

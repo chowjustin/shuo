@@ -5,8 +5,13 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// Swift Testing suite for `SpeechTranscribingRouter`'s routing logic against fakes from
-// ShuoTestSupport, not real hardware — the concrete `AVAudioEngine`/`SpeechAnalyzer`
-// adapters only get manual/integration checks (CLAUDE.md §7).
+// PLACEHOLDER — this file contains no tests.
+//
+// Unlike the other empty test files, the subject here **does** exist:
+// `SpeechTranscribingRouter` is ~69 real lines with a genuine branch (video routes through
+// `VideoAudioExtractor`, audio goes direct) plus a bookmark-resolution failure path, none
+// of it covered. CLAUDE.md §7's "humble object" exemption covers the `AVAudioEngine` /
+// `SpeechAnalyzer` adapters it delegates to, but the routing decision is logic, not
+// translation, and is testable against fakes. This is a real gap, not a blocked one.
 
 import Foundation

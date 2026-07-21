@@ -99,40 +99,24 @@ public struct SpeakModeView: View {
     private var controlButton: some View {
         switch viewModel.viewState {
         case .idle:
-            recordButton(icon: "mic.fill", isFilled: true, label: "Start recording")
+            recordButton(icon: "mic.fill", emphasis: .filled, label: "Start recording")
         case .recording:
-            recordButton(icon: "pause.fill", isFilled: false, label: "Pause recording")
+            recordButton(icon: "pause.fill", emphasis: .outlined, label: "Pause recording")
         case .paused, .finished:
-            recordButton(icon: "play.fill", isFilled: true, label: "Resume recording")
+            recordButton(icon: "play.fill", emphasis: .filled, label: "Resume recording")
         case .requestingPermission, .permissionDenied, .failed:
             EmptyView()
         }
     }
 
-    private func recordButton(icon: String, isFilled: Bool, label: String) -> some View {
-        Button {
+    private func recordButton(
+        icon: String,
+        emphasis: CircularIconButton.Emphasis,
+        label: String
+    ) -> some View {
+        CircularIconButton(systemImage: icon, emphasis: emphasis, accessibilityTitle: label) {
             viewModel.primaryAction()
-        } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(ShuoColor.secondaryText.opacity(0.35), lineWidth: 1.5)
-                    .frame(width: 72, height: 72)
-
-                ZStack {
-                    Circle()
-                        .fill(isFilled ? ShuoColor.pink : ShuoColor.background)
-                    if !isFilled {
-                        Circle().stroke(ShuoColor.pink, lineWidth: 2)
-                    }
-                    Image(systemName: icon)
-                        .font(.title2.bold())
-                        .foregroundStyle(isFilled ? Color.white : ShuoColor.pink)
-                }
-                .frame(width: 52, height: 52)
-            }
-            .frame(width: 72, height: 72)
         }
-        .accessibilityLabel(label)
     }
 
     private func openSettings() {

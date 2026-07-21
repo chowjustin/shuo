@@ -173,11 +173,23 @@ because a feature "seems simple."
 
 ## 8. AI (`ShuoAI`) specific guidance
 
-- Every `@Generable` type lives in `Schemas/` and is **never** exposed outside `ShuoAI` —
+- Every generation schema lives in `Schemas/` and is **never** exposed outside `ShuoAI` —
   `GeneratedContentMapper` converts to `ShuoCore` domain entities before anything else sees
   it. Feature packages and view models only ever see `SpeechPattern`, `KeyPoint`, etc.
-- Only include `@Generable` properties the UI will actually display — the model populates
-  every declared property regardless of use, so unused fields cost real latency for nothing.
+- **Schemas are `DynamicGenerationSchema`, built per request — not `@Generable` structs.**
+  `@Guide(.anyOf(...))` needs compile-time values, but the legal pattern ids depend on the
+  user's purpose and the legal component names on the chosen pattern. Build the schema at
+  runtime so the exact candidates are baked into the grammar. Property names are declared
+  as constants on the schema type and read by the mapper, so the two cannot drift.
+- Only include properties the UI will actually display — the model populates every declared
+  property regardless of use, so unused fields cost real latency for nothing.
+- **Patterns are a fixed catalog, not model output.** `SpeechPatternCatalog` in `ShuoCore`
+  owns all 23 entries; `Docs/SPEECH_PATTERNS.md` is their source of truth. The model only
+  ranks and maps. Never add a code path that lets it author a pattern name or component.
+- **Always validate model output in the domain layer.** `ClassifyTranscriptUseCase` checks
+  returned ids against the candidate set, and `KeyPointNormalizer` forces key points into
+  one-per-component order with `"-"` for gaps. Constrained decoding is a strong guarantee,
+  not an absolute one — don't skip these because the schema "should" prevent it.
 - Check `AIAvailabilityGate` before any generation call. Since Apple Intelligence–eligible
   hardware is required for v1 (`Docs/ARCHITECTURE.md` §2.1), the only states this needs to
   handle gracefully at runtime are `.modelNotReady` (show the Loading UI, poll/retry) and

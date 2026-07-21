@@ -5,9 +5,6 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// Domain entity: `Transcript` struct holding the `original` and `refined` text of a
-// speech.
-
 import Foundation
 
 /// The text of a speech, in up to two forms.
@@ -18,7 +15,7 @@ import Foundation
 ///
 /// `refined` is the model's restructured version. It stays nil until analysis has run,
 /// which is why this type is useful before any AI is involved.
-public struct Transcript: Sendable, Equatable {
+public struct Transcript: Sendable, Equatable, Codable {
     /// Verbatim text from the source. Never empty for a transcript that was produced
     /// successfully — an empty transcription is reported as `ShuoError.noSpeechDetected`
     /// rather than represented here.
