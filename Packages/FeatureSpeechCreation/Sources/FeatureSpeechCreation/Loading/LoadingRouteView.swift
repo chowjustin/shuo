@@ -213,6 +213,9 @@ private struct OriginalTranscriptReviewView: View {
                     .font(ShuoTypography.body)
                     .foregroundStyle(ShuoColor.primaryText)
                     .lineLimit(1...15)
+
+                    .accessibilityLabel("Edit Original Transcript")
+                    .accessibilityHint("Contains \(wordCount) words. Double tap to edit.")
             }
             Spacer(minLength: 0)
         }
@@ -221,7 +224,6 @@ private struct OriginalTranscriptReviewView: View {
         .background(ShuoColor.background)
     }
 }
-
 #Preview("Original transcript card, isolated"){
     struct PreviewHost: View {
         @State private var editedText: String?

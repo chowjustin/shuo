@@ -30,6 +30,8 @@ public struct AccordionView<Content: View>: View {
                 .font(ShuoTypography.headline)
                 .foregroundStyle(ShuoColor.primaryText)
                 .padding(ShuoSpacing.medium)
+
+                .accessibilityAddTraits(.isHeader)
  
             content()
                 .padding(.horizontal, ShuoSpacing.medium)
@@ -45,7 +47,6 @@ public struct AccordionView<Content: View>: View {
         )
     }
 }
- 
 #Preview {
     AccordionView(title: "Original Transcript") {
         Text("Some transcript content goes here.")
