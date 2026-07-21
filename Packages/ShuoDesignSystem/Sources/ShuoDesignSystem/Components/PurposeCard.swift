@@ -43,9 +43,6 @@ public struct PurposeCard: View {
                             .foregroundStyle(ShuoColor.primaryText)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    Image(systemName: "play.fill")
-                        .font(.title2)
-                        .foregroundStyle(isSelected ? .white : ShuoColor.pink)
                 }
                 .cardStyle(isSelected: isSelected)
             }
