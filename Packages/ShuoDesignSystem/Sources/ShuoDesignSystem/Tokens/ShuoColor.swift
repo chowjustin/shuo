@@ -23,6 +23,17 @@ public enum ShuoColor {
     /// App background surface color.
     public static let background = Color("Color/Tile/Base", bundle: .module)
 
+    // MARK: - Contextual text colors for ScriptCard selected/unselected states
+
+    /// Primary text on pink-tint (selected card) background.
+    public static let primaryTextPinkTint = Color("Color/Title/PinkTint", bundle: .module)
+    /// Secondary text on pink-tint (selected card) background.
+    public static let secondaryTextPinkTint = Color("Color/Title/SecondaryPinkTint", bundle: .module)
+    /// Primary text on cream (unselected card) background.
+    public static let primaryTextCream = Color("Color/Title/Base", bundle: .module)
+    /// Secondary text on cream (unselected card) background.
+    public static let secondaryTextCream = Color("Color/Title/SecondaryBase", bundle: .module)
+
     // MARK: - System adaptive colors
 
     public static let primaryText = Color(uiColor: .label)
