@@ -5,36 +5,63 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// Placeholder color palette. See ARCHITECTURE.md §10. Swap real brand values in here
-// only — nothing else in the app touches raw colors directly.
+// All colors sourced from Assets.xcassets in this package — dark mode, light mode,
+// and high contrast variants are defined there. Never use raw Color(hex:) or
+// hardcoded UIColor values outside this file.
 
 import Foundation
 import SwiftUI
 
 public enum ShuoColor {
-    public static let pink = Color(hex: 0xF7567C)
-    public static let pinkTint = Color(hex: 0xFFF0F4)
-    public static let aqua = Color(hex: 0x99E1D9)
-    public static let aquaTint = Color(hex: 0xF0FFFE)
-    public static let background = Color(hex: 0xFFFDF5)
+    // MARK: - Base brand colors (Tile context — matches legacy hex values)
+
+    /// Primary brand pink, used on interactive elements and highlights.
+    public static let pink = Color("Color/Tile/Pink", bundle: .module)
+    public static let pinkTint = Color("Color/Tile/PinkTint", bundle: .module)
+    public static let aqua = Color("Color/Tile/Aqua", bundle: .module)
+    public static let aquaTint = Color("Color/Tile/AquaTint", bundle: .module)
+    /// App background surface color.
+    public static let background = Color("Color/Tile/Base", bundle: .module)
+
+    // MARK: - System adaptive colors
 
     public static let primaryText = Color(uiColor: .label)
     public static let secondaryText = Color(uiColor: .secondaryLabel)
-
     public static let closeButtonBackground = Color(uiColor: .systemGray5)
-
     /// Failure states — error sheet glyphs and destructive emphasis.
     public static let error = Color(uiColor: .systemRed)
     /// Surface for content presented above the app, e.g. a sheet background.
     public static let elevatedSurface = Color(uiColor: .systemBackground)
-}
 
-private extension Color {
-    init(hex: UInt32) {
-        self.init(
-            red: Double((hex >> 16) & 0xFF) / 255,
-            green: Double((hex >> 8) & 0xFF) / 255,
-            blue: Double(hex & 0xFF) / 255
-        )
+    // MARK: - Contextual color tokens
+
+    /// Colors for body/content areas.
+    public enum Body {
+        public static let aqua = Color("Color/Body/Aqua", bundle: .module)
+        public static let aquaTint = Color("Color/Body/AquaTint", bundle: .module)
+        public static let base = Color("Color/Body/Base", bundle: .module)
+        public static let card = Color("Color/Body/Card", bundle: .module)
+        public static let pink = Color("Color/Body/Pink", bundle: .module)
+        public static let pinkTint = Color("Color/Body/PinkTint", bundle: .module)
+    }
+
+    /// Colors for tile/card surfaces.
+    public enum Tile {
+        public static let aqua = Color("Color/Tile/Aqua", bundle: .module)
+        public static let aquaTint = Color("Color/Tile/AquaTint", bundle: .module)
+        public static let base = Color("Color/Tile/Base", bundle: .module)
+        public static let card = Color("Color/Tile/Card", bundle: .module)
+        public static let pink = Color("Color/Tile/Pink", bundle: .module)
+        public static let pinkTint = Color("Color/Tile/PinkTint", bundle: .module)
+    }
+
+    /// Colors for title/heading text.
+    public enum Title {
+        public static let aqua = Color("Color/Title/Aqua", bundle: .module)
+        public static let aquaTint = Color("Color/Title/AquaTint", bundle: .module)
+        public static let base = Color("Color/Title/Base", bundle: .module)
+        public static let card = Color("Color/Title/Card", bundle: .module)
+        public static let pink = Color("Color/Title/Pink", bundle: .module)
+        public static let pinkTint = Color("Color/Title/PinkTint", bundle: .module)
     }
 }
