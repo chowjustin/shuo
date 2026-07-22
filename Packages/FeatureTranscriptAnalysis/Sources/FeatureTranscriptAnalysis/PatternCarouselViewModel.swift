@@ -44,6 +44,7 @@ public final class PatternCarouselViewModel {
     }
 
     public func select(_ pattern: SpeechPattern) {
+        guard pattern.id != selectedPatternID else { return }
         selectedPatternID = pattern.id
         onSelect?(pattern)
     }

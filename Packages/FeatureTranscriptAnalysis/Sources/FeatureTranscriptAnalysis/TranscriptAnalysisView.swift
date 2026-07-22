@@ -27,6 +27,7 @@ public struct TranscriptAnalysisView: View {
 
     @State private var viewModel: TranscriptAnalysisViewModel
     @State private var isConfirmingLeave = false
+    @State private var isShowingOriginalTranscript = false
     @FocusState private var isTitleFocused: Bool
     private let onClose: () -> Void
     private let onBack: (ScriptDraft) -> Void
@@ -101,13 +102,6 @@ public struct TranscriptAnalysisView: View {
                 }
                 .accessibilityLabel("Close")
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(action: save) {
-                    Image(systemName: "checkmark")
-                }
-                .disabled(viewModel.isSaving)
-                .accessibilityLabel("Save")
-            }
 
         case .back:
             ToolbarItem(placement: .topBarLeading) {
@@ -129,11 +123,6 @@ public struct TranscriptAnalysisView: View {
         } else {
             onClose()
         }
-    }
-
-    /// ✓, from `.loaded` only.
-    private func save() {
-        viewModel.save { _ in onClose() }
     }
 
     /// ‹, from every state except `.loaded`.
@@ -173,7 +162,11 @@ public struct TranscriptAnalysisView: View {
             errorSheet(AnalysisErrorCopy(error: error))
 
         case .loaded:
-            loadedView
+            if viewModel.isForceRegenerating {
+                LoadingView(systemImage: "sparkles", message: "Refining transcript…")
+            } else {
+                loadedView
+            }
         }
     }
 
@@ -181,43 +174,49 @@ public struct TranscriptAnalysisView: View {
         ErrorSheet(systemImage: copy.systemImage, title: copy.title, message: copy.message)
     }
 
+    // MARK: - Loaded view helpers
+
     private var loadedView: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 16) {
                 if let error = viewModel.actionError {
                     actionErrorBanner(error)
                 }
-
                 titleHeader
-
-                PatternCarouselView(viewModel: viewModel.carousel)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Suggested Pattern")
+                        .font(ShuoTypography.caption)
+                        .foregroundStyle(ShuoColor.secondaryText)
+                    PatternCarouselView(viewModel: viewModel.carousel)
+                }
 
                 KeyPointsListView(
                     keyPoints: viewModel.keyPoints,
-                    isGenerating: viewModel.isGeneratingKeyPoints
+                    isGenerating: viewModel.isGeneratingKeyPoints,
+                    onEdit: { id, text in viewModel.updateKeyPoint(id: id, text: text) }
                 )
 
-                regenerateSection
-
-                TranscriptSectionView(
-                    title: "Original Transcript",
-                    text: viewModel.originalTranscript
-                )
-
-                if let refined = viewModel.refinedTranscript {
-                    TranscriptSectionView(title: "Refined Transcript", text: refined)
+                if viewModel.isRegeneratingTranscript {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Refining transcript…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if !viewModel.editableRefinedText.isEmpty {
+                    refinedTranscriptSection
                 }
             }
             .padding()
         }
-        // Static, not `$viewModel.title`: the name is now editable in the content, and
-        // leaving a second editable copy of it in the nav bar would give the same value two
-        // controls that can disagree mid-edit. A fixed label rather than nothing, because
-        // ✕ and ✓ sit in this bar with no other context — an empty bar between them reads
-        // as a modal with no name, and this is the one state where the screen has actually
-        // produced something to label. Scoped to `.loaded` for that reason: the loading and
-        // error states stay deliberately chrome-light, as they were.
-        .navigationTitle("Speech Analysis")
+        .sheet(isPresented: $isShowingOriginalTranscript) {
+            OriginalTranscriptView(
+                scriptTitle: viewModel.title,
+                purposeLabel: viewModel.draft.purpose.title,
+                originalText: viewModel.originalTranscript,
+                onSave: { viewModel.updateOriginalTranscript($0) }
+            )
+        }
     }
 
     /// The script name and the purpose it was written for, at the top of the content.
@@ -228,27 +227,67 @@ public struct TranscriptAnalysisView: View {
     /// the nav bar's rename gesture. Styled to echo Input Script's own title field, since
     /// the user crosses directly from that screen to this one.
     private var titleHeader: some View {
-        VStack(alignment: .leading, spacing: ShuoSpacing.xSmall) {
-            TextField("Title", text: $viewModel.title)
-                .font(ShuoTypography.title)
-                .foregroundStyle(ShuoColor.primaryText)
-                .focused($isTitleFocused)
-                .submitLabel(.done)
-                // Both exits from the field settle it: whichever way the user leaves, an
-                // emptied title is normalized rather than left blank on screen.
-                .onSubmit { viewModel.commitTitle() }
-                .accessibilityLabel("Script title")
+        VStack(alignment: .leading, spacing: 15) {
+            if isTitleFocused {
+                TextField("Title", text: $viewModel.title)
+                    .font(ShuoTypography.title)
+                    .foregroundStyle(ShuoColor.primaryText)
+                    .focused($isTitleFocused)
+                    .submitLabel(.done)
+                    .onSubmit { viewModel.commitTitle() }
+                    .accessibilityLabel("Script title")
+            } else {
+                Text(viewModel.title)
+                    .font(ShuoTypography.title)
+                    .foregroundStyle(ShuoColor.primaryText)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onTapGesture { isTitleFocused = true }
+                    .accessibilityLabel("Script title: \(viewModel.title)")
+            }
 
-            // Read-only context. Labelled rather than left as a bare value, so VoiceOver
-            // announces what the word means instead of reading "To Inform" on its own with
-            // nothing to attach it to.
-            Text(viewModel.draft.purpose.title)
-                .font(ShuoTypography.subtitle)
-                .foregroundStyle(ShuoColor.secondaryText)
-                .accessibilityLabel("Speech purpose: \(viewModel.draft.purpose.title)")
+            HStack(spacing: 6) {
+                Text("Purpose:")
+                    .font(ShuoTypography.subtitle)
+                    .foregroundStyle(ShuoColor.secondaryText)
+                Text(viewModel.draft.purpose.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color(red: 4/255, green: 52/255, blue: 44/255))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color(red: 222/255, green: 222/255, blue: 222/255), in: Capsule())
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel("Speech purpose: \(viewModel.draft.purpose.title)")
+
+            Button {
+                isShowingOriginalTranscript = true
+            } label: {
+                Text("View Original Transcript")
+                    .underline()
+            }
+            .font(ShuoTypography.caption)
+            .foregroundStyle(ShuoColor.pink)
         }
         .onChange(of: isTitleFocused) { _, isFocused in
             if !isFocused { viewModel.commitTitle() }
+        }
+    }
+
+    private var refinedTranscriptSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Refined Transcript")
+                    .font(.headline)
+                Spacer()
+                Button("Regenerate") { viewModel.forceRegenerate() }
+                    .font(.caption)
+                    .foregroundStyle(ShuoColor.pink)
+            }
+            TextEditor(text: $viewModel.editableRefinedText)
+                .font(.body)
+                .frame(minHeight: 120)
         }
     }
 
@@ -282,23 +321,5 @@ public struct TranscriptAnalysisView: View {
         .background(ShuoColor.error.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
     }
 
-    private var regenerateSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                viewModel.regenerate()
-            } label: {
-                if viewModel.isRegeneratingTranscript {
-                    HStack(spacing: 8) {
-                        ProgressView().controlSize(.small)
-                        Text("Rewriting…")
-                    }
-                } else {
-                    Text("Regenerate Transcript")
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!viewModel.canRegenerateTranscript)
-        }
-    }
-
 }
+

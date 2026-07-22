@@ -61,7 +61,24 @@ public struct PatternCarouselView: View {
             }
             .onChange(of: focusedIndex) { _, newIndex in
                 guard let newIndex else { return }
-                viewModel.select(pattern(atLoopedIndex: newIndex))
+                let newPattern = pattern(atLoopedIndex: newIndex)
+                guard newPattern.id != viewModel.selectedPatternID else { return }
+                viewModel.select(newPattern)
+            }
+            // When selection changes externally (e.g. content page swipe), scroll
+            // the carousel to the matching card. Guard prevents re-scrolling when
+            // the carousel itself caused the selection change.
+            .onChange(of: viewModel.selectedPatternID) { _, newID in
+                guard let newID,
+                      let patternIdx = viewModel.patterns.firstIndex(where: { $0.id == newID }),
+                      let current = focusedIndex,
+                      current % viewModel.patterns.count != patternIdx else { return }
+                let middleRepeat = Self.loopMultiplier / 2
+                // Instant jump prevents the scroll animation from firing onChange for every
+                // intermediate card, which would trigger rapid Task cancel/create cycles and freeze the UI.
+                withAnimation(.none) {
+                    focusedIndex = middleRepeat * viewModel.patterns.count + patternIdx
+                }
             }
         }
     }
@@ -73,10 +90,12 @@ public struct PatternCarouselView: View {
         let startPatternID = viewModel.selectedPatternID ?? viewModel.mostRecommended?.id
         let startPatternIndex = startPatternID
             .flatMap { id in viewModel.patterns.firstIndex(where: { $0.id == id }) } ?? 0
-        
+
         let middleRepeat = Self.loopMultiplier / 2
 
-        focusedIndex = (middleRepeat * patternCount) + startPatternIndex
+        withAnimation(.none) {
+            focusedIndex = (middleRepeat * patternCount) + startPatternIndex
+        }
     }
 }
 
