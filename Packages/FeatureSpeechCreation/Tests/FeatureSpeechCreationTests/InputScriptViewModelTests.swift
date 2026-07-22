@@ -362,4 +362,57 @@ struct InputScriptViewModelTests {
         #expect(viewModel.writeVM.content == "Typed draft.")
     }
 
+    // MARK: - Warning before dropping other modes
+
+    @Test("no other mode is flagged when only the active mode has content")
+    func noUnconfirmedModesWhenOnlyActiveHasContent() async {
+        let viewModel = makeViewModel()
+        await recordAndPause(viewModel)
+
+        #expect(viewModel.unconfirmedModesWithContent.isEmpty)
+        #expect(viewModel.discardWarningMessage.isEmpty)
+    }
+
+    @Test("inactive modes that hold content are flagged, in catalog order")
+    func flagsInactiveModesWithContent() async {
+        let viewModel = makeViewModel()
+        viewModel.writeVM.content = "Typed draft."
+        viewModel.mode = .attachFile
+        viewModel.attachVM.fileSelected(url: URL(filePath: "/tmp/speech.m4a"))
+        await viewModel.attachVM.importTask?.value
+        viewModel.mode = .speak
+        await recordAndPause(viewModel)
+
+        // Active mode is Speak; the other two both hold content, reported in
+        // `InputMode.allCases` order (attachFile, write).
+        #expect(viewModel.unconfirmedModesWithContent == [.attachFile, .write])
+    }
+
+    @Test("an empty inactive mode is not flagged")
+    func ignoresEmptyInactiveModes() async {
+        let viewModel = makeViewModel()
+        viewModel.writeVM.content = "Typed draft."
+        viewModel.mode = .speak
+        await recordAndPause(viewModel)
+
+        // Attach File was never touched, so only Write is at risk.
+        #expect(viewModel.unconfirmedModesWithContent == [.write])
+    }
+
+    @Test("the warning message names the active mode and every mode that would be dropped")
+    func warningMessageNamesTheModes() async {
+        let viewModel = makeViewModel()
+        viewModel.writeVM.content = "Typed draft."
+        viewModel.mode = .attachFile
+        viewModel.attachVM.fileSelected(url: URL(filePath: "/tmp/speech.m4a"))
+        await viewModel.attachVM.importTask?.value
+        viewModel.mode = .speak
+        await recordAndPause(viewModel)
+
+        let message = viewModel.discardWarningMessage
+        #expect(message.contains(InputMode.speak.title))
+        #expect(message.contains(InputMode.attachFile.title))
+        #expect(message.contains(InputMode.write.title))
+    }
+
 }

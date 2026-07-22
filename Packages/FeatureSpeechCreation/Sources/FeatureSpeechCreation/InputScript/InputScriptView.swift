@@ -14,6 +14,7 @@ public struct InputScriptView: View {
     private let onClose: () -> Void
     private let onProceed: () -> Void
     @FocusState private var isTitleFocused: Bool
+    @State private var isConfirmingProceed = false
 
     /// - Parameter onProceed: Advances the flow to the transcription step. Called only once
     ///   the active mode has actually produced a source, so a mode that finishes empty
@@ -66,12 +67,21 @@ public struct InputScriptView: View {
                         .accessibilityLabel("Back")
                     }
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button(action: confirm) {
+                        Button(action: attemptConfirm) {
                             Image(systemName: "checkmark")
                         }
                         .disabled(!viewModel.hasValidContent)
                         .accessibilityLabel("Confirm")
                     }
+                }
+                .alert(
+                    "Process \(viewModel.mode.title) only?",
+                    isPresented: $isConfirmingProceed
+                ) {
+                    Button("Cancel", role: .cancel) {}
+                    Button("Continue", action: confirm)
+                } message: {
+                    Text(viewModel.discardWarningMessage)
                 }
             }
             .blur(radius: viewModel.attachVM.isFileTooLarge ? 8 : 0)
@@ -149,6 +159,17 @@ public struct InputScriptView: View {
     private func goBack() {
         viewModel.discard()
         onBack()
+    }
+
+    // ✓. Only one mode is ever processed, so before committing, warn when another mode
+    // still holds content that confirming would silently drop. With nothing to lose,
+    // proceed straight through rather than nagging on the common single-mode path.
+    private func attemptConfirm() {
+        if viewModel.unconfirmedModesWithContent.isEmpty {
+            confirm()
+        } else {
+            isConfirmingProceed = true
+        }
     }
 
     // Finalizes the active mode, then hands its `SpeechSource` to the transcription step
