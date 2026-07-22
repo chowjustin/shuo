@@ -80,11 +80,40 @@ public final class InputScriptViewModel {
 
     /// `true` when the currently active mode has enough content to proceed.
     public var hasValidContent: Bool {
+        hasContent(in: mode)
+    }
+
+    /// Whether the given mode currently holds content a user could lose by confirming.
+    private func hasContent(in mode: InputMode) -> Bool {
         switch mode {
         case .speak: speakVM.canProceed
         case .write: writeVM.hasContent
         case .attachFile: attachVM.hasImportedFile
         }
+    }
+
+    /// Modes other than the active one that still hold content confirming would discard.
+    ///
+    /// Confirming commits to a single mode — `discardUnconfirmedModes()` drops the other
+    /// two, and a Speak take is a real audio file on disk that v1 offers no way to recover.
+    /// When any inactive mode holds real content the confirm flow warns first, so a
+    /// recording or a typed draft is never silently thrown away. Returned in
+    /// `InputMode.allCases` order so the warning message reads consistently.
+    public var unconfirmedModesWithContent: [InputMode] {
+        InputMode.allCases.filter { $0 != mode && hasContent(in: $0) }
+    }
+
+    /// Sentence for the confirm dialog naming the modes that won't be processed.
+    ///
+    /// Empty when the active mode is the only one holding content; the confirm flow reads
+    /// `unconfirmedModesWithContent` to decide whether to show the dialog at all, so this is
+    /// only ever displayed when at least one mode is named.
+    public var discardWarningMessage: String {
+        let names = unconfirmedModesWithContent.map(\.title)
+        guard !names.isEmpty else { return "" }
+        let list = ListFormatter.localizedString(byJoining: names)
+        return "Only your \(mode.title) input will be processed. "
+            + "Your \(list) input will be ignored and won't be saved."
     }
 
     private let generateTranscript: GenerateTranscriptUseCase
