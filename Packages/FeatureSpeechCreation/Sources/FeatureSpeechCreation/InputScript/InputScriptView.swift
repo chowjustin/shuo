@@ -6,7 +6,6 @@
 //
 
 import ShuoCore
-import ShuoDesignSystem
 import SwiftUI
 
 public struct InputScriptView: View {
@@ -29,10 +28,6 @@ public struct InputScriptView: View {
         self.onBack = onBack
         self.onClose = onClose
         self.onProceed = onProceed
-
-        UISegmentedControl.appearance().selectedSegmentTintColor = UIColor(ShuoColor.aqua)
-
-        UISegmentedControl.appearance().backgroundColor = UIColor(ShuoColor.aquaTint)
     }
 
     public var body: some View {
