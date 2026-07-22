@@ -21,15 +21,14 @@ struct KeyPointsListView: View {
 
     let keyPoints: [KeyPoint]
     let isGenerating: Bool
+    let onEdit: (KeyPoint.ID, String) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Text("Key Points")
-                    .font(.headline)
-                if isGenerating {
-                    // An in-place indicator, not a screen transition — switching patterns
-                    // must not flash the whole screen back to a spinner.
+        VStack(alignment: .leading, spacing: 16) {
+            if isGenerating {
+                // An in-place indicator, not a screen transition — switching patterns
+                // must not flash the whole screen back to a spinner.
+                HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
                     Text("Updating…")
@@ -39,7 +38,9 @@ struct KeyPointsListView: View {
             }
 
             ForEach(keyPoints) { keyPoint in
-                KeyPointRow(keyPoint: keyPoint)
+                KeyPointRow(keyPoint: keyPoint) { newText in
+                    onEdit(keyPoint.id, newText)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

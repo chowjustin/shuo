@@ -31,7 +31,7 @@ public struct PatternCard: View {
     }
 
     public var body: some View {
-        ZStack(alignment: .leading) {
+        ZStack(alignment: .center) {
             if isFocused {
                 focusedContent
                     .transition(.opacity)
@@ -40,9 +40,10 @@ public struct PatternCard: View {
                     .transition(.opacity)
             }
         }
-        .cardStyle(isSelected: true)
+        
 
-        .frame(width: 260)
+        .frame(width: 230, height: 100)
+        .cardStyle(isSelected: true)
 
         .scaleEffect(isFocused ? 1 : 0.85)
         .opacity(isFocused ? 1 : 0.4)
@@ -58,18 +59,20 @@ public struct PatternCard: View {
     }
 
     private var focusedContent: some View {
-        VStack(alignment: .leading, spacing: ShuoSpacing.small) {
+        VStack(alignment: .center, spacing: ShuoSpacing.small) {
             Text(name)
                 .font(.title3.bold())
                 .foregroundStyle(ShuoColor.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.center)
 
             Text(summary)
                 .font(ShuoTypography.caption)
                 .foregroundStyle(ShuoColor.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private var collapsedContent: some View {

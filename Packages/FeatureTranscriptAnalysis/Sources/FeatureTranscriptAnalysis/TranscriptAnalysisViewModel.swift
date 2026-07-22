@@ -48,6 +48,10 @@ public final class TranscriptAnalysisViewModel {
     public private(set) var isGeneratingKeyPoints = false
     /// True while the refined transcript is being generated.
     public private(set) var isRegeneratingTranscript = false
+    /// True only when the user explicitly pressed ↺ to force a re-generation. Used by the
+    /// view to show a full-screen loading indicator instead of an inline spinner — the user
+    /// has deliberately discarded their edit, so a prominent "working" state is appropriate.
+    public private(set) var isForceRegenerating = false
     /// A failure from selecting a pattern or regenerating, shown inline. Distinct from
     /// `viewState.failed`, which is reserved for the initial load — a failed refinement
     /// must not tear down key points the user can still read.
@@ -60,6 +64,28 @@ public final class TranscriptAnalysisViewModel {
     /// work, and this is what lets ✕ tell the difference between "nothing to lose" and
     /// "you have changes".
     public private(set) var hasUnsavedChanges = false
+
+    /// The refined transcript text as shown in the editing TextField.
+    ///
+    /// This is a stored `@Observable` property so the view can bind to it with
+    /// `$viewModel.editableRefinedText` — the only reliable pattern for editing inside
+    /// `@Observable` classes without the binding getter overwriting the user's keystrokes.
+    ///
+    /// The `didSet` writes through to `draft.transcript.refined` and the cache, then
+    /// schedules a debounced save. All other code that produces a new refined transcript
+    /// (AI generation, pattern switch, force-regen) must set this property AFTER updating
+    /// `draft.transcript.refined`, so the guard finds them equal and produces no extra write.
+    public var editableRefinedText: String = "" {
+        didSet {
+            guard editableRefinedText != draft.transcript.refined else { return }
+            draft.transcript.refined = editableRefinedText.isEmpty ? nil : editableRefinedText
+            if let patternID = draft.selectedPatternID {
+                refinedCache[patternID] = editableRefinedText.isEmpty ? nil : editableRefinedText
+            }
+            hasUnsavedChanges = true
+            scheduleSave()
+        }
+    }
 
     // MARK: - Dependencies
 
@@ -95,6 +121,7 @@ public final class TranscriptAnalysisViewModel {
     private var prefetchTask: Task<Void, Never>?
     private var regenerationTask: Task<Void, Never>?
     private var saveTask: Task<Void, Never>?
+    private var autoSaveTask: Task<Void, Never>?
 
     /// Monotonic tags identifying the newest key-point / refinement run.
     ///
@@ -165,6 +192,7 @@ public final class TranscriptAnalysisViewModel {
     public func commitTitle() {
         let trimmed = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         title = trimmed.isEmpty ? Self.untitledTitle : trimmed
+        if hasUnsavedChanges { scheduleSave() }
     }
     public var originalTranscript: String { draft.transcript.original }
     /// The refined transcript for the selected pattern, or nil if it has not been
@@ -201,10 +229,12 @@ public final class TranscriptAnalysisViewModel {
         selectionTask?.cancel()
         prefetchTask?.cancel()
         regenerationTask?.cancel()
+        autoSaveTask?.cancel()
         analysisTask = nil
         selectionTask = nil
         prefetchTask = nil
         regenerationTask = nil
+        autoSaveTask = nil
     }
 
     /// Retries after a failed initial analysis.
@@ -262,6 +292,7 @@ public final class TranscriptAnalysisViewModel {
             carousel.onSelect = { [weak self] pattern in
                 self?.select(pattern)
             }
+            regenerate()
             startPrefetch(excluding: top.id, from: patterns)
         } catch let error as ShuoError {
             guard !Task.isCancelled else { return }
@@ -342,6 +373,8 @@ public final class TranscriptAnalysisViewModel {
                 actionError = .aiGenerationFailed
             }
             guard !Task.isCancelled else { return }
+            isForceRegenerating = false
+            regenerate()
             resumePrefetch()
         }
     }
@@ -354,6 +387,7 @@ public final class TranscriptAnalysisViewModel {
         // cached one or clear it — leaving the previous pattern's text on screen under a
         // new pattern's key points would be quietly wrong.
         draft.transcript.refined = refinedCache[pattern.id]
+        editableRefinedText = refinedCache[pattern.id] ?? ""
         hasUnsavedChanges = true
 
         if let cached = keyPointCache[pattern.id] {
@@ -420,11 +454,7 @@ public final class TranscriptAnalysisViewModel {
 
     // MARK: - Refined transcript
 
-    /// Generates the refined transcript for the selected pattern.
-    ///
-    /// User-triggered rather than automatic: refinement is the most expensive call in the
-    /// flow, and running it on every pattern switch would burn time and battery producing
-    /// text the user may never scroll to.
+    /// Generates the refined transcript for the selected pattern, using the cache when available.
     public func regenerate() {
         guard let pattern = selectedPattern else { return }
 
@@ -433,21 +463,31 @@ public final class TranscriptAnalysisViewModel {
 
         if let cached = refinedCache[pattern.id] {
             draft.transcript.refined = cached
+            editableRefinedText = cached  // sync editor; didSet guard prevents double-write
             hasUnsavedChanges = true
             return
         }
 
         regenerationGeneration &+= 1
         let generation = regenerationGeneration
+        // Snapshot key points now (on MainActor) rather than reading self.keyPoints inside
+        // the Task body. By the time the Task body runs, a pattern switch could have
+        // replaced keyPoints with a different pattern's data.
+        let snapshotKeyPoints = keyPoints
         isRegeneratingTranscript = true
         regenerationTask = Task { [weak self] in
             guard let self else { return }
-            defer { if generation == regenerationGeneration { isRegeneratingTranscript = false } }
+            defer {
+                if generation == regenerationGeneration {
+                    isRegeneratingTranscript = false
+                    isForceRegenerating = false
+                }
+            }
             do {
                 let refined = try await regenerateTranscript(
                     transcript: draft.transcript,
                     pattern: pattern,
-                    keyPoints: keyPoints
+                    keyPoints: snapshotKeyPoints
                 )
                 try Task.checkCancellation()
                 refinedCache[pattern.id] = refined
@@ -455,7 +495,9 @@ public final class TranscriptAnalysisViewModel {
                 // switched patterns while this was generating.
                 guard draft.selectedPatternID == pattern.id else { return }
                 draft.transcript.refined = refined
+                editableRefinedText = refined  // sync editor; didSet guard prevents double-write
                 hasUnsavedChanges = true
+                save()
             } catch is CancellationError {
                 return
             } catch let error as ShuoError {
@@ -469,6 +511,19 @@ public final class TranscriptAnalysisViewModel {
     }
 
     // MARK: - Saving
+
+    /// Schedules a save 1.5 s after the last change, cancelling any pending auto-save.
+    ///
+    /// Debouncing means rapid edits (typing in a key-point card) only produce one write
+    /// rather than one per keystroke.
+    private func scheduleSave() {
+        autoSaveTask?.cancel()
+        autoSaveTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1.5))
+            guard let self, !Task.isCancelled else { return }
+            save()
+        }
+    }
 
     /// Persists the draft. Updates the reopened script when there is one, inserts otherwise.
     public func save(onSaved: (@MainActor (Script) -> Void)? = nil) {
@@ -501,8 +556,54 @@ public final class TranscriptAnalysisViewModel {
         }
     }
 
+    /// Discards any manual edit and re-generates the refined transcript with AI.
+    ///
+    /// Sets `isForceRegenerating` so the view can show a full-screen loading indicator
+    /// rather than the inline spinner used for pattern-switch regeneration.
+    public func forceRegenerate() {
+        guard let patternID = draft.selectedPatternID else { return }
+        refinedCache.removeValue(forKey: patternID)
+        draft.transcript.refined = nil
+        editableRefinedText = ""
+        isForceRegenerating = true
+        regenerate()
+    }
+
+    /// Updates the text of a single key point after the user edits it in the card.
+    ///
+    /// Writes through to the cache so switching patterns and back preserves the edit.
+    public func updateKeyPoint(id: KeyPoint.ID, text: String) {
+        guard let idx = keyPoints.firstIndex(where: { $0.id == id }),
+              keyPoints[idx].text != text else { return }
+        keyPoints[idx].text = text
+        draft.keyPoints = keyPoints
+        if let patternID = draft.selectedPatternID {
+            keyPointCache[patternID] = keyPoints
+        }
+        hasUnsavedChanges = true
+        scheduleSave()
+    }
+
+
+
     /// Clears an inline error after the user dismisses it.
     public func dismissActionError() {
         actionError = nil
+    }
+
+    /// Replaces the original transcript text after the user edits it in `OriginalTranscriptView`.
+    ///
+    /// Clears all cached refinements (they were generated from the old text) and
+    /// re-generates the refined transcript for the selected pattern. Key points are NOT
+    /// regenerated — the structural mapping is still valid, only the prose has changed.
+    public func updateOriginalTranscript(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != draft.transcript.original else { return }
+        refinedCache.removeAll()
+        draft.transcript = Transcript(original: trimmed, refined: nil)
+        editableRefinedText = ""
+        hasUnsavedChanges = true
+        scheduleSave()
+        regenerate()
     }
 }
