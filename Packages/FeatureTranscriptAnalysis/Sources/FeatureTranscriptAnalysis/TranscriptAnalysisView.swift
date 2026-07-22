@@ -29,6 +29,7 @@ public struct TranscriptAnalysisView: View {
     @State private var isConfirmingLeave = false
     @State private var isShowingOriginalTranscript = false
     @FocusState private var isTitleFocused: Bool
+    @FocusState private var isRefinedFocused: Bool
     private let onClose: () -> Void
     private let onBack: (ScriptDraft) -> Void
 
@@ -51,6 +52,7 @@ public struct TranscriptAnalysisView: View {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(ShuoColor.background)
+                .navigationTitle("Analysis")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbarContent }
         }
@@ -209,6 +211,16 @@ public struct TranscriptAnalysisView: View {
             }
             .padding()
         }
+        .scrollDismissesKeyboard(.interactively)
+        .background(
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if isTitleFocused { viewModel.commitTitle() }
+                    isTitleFocused = false
+                    isRefinedFocused = false
+                }
+        )
         .sheet(isPresented: $isShowingOriginalTranscript) {
             OriginalTranscriptView(
                 scriptTitle: viewModel.title,
@@ -228,24 +240,13 @@ public struct TranscriptAnalysisView: View {
     /// the user crosses directly from that screen to this one.
     private var titleHeader: some View {
         VStack(alignment: .leading, spacing: 15) {
-            if isTitleFocused {
-                TextField("Title", text: $viewModel.title)
-                    .font(ShuoTypography.title)
-                    .foregroundStyle(ShuoColor.primaryText)
-                    .focused($isTitleFocused)
-                    .submitLabel(.done)
-                    .onSubmit { viewModel.commitTitle() }
-                    .accessibilityLabel("Script title")
-            } else {
-                Text(viewModel.title)
-                    .font(ShuoTypography.title)
-                    .foregroundStyle(ShuoColor.primaryText)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .onTapGesture { isTitleFocused = true }
-                    .accessibilityLabel("Script title: \(viewModel.title)")
-            }
+            TextField("Title", text: $viewModel.title)
+                .font(ShuoTypography.title)
+                .foregroundStyle(ShuoColor.primaryText)
+                .focused($isTitleFocused)
+                .submitLabel(.done)
+                .onSubmit { viewModel.commitTitle() }
+                .accessibilityLabel("Script title")
 
             HStack(spacing: 6) {
                 Text("Purpose:")
@@ -288,6 +289,13 @@ public struct TranscriptAnalysisView: View {
             TextEditor(text: $viewModel.editableRefinedText)
                 .font(.body)
                 .frame(minHeight: 120)
+                .padding(12)
+                .focused($isRefinedFocused)
+                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 14))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(ShuoColor.pink, lineWidth: 1.5)
+                )
         }
     }
 
