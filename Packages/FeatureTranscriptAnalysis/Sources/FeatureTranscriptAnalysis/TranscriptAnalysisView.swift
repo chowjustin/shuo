@@ -186,9 +186,26 @@ public struct TranscriptAnalysisView: View {
                 }
                 titleHeader
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Suggested Pattern")
-                        .font(ShuoTypography.caption)
-                        .foregroundStyle(ShuoColor.secondaryText)
+                    HStack {
+                        Text("Suggested Pattern")
+                            .font(ShuoTypography.caption)
+                            .foregroundStyle(ShuoColor.secondaryText)
+                        Spacer()
+                        HStack(spacing: 4) {
+                            Button { viewModel.carousel.selectPrevious() } label: {
+                                Image(systemName: "chevron.left")
+                                    .font(.caption.weight(.semibold))
+                                    .padding(6)
+                            }
+                            .opacity(0)
+                            Button { viewModel.carousel.selectNext() } label: {
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .padding(6)
+                            }
+                            .opacity(0)
+                        }
+                    }
                     PatternCarouselView(viewModel: viewModel.carousel)
                 }
 

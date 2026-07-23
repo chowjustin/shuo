@@ -49,6 +49,20 @@ public final class PatternCarouselViewModel {
         onSelect?(pattern)
     }
 
+    public func selectNext() {
+        guard let currentID = selectedPatternID,
+              let currentIndex = patterns.firstIndex(where: { $0.id == currentID }),
+              currentIndex + 1 < patterns.count else { return }
+        select(patterns[currentIndex + 1])
+    }
+
+    public func selectPrevious() {
+        guard let currentID = selectedPatternID,
+              let currentIndex = patterns.firstIndex(where: { $0.id == currentID }),
+              currentIndex > 0 else { return }
+        select(patterns[currentIndex - 1])
+    }
+
     public func update(patterns: [SpeechPattern]) {
         self.patterns = Array(patterns.prefix(3))
         if let selectedPatternID, !self.patterns.contains(where: { $0.id == selectedPatternID }) {
