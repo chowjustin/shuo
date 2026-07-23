@@ -240,7 +240,7 @@ public struct TranscriptAnalysisView: View {
     /// the user crosses directly from that screen to this one.
     private var titleHeader: some View {
         VStack(alignment: .leading, spacing: 15) {
-            TextField("Title", text: $viewModel.title)
+            TextField("Title", text: $viewModel.title, axis: .vertical)
                 .font(ShuoTypography.title)
                 .foregroundStyle(ShuoColor.primaryText)
                 .focused($isTitleFocused)
@@ -330,4 +330,163 @@ public struct TranscriptAnalysisView: View {
     }
 
 }
+
+#if DEBUG
+
+// MARK: - Preview scaffolding (not test doubles — see ShuoTestSupport)
+
+private struct _PreviewAIAvailabilityChecking: AIAvailabilityChecking {
+    func availability() async -> AIAvailabilityStatus { .available }
+}
+
+private enum _PreviewBehavior: Sendable {
+    case instant, neverReturns, failing(ShuoError)
+}
+
+private struct _PreviewSpeechAnalyzing: SpeechAnalyzing {
+    var behavior: _PreviewBehavior = .instant
+
+    func classify(
+        transcript: String,
+        purpose: SpeechPurpose,
+        candidates: [SpeechPattern]
+    ) async throws -> PatternClassification {
+        try await tick()
+        return .usable(rankedPatternIDs: Array(candidates.prefix(3).map(\.id)))
+    }
+
+    func generateKeyPoints(
+        transcript: String,
+        pattern: SpeechPattern
+    ) async throws -> [KeyPoint] {
+        try await tick()
+        return pattern.components.map { c in
+            KeyPoint(
+                componentID: c.id,
+                componentName: c.name,
+                text: _sampleText(c.name, pattern),
+                orderIndex: c.order,
+                suggestion: c.contains.isEmpty ? nil : c.contains.joined(separator: ", ")
+            )
+        }
+    }
+
+    func refineTranscript(
+        _ transcript: String,
+        pattern: SpeechPattern,
+        keyPoints: [KeyPoint]
+    ) async throws -> String {
+        try await tick()
+        return "Every freshman here today should join a campus organization. " +
+            "These groups build the leadership skills and professional networks that " +
+            "follow you long after graduation. Engineering students in clubs report " +
+            "a 40% higher job-placement rate. Join one before the semester is out."
+    }
+
+    func analyzeGrammar(_ transcript: String) async throws -> [GrammarSuggestion] { [] }
+
+    private func tick() async throws {
+        switch behavior {
+        case .instant: break
+        case .neverReturns: try await Task.sleep(for: .seconds(3_600))
+        case .failing(let e): throw e
+        }
+    }
+}
+
+private func _sampleText(_ componentName: String, _ pattern: SpeechPattern) -> String {
+    let map: [String: String] = [
+        "Point": "All students should join a campus organization in their first semester.",
+        "Reason": "Organizations build leadership skills, networks, and belonging that last long after graduation.",
+        "Example": "Engineering students in clubs report a 40% higher job-placement rate.",
+        "Reinforced Point": "Joining is the single most impactful step a freshman can take for their future.",
+        "Attention": "One in three students drops out feeling they don't belong — yet one club could change that.",
+        "Need": "Students who feel disconnected are more likely to underperform and leave before finishing.",
+        "Satisfaction": "Joining a campus organization creates instant community and professional purpose.",
+        "Visualization": "Imagine graduating surrounded by people who know and support your work.",
+        "Action": "Join at least one campus organization before the end of this semester.",
+        "Problem": "Many students struggle with isolation and lack of direction in their first year.",
+        "Cause": "Without community, students miss the peer connections that drive motivation.",
+        "Solution": "Campus organizations provide leadership opportunities and career exposure.",
+        "Benefits": "Members graduate with stronger networks, higher GPAs, and better employment outcomes.",
+        "Challenge": "I arrived on campus knowing nobody, unsure whether I'd chosen the right path.",
+        "Choice": "I decided to walk into the Engineering Society meeting, even though I nearly turned back.",
+        "Outcome": "That decision led to my first internship, my closest friends, and my confidence.",
+        "Beginning": "I was a shy freshman who ate lunch alone for the first three weeks.",
+        "Conflict": "Every club felt too established — like they already had their people.",
+        "Climax": "The moment I gave my first presentation at the Debate Society, something shifted.",
+        "Resolution": "I realized belonging isn't found — it's built, one conversation at a time.",
+        "Takeaway": "You don't need to wait until you feel ready. You become ready by showing up.",
+    ]
+    return map[componentName] ?? "Key point for \(componentName) in the \(pattern.name) pattern."
+}
+
+private struct _PreviewScriptRepository: ScriptRepository {
+    func save(_ script: Script) async throws {}
+    func fetch(id: UUID) async throws -> Script? { nil }
+    func fetchSummaries() async throws -> [ScriptSummary] { [] }
+    func search(query: String) async throws -> [ScriptSummary] { [] }
+}
+
+private extension TranscriptAnalysisViewModel {
+    static func previewVM(
+        purpose: SpeechPurpose = .persuade,
+        title: String = "Why Campus Organizations Matter",
+        behavior: _PreviewBehavior = .instant
+    ) -> TranscriptAnalysisViewModel {
+        let analyzer = _PreviewSpeechAnalyzing(behavior: behavior)
+        let draft = ScriptDraft(
+            title: title,
+            purpose: purpose,
+            transcript: Transcript(original: """
+                Joining a campus organization is the fastest way to find people who care about \
+                the same things you do. The leadership skills, communication abilities, and \
+                professional networks you build there follow you long after you graduate. \
+                Students who participate consistently report higher academic engagement and \
+                stronger career outcomes. Engineering students in campus clubs are placed in \
+                jobs at a rate 40% higher than peers who never joined. I urge every freshman \
+                here today to join at least one campus organization before the end of their \
+                first semester — it is the single most impactful decision you will make.
+                """)
+        )
+        return TranscriptAnalysisViewModel(
+            draft: draft,
+            availability: _PreviewAIAvailabilityChecking(),
+            classifyTranscript: ClassifyTranscriptUseCase(analyzer: analyzer),
+            generateKeyPoints: GenerateKeyPointsUseCase(analyzer: analyzer),
+            regenerateTranscript: RegenerateTranscriptUseCase(analyzer: analyzer),
+            saveScript: SaveScriptUseCase(repository: _PreviewScriptRepository())
+        )
+    }
+}
+
+#Preview("Loaded") {
+    _AnalysisPreviewHost(behavior: .instant)
+}
+
+#Preview("Analyzing") {
+    _AnalysisPreviewHost(behavior: .neverReturns)
+}
+
+#Preview("Failed") {
+    _AnalysisPreviewHost(behavior: .failing(.aiGenerationFailed))
+}
+
+private struct _AnalysisPreviewHost: View {
+    let behavior: _PreviewBehavior
+    @State private var isPresented = true
+
+    var body: some View {
+        Color(.systemGroupedBackground)
+            .ignoresSafeArea()
+            .sheet(isPresented: $isPresented) {
+                TranscriptAnalysisView(
+                    viewModel: .previewVM(behavior: behavior),
+                    onClose: { isPresented = false },
+                    onBack: { _ in isPresented = false }
+                )
+            }
+    }
+}
+#endif
 
