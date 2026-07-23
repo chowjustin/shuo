@@ -44,12 +44,14 @@ public struct HomeView: View {
             ShuoColor.background
                 .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                customSearchBar
                 content
-            }
         }
         .navigationTitle("All Scripts")
+                .searchable(
+                    text: $viewModel.searchQuery,
+                    placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: "Search"
+        )
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: onTapCreate) {
@@ -60,6 +62,14 @@ public struct HomeView: View {
                 .buttonBorderShape(.circle)
                 .tint(ShuoColor.pink)
                 .accessibilityLabel("New script")
+                .accessibilityInputLabels([
+                                    "New script",
+                                    "Input new script",
+                                    "Input script",
+                                    "Create script",
+                                    "Add script",
+                                    "Create new script"
+                                ])
             }
         }
         .onAppear {
@@ -80,34 +90,6 @@ public struct HomeView: View {
         } message: { script in
             Text("Are you sure you want to delete \"\(script.title)\"? This action cannot be undone.")
         }
-    }
-
-    // MARK: - Custom Search Bar
-    private var customSearchBar: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            
-            TextField("Search", text: $viewModel.searchQuery)
-                .foregroundStyle(ShuoColor.primaryText)
-                .submitLabel(.search)
-                .autocorrectionDisabled()
-            
-            if !viewModel.searchQuery.isEmpty {
-                Button(action: { viewModel.searchQuery = "" }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(uiColor: .systemGray6))
-        )
-        .padding(.horizontal, ShuoSpacing.medium)
-        .padding(.vertical, ShuoSpacing.small)
     }
 
     @ViewBuilder
@@ -139,6 +121,7 @@ public struct HomeView: View {
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                     .accessibilityLabel(summary.title)
+                    .accessibilityHint("Swipe left to delete")
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
         
                         Button(role: .destructive) {
@@ -147,6 +130,8 @@ public struct HomeView: View {
                         } label: {
                             Image(systemName: "trash")
                         }
+                        .accessibilityLabel("Delete")
+                        .accessibilityInputLabels(["Delete", "Trash", "Remove"])
                     }
                 }
             }
