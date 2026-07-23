@@ -61,6 +61,18 @@ public actor SwiftDataScriptRepository: ScriptRepository {
         return try summaries(matching: trimmed)
     }
 
+    // 👇 Tambahkan implementasi fungsi delete(id:) di sini
+    public func delete(id: UUID) async throws {
+        do {
+            if let entity = try existingEntity(id: id) {
+                modelContext.delete(entity)
+                try modelContext.save()
+            }
+        } catch {
+            throw ShuoError.persistenceFailed
+        }
+    }
+
     // MARK: - Helpers
 
     /// Newest-first summaries, optionally filtered by title.

@@ -13,6 +13,17 @@
 // §11) — adding the capability here, even unused, invites it being wired up. Raise it
 // before adding.
 
+//
+//  ScriptRepository.swift
+//  ShuoCore
+//
+//  Created by Justin Chow on 13/07/26.
+//
+
+// Domain protocol: `ScriptRepository` — save / fetch(id:) / fetchSummaries() /
+// search(query:) / delete(id:). Implemented by `SwiftDataScriptRepository` in ShuoPersistence; consumed
+// only through this protocol by use cases and ViewModels (CLAUDE.md §4).
+
 import Foundation
 
 /// Storage for saved scripts, stated without reference to SwiftData.
@@ -44,4 +55,11 @@ public protocol ScriptRepository: Sendable {
     /// at the call site.
     /// - Throws: `ShuoError.persistenceFailed`.
     func search(query: String) async throws -> [ScriptSummary]
+    
+    /// Deletes the script with the matching `id`.
+    ///
+    /// Silently succeeds if no script with the given ID exists, as the end goal
+    /// (the script not being in the repository) is still met.
+    /// - Throws: `ShuoError.persistenceFailed`.
+    func delete(id: UUID) async throws
 }

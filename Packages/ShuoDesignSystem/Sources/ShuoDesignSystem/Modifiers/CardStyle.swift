@@ -22,13 +22,13 @@ struct CardStyle: ViewModifier {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(isSelected ? ShuoColor.aqua : ShuoColor.aquaTint)
+                    .fill(isSelected ? ShuoColor.aquaTint : ShuoColor.background)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(
                         isSelected ? ShuoColor.aqua : ShuoColor.aqua,
-                        lineWidth: isSelected ? 1 : 3
+                        lineWidth: isSelected ? 3 : 3
                     )
             )
     }

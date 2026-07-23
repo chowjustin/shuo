@@ -18,6 +18,7 @@ import ShuoAudio
 import ShuoCore
 import ShuoPersistence
 import SwiftData
+import Foundation
 
 final class AppContainer {
     // MARK: - Services
@@ -43,8 +44,19 @@ final class AppContainer {
 
     // MARK: - Factories
 
-    func makeHomeView(onTapCreate: @escaping () -> Void) -> HomeView {
-        HomeView(onTapCreate: onTapCreate)
+    @MainActor
+    func makeHomeViewModel() -> HomeViewModel {
+        HomeViewModel(
+            fetchScriptSummaries: FetchScriptSummariesUseCase(repository: scriptRepository),
+            searchScripts: SearchScriptsUseCase(repository: scriptRepository),
+            // 👇 Inject DeleteScriptUseCase di sini
+            deleteScript: DeleteScriptUseCase(repository: scriptRepository)
+        )
+    }
+
+    @MainActor
+    func fetchScriptDraft(id: UUID) async throws -> ScriptDraft? {
+        try await FetchScriptUseCase(repository: scriptRepository)(id: id)
     }
 
     @MainActor

@@ -7,19 +7,55 @@
 
 import FeatureHome
 import FeatureSpeechCreation
+import ShuoCore
 import SwiftUI
 
 struct RootView: View {
     let container: AppContainer
+    @State private var homeViewModel: HomeViewModel
     @State private var coordinator: CreateScriptCoordinator?
+    @State private var reopenedDraft: ScriptDraft?
+
+    init(container: AppContainer) {
+        self.container = container
+        _homeViewModel = State(initialValue: container.makeHomeViewModel())
+    }
 
     var body: some View {
-        container.makeHomeView(onTapCreate: {
-            coordinator = container.makeCreateScriptCoordinator(onFinish: { coordinator = nil })
-        })
+        HomeView(
+            viewModel: homeViewModel,
+            onTapCreate: {
+                coordinator = container.makeCreateScriptCoordinator(onFinish: {
+                    coordinator = nil
+                    homeViewModel.load()
+                })
+            },
+            onSelectScript: { id in
+                Task {
+                    if let draft = try? await container.fetchScriptDraft(id: id) {
+                        reopenedDraft = draft
+                    }
+                }
+            }
+        )
         .sheet(isPresented: isShowingCreateFlow) {
             if let coordinator {
                 CreateFlowSheet(container: container, coordinator: coordinator)
+            }
+        }
+        .sheet(isPresented: isShowingReopenFlow) {
+            if let reopenedDraft {
+                container.makeTranscriptAnalysisView(
+                    draft: reopenedDraft,
+                    onClose: {
+                        self.reopenedDraft = nil
+                        homeViewModel.load()
+                    },
+                    onBack: { _ in
+                        self.reopenedDraft = nil
+                        homeViewModel.load()
+                    }
+                )
             }
         }
     }
@@ -30,6 +66,19 @@ struct RootView: View {
             set: { isPresented in
                 if !isPresented {
                     coordinator = nil
+                    homeViewModel.load()
+                }
+            }
+        )
+    }
+
+    private var isShowingReopenFlow: Binding<Bool> {
+        Binding(
+            get: { reopenedDraft != nil },
+            set: { isPresented in
+                if !isPresented {
+                    reopenedDraft = nil
+                    homeViewModel.load()
                 }
             }
         )
