@@ -127,6 +127,7 @@ struct PreviewScriptRepository: ScriptRepository {
     func fetch(id: UUID) async throws -> Script? { nil }
     func fetchSummaries() async throws -> [ScriptSummary] { [] }
     func search(query: String) async throws -> [ScriptSummary] { [] }
+    func delete(id: UUID) async throws {}
 }
 
 // MARK: - ViewModel factory
