@@ -206,12 +206,18 @@ public final class TranscriptAnalysisViewModel {
 
     // MARK: - Lifecycle
 
-    /// Runs the initial analysis. Safe to call more than once — a second call while the
-    /// first is running is ignored rather than starting a competing classification.
+    /// Starts the screen. If the draft already has saved analysis data (reopened script),
+    /// loads directly from it; otherwise runs the AI pipeline.
     public func start() {
         guard analysisTask == nil else { return }
         analysisTask = Task { [weak self] in
-            await self?.runInitialAnalysis()
+            guard let self else { return }
+            if draft.isReopenedScript && !draft.suggestedPatternIDs.isEmpty
+                && draft.selectedPatternID != nil && !draft.keyPoints.isEmpty {
+                await loadFromSaved()
+            } else {
+                await runInitialAnalysis()
+            }
         }
     }
 
@@ -246,6 +252,42 @@ public final class TranscriptAnalysisViewModel {
     }
 
     // MARK: - Initial analysis
+
+    /// Restores the screen from previously saved analysis — no AI call needed.
+    ///
+    /// Used when reopening a script that was already analysed and saved. The carousel,
+    /// key points, and refined transcript are all hydrated from the draft rather than
+    /// regenerated, so the user lands instantly on their last state.
+    private func loadFromSaved() async {
+        let patterns = draft.suggestedPatterns
+        guard let selectedPatternID = draft.selectedPatternID,
+              let selectedPattern = draft.selectedPattern,
+              !patterns.isEmpty else {
+            // Data is incomplete — fall back to full AI analysis.
+            await runInitialAnalysis()
+            return
+        }
+        guard !Task.isCancelled else { return }
+
+        carousel.update(patterns: patterns)
+        carousel.select(selectedPattern)
+
+        keyPoints = draft.keyPoints
+        keyPointCache[selectedPatternID] = draft.keyPoints
+
+        if let refined = draft.transcript.refined, !refined.isEmpty {
+            refinedCache[selectedPatternID] = refined
+            draft.transcript.refined = refined
+            editableRefinedText = refined
+        }
+
+        viewState = .loaded
+        hasUnsavedChanges = false
+
+        carousel.onSelect = { [weak self] pattern in
+            self?.select(pattern)
+        }
+    }
 
     private func runInitialAnalysis() async {
         // A reopened script already carries a full analysis — patterns, a selected one,
