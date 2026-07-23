@@ -18,6 +18,7 @@ import ShuoAudio
 import ShuoCore
 import ShuoPersistence
 import SwiftData
+import Foundation
 
 final class AppContainer {
     // MARK: - Services
@@ -28,8 +29,8 @@ final class AppContainer {
     // builds its own analyzer session and tears it down again.
     private let speechTranscriber: any SpeechTranscribing = SpeechTranscribingRouter()
 
-    // Shared deliberately: the analyzer is an actor that caches its `LanguageModelSession`s,
-    // so reusing one instance keeps prewarming and session reuse working across the flow.
+    // Shared deliberately: one actor serializes requests against the neural engine and
+    // carries the prewarmed session into the first call. It holds no per-request state.
     private let speechAnalyzer = FoundationModelSpeechAnalyzer()
     private let availabilityChecker: any AIAvailabilityChecking = AIAvailabilityGate()
 
@@ -43,8 +44,19 @@ final class AppContainer {
 
     // MARK: - Factories
 
-    func makeHomeView(onTapCreate: @escaping () -> Void) -> HomeView {
-        HomeView(onTapCreate: onTapCreate)
+    @MainActor
+    func makeHomeViewModel() -> HomeViewModel {
+        HomeViewModel(
+            fetchScriptSummaries: FetchScriptSummariesUseCase(repository: scriptRepository),
+            searchScripts: SearchScriptsUseCase(repository: scriptRepository),
+            // 👇 Inject DeleteScriptUseCase di sini
+            deleteScript: DeleteScriptUseCase(repository: scriptRepository)
+        )
+    }
+
+    @MainActor
+    func fetchScriptDraft(id: UUID) async throws -> ScriptDraft? {
+        try await FetchScriptUseCase(repository: scriptRepository)(id: id)
     }
 
     @MainActor

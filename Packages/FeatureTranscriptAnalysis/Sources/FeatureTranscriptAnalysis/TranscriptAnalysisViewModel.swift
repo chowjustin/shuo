@@ -218,10 +218,19 @@ public final class TranscriptAnalysisViewModel {
     // MARK: - Initial analysis
 
     private func runInitialAnalysis() async {
-        // Ask before generating, not after failing: an unavailable model would otherwise
-        // surface as a generic mid-flight generation error the user can do nothing with,
-        // and a model that is merely still downloading would look like a hard failure
-        // (CLAUDE.md §8).
+        // A reopened script already carries a full analysis — patterns, a selected one,
+        // its key points — persisted the last time it went through this exact flow
+        // (ARCHITECTURE.md §3.3: "previously generated data remains available"). Re-
+        // classifying here would cost a real AI call for work that's already done, and
+        // could silently overrule the user's earlier pattern choice if the model ranks
+        // differently on a second pass. `draft.selectedPattern` resolving to nil (a
+        // retired catalog pattern) is the one case that still falls through below.
+        if !draft.keyPoints.isEmpty, let selectedPattern = draft.selectedPattern {
+            loadPersistedAnalysis(selectedPattern: selectedPattern)
+            return
+        }
+
+        // Ask before generating, not after failing: ...
         guard await waitForModel() else { return }
 
         do {
@@ -270,6 +279,21 @@ public final class TranscriptAnalysisViewModel {
             guard !Task.isCancelled else { return }
             viewState = .failed(.aiGenerationFailed)
         }
+    }
+    
+    private func loadPersistedAnalysis(selectedPattern: SpeechPattern) {
+        carousel.update(patterns: draft.suggestedPatterns)
+        carousel.select(selectedPattern)
+        keyPoints = draft.keyPoints
+        keyPointCache[selectedPattern.id] = draft.keyPoints
+        refinedCache[selectedPattern.id] = draft.transcript.refined
+
+        viewState = .loaded
+        carousel.onSelect = { [weak self] pattern in
+            self?.select(pattern)
+        }
+        // So switching to one of the other suggested patterns is instant here too.
+        startPrefetch(excluding: selectedPattern.id, from: draft.suggestedPatterns)
     }
 
     /// Waits until on-device generation is possible, returning false if it never will be.

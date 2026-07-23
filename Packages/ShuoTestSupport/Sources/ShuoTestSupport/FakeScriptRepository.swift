@@ -33,6 +33,8 @@ public actor FakeScriptRepository: ScriptRepository {
     public private(set) var saveCount = 0
     public private(set) var fetchedIDs: [UUID] = []
     public private(set) var searchQueries: [String] = []
+    // 👇 Tambahkan tracker untuk ID yang dihapus saat testing
+    public private(set) var deletedIDs: [UUID] = []
 
     /// Every stored script, newest first.
     public var scripts: [Script] {
@@ -91,6 +93,13 @@ public actor FakeScriptRepository: ScriptRepository {
         return scripts
             .filter { $0.title.localizedCaseInsensitiveContains(trimmed) }
             .map(\.summary)
+    }
+    
+    public func delete(id: UUID) async throws {
+        try await waitIfNeeded()
+        try failIfNeeded()
+        deletedIDs.append(id)
+        storage.removeValue(forKey: id)
     }
 
     private func failIfNeeded() throws {
