@@ -279,6 +279,7 @@ public final class TranscriptAnalysisViewModel {
             refinedCache[selectedPatternID] = refined
             draft.transcript.refined = refined
             editableRefinedText = refined
+            updateSuggestionsFromRefined(refined)
         }
 
         viewState = .loaded
@@ -562,6 +563,7 @@ public final class TranscriptAnalysisViewModel {
                 guard draft.selectedPatternID == pattern.id else { return }
                 draft.transcript.refined = refined
                 editableRefinedText = refined  // sync editor; didSet guard prevents double-write
+                updateSuggestionsFromRefined(refined)
                 hasUnsavedChanges = true
                 save()
             } catch is CancellationError {
@@ -655,6 +657,58 @@ public final class TranscriptAnalysisViewModel {
     /// Clears an inline error after the user dismisses it.
     public func dismissActionError() {
         actionError = nil
+    }
+
+    /// Replaces suggestions for absent key points with relevant sentences from the refined
+    /// transcript, so the hint reflects actual generated content instead of generic catalog text.
+    ///
+    /// Ranks sentences by keyword overlap with the component name. When scores tie (including
+    /// all-zero when the component name doesn't appear literally in the refined text), breaks
+    /// the tie by positional proximity — a component that falls late in the pattern prefers
+    /// sentences from the end of the refined transcript. This means "Reflection" or "Call to
+    /// Action" reliably get a sentence even when the word itself isn't in the output.
+    private func updateSuggestionsFromRefined(_ refined: String) {
+        let sentences = refined
+            .components(separatedBy: CharacterSet(charactersIn: ".!?"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.split(separator: " ").count >= 4 }
+
+        guard !sentences.isEmpty else { return }
+        let sentenceCount = sentences.count
+
+        keyPoints = keyPoints.map { keyPoint in
+            guard keyPoint.isAbsent else { return keyPoint }
+
+            let keywords = keyPoint.componentName
+                .components(separatedBy: CharacterSet(charactersIn: " –-/"))
+                .map { $0.lowercased() }
+                .filter { $0.count > 3 }
+
+            // Fraction [0, 1] representing where this component sits in the pattern.
+            let componentFraction = keyPoints.count > 1
+                ? Double(keyPoint.orderIndex) / Double(keyPoints.count - 1)
+                : 0.5
+
+            let best = sentences.enumerated().max { a, b in
+                let aScore = keywords.filter { a.element.lowercased().contains($0) }.count
+                let bScore = keywords.filter { b.element.lowercased().contains($0) }.count
+                guard aScore == bScore else { return aScore < bScore }
+                // Positional tiebreak: prefer the sentence closest in relative position.
+                let aProximity = sentenceCount > 1
+                    ? abs(Double(a.offset) / Double(sentenceCount - 1) - componentFraction)
+                    : 0.0
+                let bProximity = sentenceCount > 1
+                    ? abs(Double(b.offset) / Double(sentenceCount - 1) - componentFraction)
+                    : 0.0
+                return aProximity > bProximity
+            }
+
+            var updated = keyPoint
+            if let (_, sentence) = best, !sentence.isEmpty {
+                updated.suggestion = sentence
+            }
+            return updated
+        }
     }
 
     /// Replaces the original transcript text after the user edits it in `OriginalTranscriptView`.

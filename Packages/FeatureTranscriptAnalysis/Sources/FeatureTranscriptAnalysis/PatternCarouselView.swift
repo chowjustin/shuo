@@ -33,7 +33,7 @@ public struct PatternCarouselView: View {
         if viewModel.patterns.isEmpty {
             Text("No pattern suggestions yet.")
                 .font(ShuoTypography.caption)
-                .foregroundStyle(ShuoColor.secondaryText)
+                .foregroundStyle(ShuoColor.primaryTextAqua)
                 .padding(.horizontal, ShuoSpacing.medium)
         } else {
             ScrollView(.horizontal, showsIndicators: false) {
@@ -80,6 +80,7 @@ public struct PatternCarouselView: View {
                     focusedIndex = middleRepeat * viewModel.patterns.count + patternIdx
                 }
             }
+
         }
     }
 

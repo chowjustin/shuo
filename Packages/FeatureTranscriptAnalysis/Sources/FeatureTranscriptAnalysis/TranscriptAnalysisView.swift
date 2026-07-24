@@ -52,10 +52,17 @@ public struct TranscriptAnalysisView: View {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(ShuoColor.background)
-                .navigationTitle("Analysis")
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar { toolbarContent }
+                .toolbar {
+                    toolbarContent
+                    ToolbarItem(placement: .principal) {
+                        Text("Script Analysis")
+                            .font(.headline)
+                            .foregroundStyle(ShuoColor.primaryTextCream)
+                    }
+                }
         }
+        .background(ShuoColor.background)
         .task { viewModel.start() }
         // The prefetch must not outlive the screen: a background generation firing after
         // the user has dismissed this sheet is the bug class CLAUDE.md §6 calls out.
@@ -189,7 +196,8 @@ public struct TranscriptAnalysisView: View {
                     HStack {
                         Text("Suggested Pattern")
                             .font(ShuoTypography.caption)
-                            .foregroundStyle(ShuoColor.secondaryText)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(ShuoColor.primaryTextCream)
                         Spacer()
                         HStack(spacing: 4) {
                             Button { viewModel.carousel.selectPrevious() } label: {
@@ -207,6 +215,20 @@ public struct TranscriptAnalysisView: View {
                         }
                     }
                     PatternCarouselView(viewModel: viewModel.carousel)
+
+                    if !viewModel.carousel.patterns.isEmpty {
+                        let activeIndex = viewModel.carousel.patterns.firstIndex(where: { $0.id == viewModel.carousel.selectedPatternID }) ?? 0
+                        HStack(spacing: 6) {
+                            ForEach(viewModel.carousel.patterns.indices, id: \.self) { index in
+                                Circle()
+                                    .fill(index == activeIndex ? ShuoColor.primaryTextAqua : ShuoColor.primaryTextAqua.opacity(0.3))
+                                    .frame(width: index == activeIndex ? 8 : 6, height: index == activeIndex ? 8 : 6)
+                                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: activeIndex)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 2)
+                    }
                 }
 
                 KeyPointsListView(
@@ -259,7 +281,7 @@ public struct TranscriptAnalysisView: View {
         VStack(alignment: .leading, spacing: 15) {
             TextField("Title", text: $viewModel.title, axis: .vertical)
                 .font(ShuoTypography.title)
-                .foregroundStyle(ShuoColor.primaryText)
+                .foregroundStyle(ShuoColor.primaryTextCream)
                 .focused($isTitleFocused)
                 .submitLabel(.done)
                 .onSubmit { viewModel.commitTitle() }
@@ -268,10 +290,10 @@ public struct TranscriptAnalysisView: View {
             HStack(spacing: 6) {
                 Text("Purpose:")
                     .font(ShuoTypography.subtitle)
-                    .foregroundStyle(ShuoColor.secondaryText)
+                    .foregroundStyle(ShuoColor.secondaryTextCream)
                 Text(viewModel.draft.purpose.title)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color(red: 4/255, green: 52/255, blue: 44/255))
+                    .foregroundStyle(Color.black)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
                     .background(Color(red: 222/255, green: 222/255, blue: 222/255), in: Capsule())
@@ -298,6 +320,7 @@ public struct TranscriptAnalysisView: View {
             HStack {
                 Text("Refined Transcript")
                     .font(.headline)
+                    .foregroundStyle(ShuoColor.primaryTextCream)
                 Spacer()
                 Button("Regenerate") { viewModel.forceRegenerate() }
                     .font(.caption)
@@ -305,10 +328,12 @@ public struct TranscriptAnalysisView: View {
             }
             TextEditor(text: $viewModel.editableRefinedText)
                 .font(.body)
+                .foregroundStyle(ShuoColor.secondaryTextCream)
                 .frame(minHeight: 120)
                 .padding(12)
                 .focused($isRefinedFocused)
-                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 14))
+                .scrollContentBackground(.hidden)
+                .background(ShuoColor.background, in: RoundedRectangle(cornerRadius: 14))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
                         .strokeBorder(ShuoColor.pink, lineWidth: 1.5)

@@ -43,10 +43,10 @@ public struct PatternCard: View {
         
 
         .frame(width: 230, height: 100)
-        .cardStyle(isSelected: true)
+        .cardStyle(isSelected: true, showsBorder: false)
 
         .scaleEffect(isFocused ? 1 : 0.85)
-        .opacity(isFocused ? 1 : 0.4)
+        .opacity(isFocused ? 1 : 0.3)
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isFocused)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText)
@@ -62,13 +62,13 @@ public struct PatternCard: View {
         VStack(alignment: .center, spacing: ShuoSpacing.small) {
             Text(name)
                 .font(.title3.bold())
-                .foregroundStyle(ShuoColor.primaryText)
+                .foregroundStyle(ShuoColor.primaryTextAqua)
                 .fixedSize(horizontal: false, vertical: true)
                 .multilineTextAlignment(.center)
 
             Text(summary)
                 .font(ShuoTypography.caption)
-                .foregroundStyle(ShuoColor.primaryText)
+                .foregroundStyle(ShuoColor.secondaryTextAqua)
                 .fixedSize(horizontal: false, vertical: true)
                 .multilineTextAlignment(.center)
         }
@@ -78,7 +78,7 @@ public struct PatternCard: View {
     private var collapsedContent: some View {
         Text(name)
             .font(ShuoTypography.headline)
-            .foregroundStyle(ShuoColor.primaryText)
+            .foregroundStyle(ShuoColor.primaryTextAqua)
             .lineLimit(2)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, minHeight: 56)
