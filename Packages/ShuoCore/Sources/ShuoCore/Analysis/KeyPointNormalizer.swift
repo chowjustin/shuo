@@ -59,7 +59,7 @@ public struct KeyPointNormalizer: Sendable {
                 componentName: component.name,
                 text: text,
                 orderIndex: component.order,
-                suggestion: nil
+                suggestion: component.contains.isEmpty ? nil : component.contains.joined(separator: ", ")
             )
         }
     }

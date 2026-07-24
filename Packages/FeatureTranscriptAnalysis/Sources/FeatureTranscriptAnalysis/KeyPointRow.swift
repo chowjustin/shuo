@@ -39,18 +39,18 @@ struct KeyPointRow: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(keyPoint.componentName)
                 .font(.headline)
-                .foregroundStyle(ShuoColor.primaryText)
+                .foregroundStyle(ShuoColor.primaryTextCream)
 
             TextField(
-                keyPoint.suggestion ?? "Add content for this section…",
+                "Type Something",
                 text: $text,
                 axis: .vertical
             )
             .font(.body)
-            .foregroundStyle(ShuoColor.primaryText)
+            .foregroundStyle(ShuoColor.secondaryTextCream)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
-            .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 14))
+            .background(ShuoColor.background, in: RoundedRectangle(cornerRadius: 14))
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
                     .strokeBorder(ShuoColor.pink, lineWidth: 1.5)
@@ -59,6 +59,13 @@ struct KeyPointRow: View {
                 let stored = newValue.isEmpty ? KeyPoint.absentText : newValue
                 if stored != keyPoint.text { onEdit(stored) }
             }
+
+            if text.isEmpty, let suggestion = keyPoint.suggestion {
+                Text(recommendedAttributed(suggestion))
+                    .font(.caption)
+                    .foregroundStyle(ShuoColor.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         // Reset local text when the key point content changes (pattern switch may reuse
@@ -66,5 +73,13 @@ struct KeyPointRow: View {
         .onChange(of: keyPoint) { _, newKeyPoint in
             text = newKeyPoint.isAbsent ? "" : newKeyPoint.text
         }
+    }
+
+    private func recommendedAttributed(_ suggestion: String) -> AttributedString {
+        var label = AttributedString("Recommended: ")
+        label.inlinePresentationIntent = .stronglyEmphasized
+        var body = AttributedString(suggestion)
+        body.inlinePresentationIntent = .emphasized
+        return label + body
     }
 }

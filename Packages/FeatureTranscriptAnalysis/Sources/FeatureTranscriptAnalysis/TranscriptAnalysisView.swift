@@ -29,6 +29,8 @@ public struct TranscriptAnalysisView: View {
     @State private var isConfirmingLeave = false
     @State private var isShowingOriginalTranscript = false
     @FocusState private var isTitleFocused: Bool
+    @FocusState private var isRefinedFocused: Bool
+    @State private var isRefinedExpanded = false
     private let onClose: () -> Void
     private let onBack: (ScriptDraft) -> Void
 
@@ -52,8 +54,16 @@ public struct TranscriptAnalysisView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(ShuoColor.background)
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar { toolbarContent }
+                .toolbar {
+                    toolbarContent
+                    ToolbarItem(placement: .principal) {
+                        Text("Script Analysis")
+                            .font(.headline)
+                            .foregroundStyle(ShuoColor.primaryTextCream)
+                    }
+                }
         }
+        .background(ShuoColor.background)
         .task { viewModel.start() }
         // The prefetch must not outlive the screen: a background generation firing after
         // the user has dismissed this sheet is the bug class CLAUDE.md §6 calls out.
@@ -184,10 +194,42 @@ public struct TranscriptAnalysisView: View {
                 }
                 titleHeader
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Suggested Pattern")
-                        .font(ShuoTypography.caption)
-                        .foregroundStyle(ShuoColor.secondaryText)
+                    HStack {
+                        Text("Suggested Pattern")
+                            .font(ShuoTypography.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(ShuoColor.primaryTextCream)
+                        Spacer()
+                        HStack(spacing: 4) {
+                            Button { viewModel.carousel.selectPrevious() } label: {
+                                Image(systemName: "chevron.left")
+                                    .font(.caption.weight(.semibold))
+                                    .padding(6)
+                            }
+                            .opacity(0)
+                            Button { viewModel.carousel.selectNext() } label: {
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .padding(6)
+                            }
+                            .opacity(0)
+                        }
+                    }
                     PatternCarouselView(viewModel: viewModel.carousel)
+
+                    if !viewModel.carousel.patterns.isEmpty {
+                        let activeIndex = viewModel.carousel.patterns.firstIndex(where: { $0.id == viewModel.carousel.selectedPatternID }) ?? 0
+                        HStack(spacing: 6) {
+                            ForEach(viewModel.carousel.patterns.indices, id: \.self) { index in
+                                Circle()
+                                    .fill(index == activeIndex ? ShuoColor.primaryTextAqua : ShuoColor.primaryTextAqua.opacity(0.3))
+                                    .frame(width: index == activeIndex ? 8 : 6, height: index == activeIndex ? 8 : 6)
+                                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: activeIndex)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 2)
+                    }
                 }
 
                 KeyPointsListView(
@@ -209,6 +251,16 @@ public struct TranscriptAnalysisView: View {
             }
             .padding()
         }
+        .scrollDismissesKeyboard(.interactively)
+        .background(
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if isTitleFocused { viewModel.commitTitle() }
+                    isTitleFocused = false
+                    isRefinedFocused = false
+                }
+        )
         .sheet(isPresented: $isShowingOriginalTranscript) {
             OriginalTranscriptView(
                 originalText: viewModel.originalTranscript,
@@ -226,32 +278,21 @@ public struct TranscriptAnalysisView: View {
     /// the user crosses directly from that screen to this one.
     private var titleHeader: some View {
         VStack(alignment: .leading, spacing: 15) {
-            if isTitleFocused {
-                TextField("Title", text: $viewModel.title)
-                    .font(ShuoTypography.title)
-                    .foregroundStyle(ShuoColor.primaryText)
-                    .focused($isTitleFocused)
-                    .submitLabel(.done)
-                    .onSubmit { viewModel.commitTitle() }
-                    .accessibilityLabel("Script title")
-            } else {
-                Text(viewModel.title)
-                    .font(ShuoTypography.title)
-                    .foregroundStyle(ShuoColor.primaryText)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .onTapGesture { isTitleFocused = true }
-                    .accessibilityLabel("Script title: \(viewModel.title)")
-            }
+            TextField("Title", text: $viewModel.title, axis: .vertical)
+                .font(ShuoTypography.title)
+                .foregroundStyle(ShuoColor.primaryTextCream)
+                .focused($isTitleFocused)
+                .submitLabel(.done)
+                .onSubmit { viewModel.commitTitle() }
+                .accessibilityLabel("Script title")
 
             HStack(spacing: 6) {
                 Text("Purpose:")
                     .font(ShuoTypography.subtitle)
-                    .foregroundStyle(ShuoColor.secondaryText)
+                    .foregroundStyle(ShuoColor.secondaryTextCream)
                 Text(viewModel.draft.purpose.title)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color(red: 4/255, green: 52/255, blue: 44/255))
+                    .foregroundStyle(Color.black)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
                     .background(Color(red: 222/255, green: 222/255, blue: 222/255), in: Capsule())
@@ -275,17 +316,47 @@ public struct TranscriptAnalysisView: View {
 
     private var refinedTranscriptSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            HStack(spacing: 8) {
                 Text("Refined Transcript")
                     .font(.headline)
-                Spacer()
+                    .foregroundStyle(ShuoColor.primaryTextCream)
+
                 Button("Regenerate") { viewModel.forceRegenerate() }
-                    .font(.caption)
-                    .foregroundStyle(ShuoColor.pink)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(ShuoColor.pink, in: RoundedRectangle(cornerRadius: 8))
+
+                Spacer()
+
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        isRefinedExpanded.toggle()
+                    }
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(ShuoColor.primaryTextCream)
+                        .rotationEffect(.degrees(isRefinedExpanded ? 180 : 0))
+                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isRefinedExpanded)
+                }
+                .buttonStyle(.plain)
             }
-            TextEditor(text: $viewModel.editableRefinedText)
-                .font(.body)
-                .frame(minHeight: 120)
+
+            if isRefinedExpanded {
+                TextField("", text: $viewModel.editableRefinedText, axis: .vertical)
+                    .font(.body)
+                    .foregroundStyle(ShuoColor.secondaryTextCream)
+                    .padding(12)
+                    .focused($isRefinedFocused)
+                    .background(ShuoColor.background, in: RoundedRectangle(cornerRadius: 14))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .strokeBorder(ShuoColor.pink, lineWidth: 1.5)
+                    )
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
     }
 
@@ -320,4 +391,38 @@ public struct TranscriptAnalysisView: View {
     }
 
 }
+
+#if DEBUG
+
+// MARK: - Previews (doubles live in PreviewDoubles.swift)
+
+#Preview("Loaded") {
+    _AnalysisPreviewHost(behavior: .instant)
+}
+
+#Preview("Analyzing") {
+    _AnalysisPreviewHost(behavior: .neverReturns)
+}
+
+#Preview("Failed") {
+    _AnalysisPreviewHost(behavior: .failing(.aiGenerationFailed))
+}
+
+private struct _AnalysisPreviewHost: View {
+    let behavior: PreviewSpeechAnalyzing.Behavior
+    @State private var isPresented = true
+
+    var body: some View {
+        Color(.systemGroupedBackground)
+            .ignoresSafeArea()
+            .sheet(isPresented: $isPresented) {
+                TranscriptAnalysisView(
+                    viewModel: .preview(behavior: behavior),
+                    onClose: { isPresented = false },
+                    onBack: { _ in isPresented = false }
+                )
+            }
+    }
+}
+#endif
 

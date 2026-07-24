@@ -13,6 +13,7 @@ import SwiftUI
 
 struct CardStyle: ViewModifier {
     var isSelected: Bool = false
+    var showsBorder: Bool = true
 
     private var cornerRadius: CGFloat { 20 }
 
@@ -22,20 +23,21 @@ struct CardStyle: ViewModifier {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(isSelected ? ShuoColor.aquaTint : ShuoColor.background)
+                    .fill(isSelected ? ShuoColor.aqua : ShuoColor.background)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(
-                        isSelected ? ShuoColor.aqua : ShuoColor.aqua,
-                        lineWidth: isSelected ? 3 : 3
-                    )
+                Group {
+                    if showsBorder {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .strokeBorder(ShuoColor.aqua, lineWidth: 3)
+                    }
+                }
             )
     }
 }
 
 extension View {
-    public func cardStyle(isSelected: Bool = false) -> some View {
-        modifier(CardStyle(isSelected: isSelected))
+    public func cardStyle(isSelected: Bool = false, showsBorder: Bool = true) -> some View {
+        modifier(CardStyle(isSelected: isSelected, showsBorder: showsBorder))
     }
 }
