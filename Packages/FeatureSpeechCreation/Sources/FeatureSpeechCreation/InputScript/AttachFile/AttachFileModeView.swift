@@ -96,8 +96,11 @@ public struct AttachFileModeView: View {
     @ViewBuilder
     private var bottomActions: some View {
         switch viewModel.viewState {
-        case .idle, .failed, .ready, .fileTooLarge:
+        case .idle, .failed, .fileTooLarge:
             attachButton
+
+        case .ready:
+            reuploadButton
 
         case .processing:
             EmptyView()
@@ -108,6 +111,12 @@ public struct AttachFileModeView: View {
 
     private var attachButton: some View {
         CircularIconButton(systemImage: "paperclip", accessibilityTitle: "Attach a file") {
+            viewModel.isPickerPresented = true
+        }
+    }
+
+    private var reuploadButton: some View {
+        CircularIconButton(systemImage: "arrow.counterclockwise", accessibilityTitle: "Reupload file") {
             viewModel.isPickerPresented = true
         }
     }
