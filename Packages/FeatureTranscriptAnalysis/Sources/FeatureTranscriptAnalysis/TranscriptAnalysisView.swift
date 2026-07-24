@@ -30,6 +30,7 @@ public struct TranscriptAnalysisView: View {
     @State private var isShowingOriginalTranscript = false
     @FocusState private var isTitleFocused: Bool
     @FocusState private var isRefinedFocused: Bool
+    @State private var isRefinedExpanded = false
     private let onClose: () -> Void
     private let onBack: (ScriptDraft) -> Void
 
@@ -318,26 +319,44 @@ public struct TranscriptAnalysisView: View {
     private var refinedTranscriptSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Refined Transcript")
-                    .font(.headline)
-                    .foregroundStyle(ShuoColor.primaryTextCream)
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        isRefinedExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Refined Transcript")
+                            .font(.headline)
+                            .foregroundStyle(ShuoColor.primaryTextCream)
+                        Image(systemName: "chevron.down")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(ShuoColor.primaryTextCream)
+                            .rotationEffect(.degrees(isRefinedExpanded ? 0 : -90))
+                            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isRefinedExpanded)
+                    }
+                }
+                .buttonStyle(.plain)
+
                 Spacer()
+
                 Button("Regenerate") { viewModel.forceRegenerate() }
                     .font(.caption)
                     .foregroundStyle(ShuoColor.pink)
             }
-            TextEditor(text: $viewModel.editableRefinedText)
-                .font(.body)
-                .foregroundStyle(ShuoColor.secondaryTextCream)
-                .frame(minHeight: 120)
-                .padding(12)
-                .focused($isRefinedFocused)
-                .scrollContentBackground(.hidden)
-                .background(ShuoColor.background, in: RoundedRectangle(cornerRadius: 14))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(ShuoColor.pink, lineWidth: 1.5)
-                )
+
+            if isRefinedExpanded {
+                TextField("", text: $viewModel.editableRefinedText, axis: .vertical)
+                    .font(.body)
+                    .foregroundStyle(ShuoColor.secondaryTextCream)
+                    .padding(12)
+                    .focused($isRefinedFocused)
+                    .background(ShuoColor.background, in: RoundedRectangle(cornerRadius: 14))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .strokeBorder(ShuoColor.pink, lineWidth: 1.5)
+                    )
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
     }
 
