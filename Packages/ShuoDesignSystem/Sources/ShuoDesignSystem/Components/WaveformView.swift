@@ -65,15 +65,3 @@ public struct WaveformView: View {
 }
 
 // MARK: - Previews
-
-#Preview("Silence") {
-    WaveformView(samples: Array(repeating: 0, count: 25))
-}
-
-#Preview("Speech") {
-    WaveformView(samples: (0..<25).map { _ in Float.random(in: 0.15...1) })
-}
-
-#Preview("Filling up") {
-    WaveformView(samples: (0..<25).map { index in index < 12 ? Float.random(in: 0.2...1) : 0 })
-}

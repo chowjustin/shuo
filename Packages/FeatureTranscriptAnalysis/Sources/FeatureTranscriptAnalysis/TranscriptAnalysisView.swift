@@ -394,37 +394,4 @@ public struct TranscriptAnalysisView: View {
 
 }
 
-#if DEBUG
-
-// MARK: - Previews (doubles live in PreviewDoubles.swift)
-
-#Preview("Loaded") {
-    _AnalysisPreviewHost(behavior: .instant)
-}
-
-#Preview("Analyzing") {
-    _AnalysisPreviewHost(behavior: .neverReturns)
-}
-
-#Preview("Failed") {
-    _AnalysisPreviewHost(behavior: .failing(.aiGenerationFailed))
-}
-
-private struct _AnalysisPreviewHost: View {
-    let behavior: PreviewSpeechAnalyzing.Behavior
-    @State private var isPresented = true
-
-    var body: some View {
-        Color(.systemGroupedBackground)
-            .ignoresSafeArea()
-            .sheet(isPresented: $isPresented) {
-                TranscriptAnalysisView(
-                    viewModel: .preview(behavior: behavior),
-                    onClose: { isPresented = false },
-                    onBack: { _ in isPresented = false }
-                )
-            }
-    }
-}
-#endif
 

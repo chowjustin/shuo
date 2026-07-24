@@ -65,17 +65,3 @@ public struct CircularIconButton: View {
         .accessibilityLabel(accessibilityTitle)
     }
 }
-
-#Preview {
-    VStack(spacing: ShuoSpacing.xLarge) {
-        CircularIconButton(systemImage: "paperclip", accessibilityTitle: "Attach a file") {}
-        CircularIconButton(systemImage: "mic.fill", accessibilityTitle: "Start recording") {}
-        CircularIconButton(
-            systemImage: "pause.fill",
-            emphasis: .outlined,
-            accessibilityTitle: "Pause recording"
-        ) {}
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(ShuoColor.background)
-}

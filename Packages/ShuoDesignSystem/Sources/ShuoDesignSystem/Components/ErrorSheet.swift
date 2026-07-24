@@ -65,18 +65,3 @@ public struct ErrorSheet: View {
 }
 
 // MARK: - Previews
-
-#Preview("No speech") {
-    ErrorSheet(
-        systemImage: "waveform.slash",
-        title: "We couldn't hear any speech.",
-        message: "This file seems to be silent, or contains only music or background noise."
-    )
-}
-
-#Preview("Generic failure") {
-    ErrorSheet(
-        title: "Transcription failed.",
-        message: "Something went wrong while reading this file. Please try again."
-    )
-}

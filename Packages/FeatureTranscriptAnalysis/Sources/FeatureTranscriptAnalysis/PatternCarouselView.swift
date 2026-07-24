@@ -99,21 +99,3 @@ public struct PatternCarouselView: View {
         }
     }
 }
-
-#Preview {
-    PatternCarouselPreviewHost()
-}
-
-private struct PatternCarouselPreviewHost: View {
-    // Real catalog entries rather than invented ones: patterns are fixed app data now, so
-    // the preview shows exactly what ships (see `SpeechPatternCatalog`).
-    @State private var viewModel = PatternCarouselViewModel(
-        patterns: Array(SpeechPatternCatalog.patterns(for: .persuade).prefix(3)),
-        selectedPatternID: nil
-    )
-
-    var body: some View {
-        PatternCarouselView(viewModel: viewModel)
-            .background(ShuoColor.background)
-    }
-}

@@ -152,15 +152,3 @@ struct OriginalTranscriptView: View {
 }
 
 // MARK: - Preview
-
-#Preview("Original Transcript") {
-    OriginalTranscriptView(
-        scriptTitle: "Why must join campus organization",
-        purposeLabel: "To Persuade",
-        originalText: """
-            Um, okay, so hi everyone. Today I kind of wanted to talk about clubs and \
-            organizations on campus...
-            """,
-        onSave: { _ in }
-    )
-}

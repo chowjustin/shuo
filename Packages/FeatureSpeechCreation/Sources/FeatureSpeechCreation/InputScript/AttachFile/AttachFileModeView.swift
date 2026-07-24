@@ -167,34 +167,3 @@ private struct TooLargePreviewFileImporter: FileImporting {
         throw ShuoError.fileTooLarge
     }
 }
-
-#Preview("Idle") {
-    AttachFileModeView(viewModel: AttachFileModeViewModel(fileImporter: PreviewFileImporter()))
-}
-
-#Preview("Ready") {
-    let vm = AttachFileModeViewModel(fileImporter: PreviewFileImporter())
-    return AttachFileModeView(viewModel: vm)
-        .task {
-            vm.fileSelected(url: URL(filePath: "/tmp/speech.m4a"))
-            await vm.importTask?.value
-        }
-}
-
-#Preview("Failed") {
-    let vm = AttachFileModeViewModel(fileImporter: FailingPreviewFileImporter())
-    return AttachFileModeView(viewModel: vm)
-        .task {
-            vm.fileSelected(url: URL(filePath: "/tmp/speech.m4a"))
-            await vm.importTask?.value
-        }
-}
-
-#Preview("File Too Large") {
-    let vm = AttachFileModeViewModel(fileImporter: TooLargePreviewFileImporter())
-    return AttachFileModeView(viewModel: vm)
-        .task {
-            vm.fileSelected(url: URL(filePath: "/tmp/huge.mp4"))
-            await vm.importTask?.value
-        }
-}

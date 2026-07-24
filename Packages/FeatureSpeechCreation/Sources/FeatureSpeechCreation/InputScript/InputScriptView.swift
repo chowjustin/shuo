@@ -185,26 +185,3 @@ public struct InputScriptView: View {
         }
     }
 }
-
-#if DEBUG
-#Preview {
-    InputScriptPreviewHost()
-}
-
-private struct InputScriptPreviewHost: View {
-    @State private var isPresented = true
-
-    var body: some View {
-        Color(.systemGroupedBackground)
-            .ignoresSafeArea()
-            .sheet(isPresented: $isPresented) {
-                InputScriptView(
-                    viewModel: .preview(purpose: .persuade),
-                    onBack: {},
-                    onClose: { isPresented = false },
-                    onProceed: {}
-                )
-            }
-    }
-}
-#endif

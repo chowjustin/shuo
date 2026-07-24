@@ -84,29 +84,3 @@ public struct PurposeSelectionView: View {
         }
     }
 }
-
-#if DEBUG
-#Preview {
-    PurposeSelectionPreviewHost()
-}
-
-private struct PurposeSelectionPreviewHost: View {
-    @State private var isPresented = true
-
-    var body: some View {
-        Color(uiColor: .systemGroupedBackground)
-            .ignoresSafeArea()
-            .sheet(isPresented: $isPresented) {
-                CreateFlowView(
-                    coordinator: CreateScriptCoordinator(
-                        onFinish: { isPresented = false },
-                        makeInputScriptViewModel: { purpose, text in
-                            .preview(purpose: purpose, initialText: text)
-                        }
-                    ),
-                    onAnalyze: { _ in }
-                )
-            }
-    }
-}
-#endif

@@ -69,15 +69,3 @@ public struct LoadingView: View {
 }
 
 // MARK: - Previews
-
-#Preview("Transcribing") {
-    LoadingView(
-        systemImage: "waveform",
-        message: "Transcribing your speech…",
-        detail: "campus-speech.m4a"
-    )
-}
-
-#Preview("Analyzing") {
-    LoadingView(systemImage: "sparkles", message: "Analyzing your speech…")
-}

@@ -51,21 +51,3 @@ public struct PurposeCard: View {
             .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])
         }
     }
-
-    #Preview {
-        VStack(spacing: ShuoSpacing.medium) {
-            PurposeCard(
-                title: "Persuade",
-                description: "The act of using spoken or nonverbal messages to influence an audience's beliefs, attitudes, or behaviors to convince listeners to voluntarily adopt a new perspective or take a specific action, without using force or manipulation.",
-                isSelected: true,
-                action: {}
-            )
-            PurposeCard(
-                title: "Inspire",
-                description: "Motivate your audience with an emotional, memorable message.",
-                isSelected: false,
-                action: {}
-            )
-        }
-        .padding()
-    }

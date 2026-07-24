@@ -53,15 +53,3 @@ public struct WriteModeView: View {
 }
 
 // MARK: - Previews
-
-#Preview("Empty") {
-    WriteModeView(viewModel: WriteModeViewModel())
-        .padding()
-}
-
-#Preview("With content") {
-    let viewModel = WriteModeViewModel()
-    viewModel.content = "Joining a campus organization is the fastest way to build the network you will rely on after graduation."
-    return WriteModeView(viewModel: viewModel)
-        .padding()
-}
