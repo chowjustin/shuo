@@ -211,8 +211,6 @@ public struct TranscriptAnalysisView: View {
         }
         .sheet(isPresented: $isShowingOriginalTranscript) {
             OriginalTranscriptView(
-                scriptTitle: viewModel.title,
-                purposeLabel: viewModel.draft.purpose.title,
                 originalText: viewModel.originalTranscript,
                 onSave: { viewModel.updateOriginalTranscript($0) }
             )
