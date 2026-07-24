@@ -318,30 +318,32 @@ public struct TranscriptAnalysisView: View {
 
     private var refinedTranscriptSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            HStack(spacing: 8) {
+                Text("Refined Transcript")
+                    .font(.headline)
+                    .foregroundStyle(ShuoColor.primaryTextCream)
+
+                Button("Regenerate") { viewModel.forceRegenerate() }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(ShuoColor.pink, in: RoundedRectangle(cornerRadius: 8))
+
+                Spacer()
+
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         isRefinedExpanded.toggle()
                     }
                 } label: {
-                    HStack(spacing: 6) {
-                        Text("Refined Transcript")
-                            .font(.headline)
-                            .foregroundStyle(ShuoColor.primaryTextCream)
-                        Image(systemName: "chevron.down")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(ShuoColor.primaryTextCream)
-                            .rotationEffect(.degrees(isRefinedExpanded ? 0 : -90))
-                            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isRefinedExpanded)
-                    }
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(ShuoColor.primaryTextCream)
+                        .rotationEffect(.degrees(isRefinedExpanded ? 180 : 0))
+                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isRefinedExpanded)
                 }
                 .buttonStyle(.plain)
-
-                Spacer()
-
-                Button("Regenerate") { viewModel.forceRegenerate() }
-                    .font(.caption)
-                    .foregroundStyle(ShuoColor.pink)
             }
 
             if isRefinedExpanded {
