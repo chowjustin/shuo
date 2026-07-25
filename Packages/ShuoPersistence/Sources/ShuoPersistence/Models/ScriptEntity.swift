@@ -5,46 +5,27 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// SwiftData `@Model` class mirroring `Script`. Scalar fields as attributes;
-// patterns/keyPoints/grammarSuggestions stored as Codable value arrays rather than
-// separate relationship entities. See ARCHITECTURE.md §12.3. Stays inside
-// ShuoPersistence — never crosses a package boundary (CLAUDE.md §6).
-
 import Foundation
 import ShuoCore
 import SwiftData
 
 /// The stored form of a `Script`.
-///
-/// Two shape decisions worth knowing:
-///
-/// - **Key points and grammar suggestions are Codable value arrays, not relationships.**
-///   They are only ever read and written as a complete set alongside their script, never
-///   queried or sorted independently, so relationship entities would add join cost and
-///   cascade-delete rules for no benefit (ARCHITECTURE.md §12.3).
-/// - **Patterns are stored as catalog ids only.** The catalog is fixed app data; copying
-///   a pattern's name and components into every row would leave old scripts rendering
-///   stale wording after the catalog is improved.
-///
-/// `purposeRawValue` stores the raw string rather than the enum so an unrecognized value
-/// from a future or downgraded build fails at the mapper — where it can be reported as
-/// `persistenceFailed` — instead of failing to decode the whole row.
 @Model
 final class ScriptEntity {
     #Index<ScriptEntity>([\.createdAt])
 
-    /// Matches `Script.id`. Unique so `save` is idempotent by id: a retry after a failure
-    /// updates the row rather than inserting a duplicate.
+    /// Matches `Script.id`. Unique so `save` is idempotent by id.
     @Attribute(.unique) var id: UUID
     var title: String
     var purposeRawValue: String
-    /// `Transcript` is flattened into two columns rather than stored as one Codable blob,
-    /// so a future title/full-text search can reach the text through a predicate.
+    /// `Transcript` is flattened into two columns rather than stored as one Codable blob.
     var originalTranscript: String
     var refinedTranscript: String?
     var suggestedPatternIDs: [String]
     var selectedPatternID: String?
     var keyPoints: [KeyPoint]
+    var keyPointsByPattern: [String: [KeyPoint]] = [:]
+    var refinedByPattern: [String: String] = [:]
     var grammarSuggestions: [GrammarSuggestion]
     var recordingDuration: TimeInterval?
     var createdAt: Date
@@ -59,6 +40,8 @@ final class ScriptEntity {
         suggestedPatternIDs: [String],
         selectedPatternID: String?,
         keyPoints: [KeyPoint],
+        keyPointsByPattern: [String: [KeyPoint]] = [:],
+        refinedByPattern: [String: String] = [:],
         grammarSuggestions: [GrammarSuggestion],
         recordingDuration: TimeInterval?,
         createdAt: Date,
@@ -72,6 +55,8 @@ final class ScriptEntity {
         self.suggestedPatternIDs = suggestedPatternIDs
         self.selectedPatternID = selectedPatternID
         self.keyPoints = keyPoints
+        self.keyPointsByPattern = keyPointsByPattern
+        self.refinedByPattern = refinedByPattern
         self.grammarSuggestions = grammarSuggestions
         self.recordingDuration = recordingDuration
         self.createdAt = createdAt

@@ -5,29 +5,10 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// `@Observable @MainActor`. Drives classify → key points → refine, owns the per-pattern
-// caches and the background prefetch, and stores every in-flight `Task` so it can be
-// explicitly cancelled before replacement (CLAUDE.md §6). Use cases are injected through
-// the initializer; this type never sees a concrete service.
-
 import Foundation
 import ShuoCore
 
 /// Drives the transcript analysis screen.
-///
-/// The flow it orchestrates:
-/// 1. Classify the transcript against the catalog subset for the user's purpose.
-/// 2. Generate key points for the top-ranked pattern and show them — the user waits only
-///    for this one.
-/// 3. Prefetch the other two patterns' key points in the background, so switching is
-///    instant.
-/// 4. On request, regenerate a refined transcript for the selected pattern.
-///
-/// **Cancellation is the load-bearing concern here** (CLAUDE.md §6). Every overlapping
-/// operation has a stored handle that is cancelled before being replaced, and the whole
-/// screen can be torn down with `cancelAll()`. A leaked prefetch firing an AI call after
-/// the user has dismissed the sheet is the specific bug class this design exists to
-/// prevent.
 @Observable
 @MainActor
 public final class TranscriptAnalysisViewModel {
@@ -35,46 +16,25 @@ public final class TranscriptAnalysisViewModel {
     // MARK: - Observable state
 
     public private(set) var viewState: TranscriptAnalysisViewState = .analyzing
-    /// The working script. Mutated as patterns are chosen and the transcript refined, then
-    /// handed to `SaveScriptUseCase`.
+    /// The working script.
     public private(set) var draft: ScriptDraft
-    /// The up-to-3 pattern carousel. A child view model, composed rather than absorbed
-    /// (CLAUDE.md §5).
+    /// The up-to-3 pattern carousel.
     public let carousel: PatternCarouselViewModel
     /// Key points for the selected pattern — always one per component, in order.
     public private(set) var keyPoints: [KeyPoint] = []
-    /// True while key points for a newly selected pattern are being generated. An in-place
-    /// indicator, not a screen transition.
+    /// True while key points for a newly selected pattern are being generated.
     public private(set) var isGeneratingKeyPoints = false
     /// True while the refined transcript is being generated.
     public private(set) var isRegeneratingTranscript = false
-    /// True only when the user explicitly pressed ↺ to force a re-generation. Used by the
-    /// view to show a full-screen loading indicator instead of an inline spinner — the user
-    /// has deliberately discarded their edit, so a prominent "working" state is appropriate.
+    /// True only when the user explicitly pressed ↺ to force a re-generation.
     public private(set) var isForceRegenerating = false
-    /// A failure from selecting a pattern or regenerating, shown inline. Distinct from
-    /// `viewState.failed`, which is reserved for the initial load — a failed refinement
-    /// must not tear down key points the user can still read.
+    /// A failure from selecting a pattern or regenerating, shown inline.
     public private(set) var actionError: ShuoError?
     public private(set) var isSaving = false
     /// True when the draft has changed since it was last persisted.
-    ///
-    /// The draft is saved automatically as soon as analysis succeeds, so leaving is never
-    /// total loss — but a pattern switch or a regeneration after that point is unsaved
-    /// work, and this is what lets ✕ tell the difference between "nothing to lose" and
-    /// "you have changes".
     public private(set) var hasUnsavedChanges = false
 
     /// The refined transcript text as shown in the editing TextField.
-    ///
-    /// This is a stored `@Observable` property so the view can bind to it with
-    /// `$viewModel.editableRefinedText` — the only reliable pattern for editing inside
-    /// `@Observable` classes without the binding getter overwriting the user's keystrokes.
-    ///
-    /// The `didSet` writes through to `draft.transcript.refined` and the cache, then
-    /// schedules a debounced save. All other code that produces a new refined transcript
-    /// (AI generation, pattern switch, force-regen) must set this property AFTER updating
-    /// `draft.transcript.refined`, so the guard finds them equal and produces no extra write.
     public var editableRefinedText: String = "" {
         didSet {
             guard editableRefinedText != draft.transcript.refined else { return }
@@ -94,24 +54,17 @@ public final class TranscriptAnalysisViewModel {
     private let generateKeyPoints: GenerateKeyPointsUseCase
     private let regenerateTranscript: RegenerateTranscriptUseCase
     private let saveScript: SaveScriptUseCase
+    private let highlighter = TranscriptHighlighter()
 
     /// How long to wait between availability checks while the model is warming up.
-    ///
-    /// Two seconds because the thing being waited on is an asset download measured in
-    /// minutes: polling faster only burns wakeups on a screen that is already just a
-    /// spinner, and polling much slower would leave the user staring at it for seconds
-    /// after the model became usable. Internal rather than a constant so tests can shrink
-    /// it — it is not part of the public API and `AppContainer` never sets it.
     var availabilityPollInterval: Duration = .seconds(2)
+
+    /// How long after the last change to wait before writing it.
+    var autoSaveDebounce: Duration = .seconds(1)
 
     // MARK: - Caches
 
-    /// Key points already generated, keyed by pattern. Makes switching back to a pattern
-    /// instant and, more importantly, free — an on-device generation is seconds of compute
-    /// and battery to reproduce an identical result.
     private var keyPointCache: [SpeechPattern.ID: [KeyPoint]] = [:]
-    /// Refined transcripts already generated, keyed by pattern. Same reasoning, and more
-    /// valuable still since refinement is the most expensive call in the flow.
     private var refinedCache: [SpeechPattern.ID: String] = [:]
 
     // MARK: - In-flight work
@@ -124,11 +77,6 @@ public final class TranscriptAnalysisViewModel {
     private var autoSaveTask: Task<Void, Never>?
 
     /// Monotonic tags identifying the newest key-point / refinement run.
-    ///
-    /// Cancelling a `Task` does not unwind it immediately — a superseded run resumes from
-    /// its cancelled `await` and executes its `defer` *after* the run that replaced it has
-    /// already set the progress flag. Without a tag the loser clears the winner's spinner,
-    /// so only the current generation is allowed to reset the flag.
     private var keyPointsGeneration = 0
     private var regenerationGeneration = 0
 
@@ -152,23 +100,9 @@ public final class TranscriptAnalysisViewModel {
     // MARK: - Derived
 
     /// The fallback name for a script the user never named.
-    ///
-    /// Deliberately duplicated rather than imported: the same string is
-    /// `InputScriptViewModel.untitledTitle` in `FeatureSpeechCreation`, and a Feature
-    /// package may not depend on another Feature package (CLAUDE.md §4). A four-word
-    /// constant is the cheaper of the two costs.
     static let untitledTitle = "Untitled Script"
 
     /// The script's title, renameable from the analysis screen.
-    ///
-    /// Settable because this is the only place a title can be changed after creation: the
-    /// input step's title field is optional, and without this a user who skipped it would
-    /// be stuck with "Untitled Script" forever.
-    ///
-    /// The setter accepts an empty or whitespace-only value on purpose — it is bound to a
-    /// text field, and a user clearing it to retype passes through empty on the way. The
-    /// value is normalized by `commitTitle()` instead, so the clear is allowed to stand
-    /// while the field is being edited but can never be what gets persisted.
     public var title: String {
         get { draft.title }
         set {
@@ -178,30 +112,35 @@ public final class TranscriptAnalysisViewModel {
         }
     }
 
-    /// Settles the title once the user is done editing it: trims surrounding whitespace,
-    /// and falls back to `untitledTitle` if that leaves nothing.
-    ///
-    /// Called when the field loses focus or is submitted, and again from `save()` so a
-    /// title cleared and never committed — the user taps ✓ straight from the keyboard —
-    /// still cannot reach the repository as an empty string. Restoring the placeholder
-    /// beats rejecting the edit or persisting `""`: an untitled script is already a state
-    /// the app understands and renders, whereas a blank row in Home is just a broken one.
-    ///
-    /// Routed through the `title` setter, so an already-clean title stays a no-op and does
-    /// not manufacture unsaved changes.
+    /// Settles the title once the user is done editing it: trims surrounding whitespace, and falls back to `untitledTitle` if that leaves nothing.
     public func commitTitle() {
         let trimmed = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         title = trimmed.isEmpty ? Self.untitledTitle : trimmed
         if hasUnsavedChanges { scheduleSave() }
     }
     public var originalTranscript: String { draft.transcript.original }
-    /// The refined transcript for the selected pattern, or nil if it has not been
-    /// generated yet.
+    /// The refined transcript for the selected pattern, or nil if it has not been generated yet.
     public var refinedTranscript: String? { draft.transcript.refined }
     public var selectedPattern: SpeechPattern? { draft.selectedPattern }
     /// True when the user has something to regenerate against.
     public var canRegenerateTranscript: Bool {
         selectedPattern != nil && !isRegeneratingTranscript
+    }
+
+    /// True when at least one key point for the selected pattern is still unaddressed.
+    public var hasUnfulfilledKeyPoints: Bool {
+        keyPoints.contains { $0.isAbsent }
+    }
+
+    /// True once a refined transcript exists for the selected pattern.
+    public var hasRefinedTranscript: Bool {
+        !(draft.transcript.refined ?? "").isEmpty
+    }
+
+    /// Character-offset ranges in the refined transcript that convey the current key points, for the UI to highlight.
+    public var refinedHighlightRanges: [Range<Int>] {
+        guard !editableRefinedText.isEmpty else { return [] }
+        return highlighter.highlightRanges(in: editableRefinedText, keyPoints: keyPoints)
     }
 
     // MARK: - Lifecycle
@@ -212,24 +151,23 @@ public final class TranscriptAnalysisViewModel {
         guard analysisTask == nil else { return }
         analysisTask = Task { [weak self] in
             guard let self else { return }
-            if draft.isReopenedScript && !draft.suggestedPatternIDs.isEmpty
-                && draft.selectedPatternID != nil && !draft.keyPoints.isEmpty {
-                await loadFromSaved()
+            if hasReopenableAnalysis {
+                await loadReopenedScript()
             } else {
                 await runInitialAnalysis()
             }
         }
     }
 
-    /// Cancels every in-flight *generation*. Call from the view's disappearance so a
-    /// background prefetch cannot outlive the screen and fire an AI call for a sheet the
-    /// user already dismissed.
-    ///
-    /// An in-flight save is deliberately **not** cancelled. Generations are speculative
-    /// and safe to abandon; a save is the one operation whose whole purpose is to survive
-    /// the screen going away, and cancelling it here would re-create the data loss that
-    /// saving on load exists to prevent. It is short, bounded, and holds only a detached
-    /// draft value, so letting it finish costs nothing.
+    /// True when the draft was reopened *and* carries a complete saved analysis, so the screen can be restored verbatim without a single AI call.
+    private var hasReopenableAnalysis: Bool {
+        draft.isReopenedScript
+            && !draft.suggestedPatternIDs.isEmpty
+            && draft.selectedPatternID != nil
+            && !draft.keyPoints.isEmpty
+    }
+
+    /// Cancels every in-flight *generation*.
     public func cancelAll() {
         analysisTask?.cancel()
         selectionTask?.cancel()
@@ -253,33 +191,40 @@ public final class TranscriptAnalysisViewModel {
 
     // MARK: - Initial analysis
 
-    /// Restores the screen from previously saved analysis — no AI call needed.
-    ///
-    /// Used when reopening a script that was already analysed and saved. The carousel,
-    /// key points, and refined transcript are all hydrated from the draft rather than
-    /// regenerated, so the user lands instantly on their last state.
-    private func loadFromSaved() async {
+    /// Restores the screen from previously saved analysis — **no AI call, ever**.
+    private func loadReopenedScript() async {
+        guard !Task.isCancelled else { return }
         let patterns = draft.suggestedPatterns
         guard let selectedPatternID = draft.selectedPatternID,
               let selectedPattern = draft.selectedPattern,
               !patterns.isEmpty else {
-            // Data is incomplete — fall back to full AI analysis.
             await runInitialAnalysis()
             return
         }
-        guard !Task.isCancelled else { return }
+
+        keyPointCache = draft.keyPointsByPattern
+        refinedCache = draft.refinedByPattern
+        if keyPointCache[selectedPatternID] == nil, !draft.keyPoints.isEmpty {
+            keyPointCache[selectedPatternID] = draft.keyPoints
+        }
+        if refinedCache[selectedPatternID] == nil,
+           let refined = draft.transcript.refined, !refined.isEmpty {
+            refinedCache[selectedPatternID] = refined
+        }
 
         carousel.update(patterns: patterns)
         carousel.select(selectedPattern)
 
-        keyPoints = draft.keyPoints
-        keyPointCache[selectedPatternID] = draft.keyPoints
+        keyPoints = keyPointCache[selectedPatternID] ?? draft.keyPoints
+        draft.keyPoints = keyPoints
 
-        if let refined = draft.transcript.refined, !refined.isEmpty {
-            refinedCache[selectedPatternID] = refined
+        if let refined = refinedCache[selectedPatternID], !refined.isEmpty {
             draft.transcript.refined = refined
             editableRefinedText = refined
             updateSuggestionsFromRefined(refined)
+        } else {
+            draft.transcript.refined = nil
+            editableRefinedText = ""
         }
 
         viewState = .loaded
@@ -290,20 +235,8 @@ public final class TranscriptAnalysisViewModel {
         }
     }
 
+    /// Runs the full AI pipeline for a *new* script.
     private func runInitialAnalysis() async {
-        // A reopened script already carries a full analysis — patterns, a selected one,
-        // its key points — persisted the last time it went through this exact flow
-        // (ARCHITECTURE.md §3.3: "previously generated data remains available"). Re-
-        // classifying here would cost a real AI call for work that's already done, and
-        // could silently overrule the user's earlier pattern choice if the model ranks
-        // differently on a second pass. `draft.selectedPattern` resolving to nil (a
-        // retired catalog pattern) is the one case that still falls through below.
-        if !draft.keyPoints.isEmpty, let selectedPattern = draft.selectedPattern {
-            loadPersistedAnalysis(selectedPattern: selectedPattern)
-            return
-        }
-
-        // Ask before generating, not after failing: ...
         guard await waitForModel() else { return }
 
         do {
@@ -317,34 +250,19 @@ public final class TranscriptAnalysisViewModel {
             carousel.update(patterns: patterns)
 
             guard let top = patterns.first else {
-                // `ClassifyTranscriptUseCase` throws rather than returning empty, so this
-                // is unreachable — but falling through to `.loaded` with no patterns would
-                // strand the user on a blank screen, so fail loudly instead.
                 viewState = .failed(.aiGenerationFailed)
                 return
             }
 
-            // Selecting before the callback is wired means this does not re-enter
-            // `select(_:)` — the initial generation is awaited here so the screen can go
-            // straight to `.loaded` with content already on it.
             carousel.select(top)
             try await applyPattern(top)
             guard !Task.isCancelled else { return }
 
             viewState = .loaded
-            // Persist as soon as the analysis is real. Everything before this point could
-            // still turn out to be unusable input, but a transcript that classified
-            // successfully is worth keeping — and from here the user can leave by ✕, by
-            // swipe, or by the app being killed, none of which we get to intercept
-            // reliably. The final ✓ updates this record rather than inserting a second
-            // one, because `save` carries the assigned id back onto the draft.
             save()
-            // Only now does tapping a card do anything; the carousel is not interactive
-            // until the screen has loaded.
             carousel.onSelect = { [weak self] pattern in
                 self?.select(pattern)
             }
-            regenerate()
             startPrefetch(excluding: top.id, from: patterns)
         } catch let error as ShuoError {
             guard !Task.isCancelled else { return }
@@ -355,28 +273,7 @@ public final class TranscriptAnalysisViewModel {
         }
     }
     
-    private func loadPersistedAnalysis(selectedPattern: SpeechPattern) {
-        carousel.update(patterns: draft.suggestedPatterns)
-        carousel.select(selectedPattern)
-        keyPoints = draft.keyPoints
-        keyPointCache[selectedPattern.id] = draft.keyPoints
-        refinedCache[selectedPattern.id] = draft.transcript.refined
-
-        viewState = .loaded
-        carousel.onSelect = { [weak self] pattern in
-            self?.select(pattern)
-        }
-        // So switching to one of the other suggested patterns is instant here too.
-        startPrefetch(excluding: selectedPattern.id, from: draft.suggestedPatterns)
-    }
-
     /// Waits until on-device generation is possible, returning false if it never will be.
-    ///
-    /// Only `.modelNotReady` is worth waiting on; the other two unavailable cases are
-    /// settled and get their own terminal screen. The wait is a suspended `Task.sleep`
-    /// rather than a spin, which is also what makes it cancellable: `cancelAll()` cancels
-    /// `analysisTask`, the sleep throws, and the loop exits instead of continuing to poll
-    /// for a screen the user has already dismissed (CLAUDE.md §6).
     private func waitForModel() async -> Bool {
         while true {
             let status = await availability.availability()
@@ -384,7 +281,6 @@ public final class TranscriptAnalysisViewModel {
 
             switch status {
             case .available:
-                // Back to the ordinary spinner if we had been showing the warm-up message.
                 if viewState == .waitingForModel { viewState = .analyzing }
                 return true
 
@@ -403,8 +299,6 @@ public final class TranscriptAnalysisViewModel {
         }
     }
 
-    /// A rejection is about the user's content and gets its own actionable screen; anything
-    /// else is a failure they can retry.
     private static func viewState(for error: ShuoError) -> TranscriptAnalysisViewState {
         if case .transcriptNotUsable(let reason) = error {
             return .rejected(reason)
@@ -415,10 +309,6 @@ public final class TranscriptAnalysisViewModel {
     // MARK: - Pattern selection
 
     /// Switches to `pattern`, generating its key points if they aren't cached.
-    ///
-    /// Cancels any in-flight prefetch first. The analyzer serializes requests, so a
-    /// background prefetch already running would otherwise make the user's own tap wait
-    /// behind work they didn't ask for.
     public func select(_ pattern: SpeechPattern) {
         guard pattern.id != draft.selectedPatternID || keyPoints.isEmpty else { return }
 
@@ -441,18 +331,14 @@ public final class TranscriptAnalysisViewModel {
             }
             guard !Task.isCancelled else { return }
             isForceRegenerating = false
-            regenerate()
+            scheduleSave()
             resumePrefetch()
         }
     }
 
-    /// Points the draft at `pattern` and puts its key points on screen, generating them if
-    /// they are not already cached.
+    /// Points the draft at `pattern` and puts its key points on screen, generating them if they are not already cached.
     private func applyPattern(_ pattern: SpeechPattern) async throws {
         draft.selectedPatternID = pattern.id
-        // A refined transcript belongs to the pattern it was generated for, so restore the
-        // cached one or clear it — leaving the previous pattern's text on screen under a
-        // new pattern's key points would be quietly wrong.
         draft.transcript.refined = refinedCache[pattern.id]
         editableRefinedText = refinedCache[pattern.id] ?? ""
         hasUnsavedChanges = true
@@ -475,9 +361,6 @@ public final class TranscriptAnalysisViewModel {
         try Task.checkCancellation()
 
         keyPointCache[pattern.id] = generated
-        // Only publish if this is still the pattern the user is looking at — a slow
-        // generation for a pattern they have since navigated away from must not overwrite
-        // what is on screen.
         guard draft.selectedPatternID == pattern.id else { return }
         keyPoints = generated
         draft.keyPoints = generated
@@ -485,16 +368,7 @@ public final class TranscriptAnalysisViewModel {
 
     // MARK: - Prefetch
 
-    /// Generates key points for the non-selected patterns, one at a time, in the
-    /// background.
-    ///
-    /// Sequential rather than concurrent on purpose: the analyzer is an actor and the
-    /// neural engine runs one generation at a time regardless, so firing three at once
-    /// would add memory pressure and contention without finishing any sooner.
-    ///
-    /// Prefetch failures are swallowed. This is speculative work the user did not ask for;
-    /// surfacing an error banner for it would be noise, and selecting that pattern later
-    /// retries and reports the failure then, in context.
+    /// Generates key points for the non-selected patterns, one at a time, in the background.
     private func startPrefetch(excluding selectedID: SpeechPattern.ID, from patterns: [SpeechPattern]) {
         let pending = patterns.filter { $0.id != selectedID && keyPointCache[$0.id] == nil }
         guard !pending.isEmpty else { return }
@@ -510,12 +384,14 @@ public final class TranscriptAnalysisViewModel {
                 guard !Task.isCancelled else { return }
                 keyPointCache[pattern.id] = generated
             }
+            guard let self, !Task.isCancelled else { return }
+            scheduleSave()
         }
     }
 
     /// Restarts prefetching for whatever is still uncached after a selection interrupted it.
     private func resumePrefetch() {
-        guard let selectedID = draft.selectedPatternID else { return }
+        guard !draft.isReopenedScript, let selectedID = draft.selectedPatternID else { return }
         startPrefetch(excluding: selectedID, from: carousel.patterns)
     }
 
@@ -530,16 +406,13 @@ public final class TranscriptAnalysisViewModel {
 
         if let cached = refinedCache[pattern.id] {
             draft.transcript.refined = cached
-            editableRefinedText = cached  // sync editor; didSet guard prevents double-write
+            editableRefinedText = cached
             hasUnsavedChanges = true
             return
         }
 
         regenerationGeneration &+= 1
         let generation = regenerationGeneration
-        // Snapshot key points now (on MainActor) rather than reading self.keyPoints inside
-        // the Task body. By the time the Task body runs, a pattern switch could have
-        // replaced keyPoints with a different pattern's data.
         let snapshotKeyPoints = keyPoints
         isRegeneratingTranscript = true
         regenerationTask = Task { [weak self] in
@@ -558,11 +431,9 @@ public final class TranscriptAnalysisViewModel {
                 )
                 try Task.checkCancellation()
                 refinedCache[pattern.id] = refined
-                // Same guard as key points: don't overwrite the screen if the user has
-                // switched patterns while this was generating.
                 guard draft.selectedPatternID == pattern.id else { return }
                 draft.transcript.refined = refined
-                editableRefinedText = refined  // sync editor; didSet guard prevents double-write
+                editableRefinedText = refined
                 updateSuggestionsFromRefined(refined)
                 hasUnsavedChanges = true
                 save()
@@ -581,24 +452,27 @@ public final class TranscriptAnalysisViewModel {
     // MARK: - Saving
 
     /// Schedules a save 1.5 s after the last change, cancelling any pending auto-save.
-    ///
-    /// Debouncing means rapid edits (typing in a key-point card) only produce one write
-    /// rather than one per keystroke.
     private func scheduleSave() {
         autoSaveTask?.cancel()
         autoSaveTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(1.5))
-            guard let self, !Task.isCancelled else { return }
+            guard let self else { return }
+            try? await Task.sleep(for: autoSaveDebounce)
+            guard !Task.isCancelled else { return }
             save()
         }
+    }
+
+    /// Copies the per-pattern key-point and refinement caches onto the draft so a save persists them.
+    private func syncPerPatternCachesIntoDraft() {
+        draft.keyPointsByPattern = keyPointCache
+        draft.refinedByPattern = refinedCache
     }
 
     /// Persists the draft. Updates the reopened script when there is one, inserts otherwise.
     public func save(onSaved: (@MainActor (Script) -> Void)? = nil) {
         guard !isSaving else { return }
-        // Last line of defence for the title: ✓ can be tapped straight from the keyboard,
-        // so the field may never have lost focus to commit itself.
         commitTitle()
+        syncPerPatternCachesIntoDraft()
 
         isSaving = true
         saveTask = Task { [weak self] in
@@ -607,8 +481,6 @@ public final class TranscriptAnalysisViewModel {
             do {
                 let script = try await saveScript(draft)
                 try Task.checkCancellation()
-                // Carry the assigned id back, so saving twice updates rather than
-                // inserting a second copy.
                 draft.existingScriptID = script.id
                 hasUnsavedChanges = false
                 onSaved?(script)
@@ -625,9 +497,6 @@ public final class TranscriptAnalysisViewModel {
     }
 
     /// Discards any manual edit and re-generates the refined transcript with AI.
-    ///
-    /// Sets `isForceRegenerating` so the view can show a full-screen loading indicator
-    /// rather than the inline spinner used for pattern-switch regeneration.
     public func forceRegenerate() {
         guard let patternID = draft.selectedPatternID else { return }
         refinedCache.removeValue(forKey: patternID)
@@ -638,8 +507,6 @@ public final class TranscriptAnalysisViewModel {
     }
 
     /// Updates the text of a single key point after the user edits it in the card.
-    ///
-    /// Writes through to the cache so switching patterns and back preserves the edit.
     public func updateKeyPoint(id: KeyPoint.ID, text: String) {
         guard let idx = keyPoints.firstIndex(where: { $0.id == id }),
               keyPoints[idx].text != text else { return }
@@ -659,14 +526,7 @@ public final class TranscriptAnalysisViewModel {
         actionError = nil
     }
 
-    /// Replaces suggestions for absent key points with relevant sentences from the refined
-    /// transcript, so the hint reflects actual generated content instead of generic catalog text.
-    ///
-    /// Ranks sentences by keyword overlap with the component name. When scores tie (including
-    /// all-zero when the component name doesn't appear literally in the refined text), breaks
-    /// the tie by positional proximity — a component that falls late in the pattern prefers
-    /// sentences from the end of the refined transcript. This means "Reflection" or "Call to
-    /// Action" reliably get a sentence even when the word itself isn't in the output.
+    /// Replaces suggestions for absent key points with relevant sentences from the refined transcript.
     private func updateSuggestionsFromRefined(_ refined: String) {
         let sentences = refined
             .components(separatedBy: CharacterSet(charactersIn: ".!?"))
@@ -684,7 +544,6 @@ public final class TranscriptAnalysisViewModel {
                 .map { $0.lowercased() }
                 .filter { $0.count > 3 }
 
-            // Fraction [0, 1] representing where this component sits in the pattern.
             let componentFraction = keyPoints.count > 1
                 ? Double(keyPoint.orderIndex) / Double(keyPoints.count - 1)
                 : 0.5
@@ -693,7 +552,6 @@ public final class TranscriptAnalysisViewModel {
                 let aScore = keywords.filter { a.element.lowercased().contains($0) }.count
                 let bScore = keywords.filter { b.element.lowercased().contains($0) }.count
                 guard aScore == bScore else { return aScore < bScore }
-                // Positional tiebreak: prefer the sentence closest in relative position.
                 let aProximity = sentenceCount > 1
                     ? abs(Double(a.offset) / Double(sentenceCount - 1) - componentFraction)
                     : 0.0
@@ -711,19 +569,32 @@ public final class TranscriptAnalysisViewModel {
         }
     }
 
-    /// Replaces the original transcript text after the user edits it in `OriginalTranscriptView`.
-    ///
-    /// Clears all cached refinements (they were generated from the old text) and
-    /// re-generates the refined transcript for the selected pattern. Key points are NOT
-    /// regenerated — the structural mapping is still valid, only the prose has changed.
+    /// Replaces the original transcript text after the user edits it, and re-runs the **entire** analysis from it.
     public func updateOriginalTranscript(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed != draft.transcript.original else { return }
+
+        cancelAll()
+
+        keyPointCache.removeAll()
         refinedCache.removeAll()
         draft.transcript = Transcript(original: trimmed, refined: nil)
+        draft.suggestedPatternIDs = []
+        draft.selectedPatternID = nil
+        draft.keyPoints = []
+        draft.keyPointsByPattern = [:]
+        draft.refinedByPattern = [:]
+        keyPoints = []
         editableRefinedText = ""
+        actionError = nil
         hasUnsavedChanges = true
-        scheduleSave()
-        regenerate()
+
+        autoSaveTask?.cancel()
+        autoSaveTask = nil
+
+        viewState = .analyzing
+        analysisTask = Task { [weak self] in
+            await self?.runInitialAnalysis()
+        }
     }
 }

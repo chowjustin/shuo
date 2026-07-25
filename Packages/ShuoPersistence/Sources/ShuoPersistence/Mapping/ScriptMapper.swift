@@ -5,28 +5,15 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// Maps `ScriptEntity` <-> `Script` in both directions. Exists so domain entities can
-// stay plain `Sendable` structs, sidestepping SwiftData's Swift 6 actor-isolation sharp
-// edges. See ARCHITECTURE.md §4.3.
-
 import Foundation
 import ShuoCore
 
 /// Translates between the stored `ScriptEntity` and the domain's `Script`.
-///
-/// This is the reason `@Model` classes never leave `ShuoPersistence`. A `ScriptEntity` is
-/// a reference type bound to a `ModelContext`; handing one to a use case or view model
-/// would drag SwiftData's isolation rules through the whole app and make the domain
-/// untestable without a live container. A `Script` is an inert `Sendable` struct that
-/// crosses any boundary freely.
 enum ScriptMapper {
 
     /// Entity → domain.
     ///
-    /// - Throws: `ShuoError.persistenceFailed` when `purposeRawValue` is not a known
-    ///   `SpeechPurpose`. That means the row was written by a build this one doesn't
-    ///   understand; failing loudly beats silently substituting a default purpose and
-    ///   showing the user someone else's speech type.
+    /// - Throws: `ShuoError.persistenceFailed` when `purposeRawValue` is not a known `SpeechPurpose`.
     static func toDomain(_ entity: ScriptEntity) throws -> Script {
         guard let purpose = SpeechPurpose(rawValue: entity.purposeRawValue) else {
             throw ShuoError.persistenceFailed
@@ -42,6 +29,8 @@ enum ScriptMapper {
             suggestedPatternIDs: entity.suggestedPatternIDs,
             selectedPatternID: entity.selectedPatternID,
             keyPoints: entity.keyPoints,
+            keyPointsByPattern: entity.keyPointsByPattern,
+            refinedByPattern: entity.refinedByPattern,
             grammarSuggestions: entity.grammarSuggestions,
             recordingDuration: entity.recordingDuration,
             createdAt: entity.createdAt,
@@ -60,6 +49,8 @@ enum ScriptMapper {
             suggestedPatternIDs: script.suggestedPatternIDs,
             selectedPatternID: script.selectedPatternID,
             keyPoints: script.keyPoints,
+            keyPointsByPattern: script.keyPointsByPattern,
+            refinedByPattern: script.refinedByPattern,
             grammarSuggestions: script.grammarSuggestions,
             recordingDuration: script.recordingDuration,
             createdAt: script.createdAt,
@@ -68,10 +59,6 @@ enum ScriptMapper {
     }
 
     /// Domain → an existing entity, updated in place.
-    ///
-    /// Separate from `toEntity` because updating a stored row must not touch its `id`, and
-    /// because deleting-then-inserting would churn the unique index and lose the row's
-    /// identity for anything holding a reference to it.
     static func apply(_ script: Script, to entity: ScriptEntity) {
         entity.title = script.title
         entity.purposeRawValue = script.purpose.rawValue
@@ -80,14 +67,15 @@ enum ScriptMapper {
         entity.suggestedPatternIDs = script.suggestedPatternIDs
         entity.selectedPatternID = script.selectedPatternID
         entity.keyPoints = script.keyPoints
+        entity.keyPointsByPattern = script.keyPointsByPattern
+        entity.refinedByPattern = script.refinedByPattern
         entity.grammarSuggestions = script.grammarSuggestions
         entity.recordingDuration = script.recordingDuration
         entity.createdAt = script.createdAt
         entity.updatedAt = script.updatedAt
     }
 
-    /// Entity → the Home list's lightweight projection, without materializing a full
-    /// `Script`.
+    /// Entity → the Home list's lightweight projection, without materializing a full `Script`.
     static func toSummary(_ entity: ScriptEntity) throws -> ScriptSummary {
         guard let purpose = SpeechPurpose(rawValue: entity.purposeRawValue) else {
             throw ShuoError.persistenceFailed

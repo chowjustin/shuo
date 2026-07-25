@@ -5,31 +5,17 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// Domain entity: `ScriptDraft` — mutable in-flight state for the entire create/reopen
-// flow, owned by `CreateScriptCoordinator`. `existingScriptID` is nil for a brand-new
-// draft and set when reopening a saved script; that's what tells `SaveScriptUseCase`
-// whether to insert or update. See ARCHITECTURE.md §6.
-
 import Foundation
 
 /// The working state of a speech as the user moves through create → analyze → save.
-///
-/// Distinct from `Script` because their lifecycles differ: a draft is mutable, may be
-/// abandoned, and holds things that are never persisted (the `SpeechSource` the transcript
-/// came from). A `Script` is the settled record. Keeping them separate is also what makes
-/// "reopening a saved script" and "creating a new one" the same screen driven by the same
-/// type, differing only in whether `existingScriptID` is set (CLAUDE.md §12).
 public struct ScriptDraft: Sendable, Identifiable, Equatable {
     /// Identity of this editing session, not of the saved script.
     public let id: UUID
-    /// The script being edited, when reopening. Nil for a new draft — which is precisely
-    /// what `SaveScriptUseCase` reads to decide insert versus update.
+    /// The script being edited, when reopening.
     public var existingScriptID: UUID?
     public var title: String
     public let purpose: SpeechPurpose
-    /// Where the transcript came from. Never persisted — a file URL or an audio recording
-    /// is meaningless once the script is saved, and retaining it would imply the source
-    /// media is still available when it may not be.
+    /// Where the transcript came from. Never persisted.
     public var source: SpeechSource?
     public var transcript: Transcript
     /// Catalog ids of the suggested patterns, best first.
@@ -38,6 +24,10 @@ public struct ScriptDraft: Sendable, Identifiable, Equatable {
     public var selectedPatternID: SpeechPattern.ID?
     /// Key points for `selectedPatternID`.
     public var keyPoints: [KeyPoint]
+    /// Key points for every suggested pattern generated so far, keyed by pattern id.
+    public var keyPointsByPattern: [SpeechPattern.ID: [KeyPoint]]
+    /// Refined transcripts already generated, keyed by pattern id.
+    public var refinedByPattern: [SpeechPattern.ID: String]
     /// Duration of the source recording, when there was one.
     public var recordingDuration: TimeInterval?
 
@@ -51,6 +41,8 @@ public struct ScriptDraft: Sendable, Identifiable, Equatable {
         suggestedPatternIDs: [SpeechPattern.ID] = [],
         selectedPatternID: SpeechPattern.ID? = nil,
         keyPoints: [KeyPoint] = [],
+        keyPointsByPattern: [SpeechPattern.ID: [KeyPoint]] = [:],
+        refinedByPattern: [SpeechPattern.ID: String] = [:],
         recordingDuration: TimeInterval? = nil
     ) {
         self.id = id
@@ -62,6 +54,8 @@ public struct ScriptDraft: Sendable, Identifiable, Equatable {
         self.suggestedPatternIDs = suggestedPatternIDs
         self.selectedPatternID = selectedPatternID
         self.keyPoints = keyPoints
+        self.keyPointsByPattern = keyPointsByPattern
+        self.refinedByPattern = refinedByPattern
         self.recordingDuration = recordingDuration
     }
 
@@ -80,8 +74,7 @@ public struct ScriptDraft: Sendable, Identifiable, Equatable {
         selectedPatternID.flatMap { SpeechPatternCatalog.pattern(id: $0) }
     }
 
-    /// Hydrates a draft for reopening `script`, with `existingScriptID` set so saving
-    /// updates rather than duplicates.
+    /// Hydrates a draft for reopening `script`, with `existingScriptID` set so saving updates rather than duplicates.
     public init(reopening script: Script) {
         self.init(
             existingScriptID: script.id,
@@ -92,6 +85,8 @@ public struct ScriptDraft: Sendable, Identifiable, Equatable {
             suggestedPatternIDs: script.suggestedPatternIDs,
             selectedPatternID: script.selectedPatternID,
             keyPoints: script.keyPoints,
+            keyPointsByPattern: script.keyPointsByPattern,
+            refinedByPattern: script.refinedByPattern,
             recordingDuration: script.recordingDuration
         )
     }
