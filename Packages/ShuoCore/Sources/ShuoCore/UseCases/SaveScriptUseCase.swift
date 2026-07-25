@@ -5,20 +5,9 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// Use case: `ScriptDraft` -> persisted `Script`, insert or update depending on whether
-// `existingScriptID` is set. Delegates to `ScriptRepository`.
-
 import Foundation
 
 /// Persists a draft, inserting a new script or updating the one it was reopened from.
-///
-/// The insert/update decision is read from `ScriptDraft.existingScriptID` rather than
-/// passed as a flag by the caller, so the two paths cannot diverge: a reopened draft
-/// carries its origin, and every save of it lands on the same record.
-///
-/// `now` is injected rather than read from the system clock so timestamp behavior —
-/// `createdAt` preserved across updates, `updatedAt` advanced — is testable without
-/// sleeping or tolerating drift.
 public struct SaveScriptUseCase: Sendable {
 
     private let repository: any ScriptRepository
@@ -38,8 +27,6 @@ public struct SaveScriptUseCase: Sendable {
     public func callAsFunction(_ draft: ScriptDraft) async throws -> Script {
         let timestamp = now()
 
-        // Preserve the original creation date when updating; a reopened script that
-        // re-dated itself on every save would scramble the Home list's ordering.
         let existing = try await existingScript(for: draft)
 
         let script = Script(
@@ -50,6 +37,8 @@ public struct SaveScriptUseCase: Sendable {
             suggestedPatternIDs: draft.suggestedPatternIDs,
             selectedPatternID: draft.selectedPatternID,
             keyPoints: draft.keyPoints,
+            keyPointsByPattern: perPatternKeyPoints(from: draft),
+            refinedByPattern: perPatternRefinements(from: draft),
             grammarSuggestions: existing?.grammarSuggestions ?? [],
             recordingDuration: draft.recordingDuration,
             createdAt: existing?.createdAt ?? timestamp,
@@ -60,10 +49,26 @@ public struct SaveScriptUseCase: Sendable {
         return script
     }
 
-    /// The stored script this draft came from, when it was reopened. Nil for a new draft,
-    /// and also nil when the original has since disappeared — in which case saving falls
-    /// through to inserting it afresh rather than failing, since the user's work is worth
-    /// more than the broken link.
+    /// The per-pattern key points to persist, with the selected pattern's slice folded in from the top-level `keyPoints`.
+    private func perPatternKeyPoints(from draft: ScriptDraft) -> [SpeechPattern.ID: [KeyPoint]] {
+        var map = draft.keyPointsByPattern
+        if let selected = draft.selectedPatternID, !draft.keyPoints.isEmpty {
+            map[selected] = draft.keyPoints
+        }
+        return map
+    }
+
+    /// The per-pattern refined transcripts to persist, with the selected pattern's slice folded in from `transcript.refined`.
+    private func perPatternRefinements(from draft: ScriptDraft) -> [SpeechPattern.ID: String] {
+        var map = draft.refinedByPattern
+        if let selected = draft.selectedPatternID, let refined = draft.transcript.refined,
+           !refined.isEmpty {
+            map[selected] = refined
+        }
+        return map
+    }
+
+    /// The stored script this draft came from, when it was reopened.
     private func existingScript(for draft: ScriptDraft) async throws -> Script? {
         guard let existingScriptID = draft.existingScriptID else { return nil }
         return try await repository.fetch(id: existingScriptID)

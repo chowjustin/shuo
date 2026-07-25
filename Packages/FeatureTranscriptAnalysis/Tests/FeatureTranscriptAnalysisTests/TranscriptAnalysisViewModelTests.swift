@@ -5,10 +5,6 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// `@MainActor` Swift Testing suite for `TranscriptAnalysisViewModel`: the classify →
-// key points → prefetch → refine flow, per-pattern caching, and — most importantly —
-// cancellation, against fakes from ShuoTestSupport. See ARCHITECTURE.md §8.
-
 import Foundation
 import Testing
 import ShuoCore
@@ -46,18 +42,54 @@ struct TranscriptAnalysisViewModelTests {
         repository: FakeScriptRepository = FakeScriptRepository(),
         availability: any AIAvailabilityChecking = FakeAIAvailabilityChecking(.available)
     ) -> TranscriptAnalysisViewModel {
+        makeViewModel(draft: makeDraft(), analyzer: analyzer, repository: repository,
+                      availability: availability)
+    }
+
+    private func makeViewModel(
+        draft: ScriptDraft,
+        analyzer: FakeSpeechAnalyzing,
+        repository: FakeScriptRepository = FakeScriptRepository(),
+        availability: any AIAvailabilityChecking = FakeAIAvailabilityChecking(.available)
+    ) -> TranscriptAnalysisViewModel {
         let viewModel = TranscriptAnalysisViewModel(
-            draft: makeDraft(),
+            draft: draft,
             availability: availability,
             classifyTranscript: ClassifyTranscriptUseCase(analyzer: analyzer),
             generateKeyPoints: GenerateKeyPointsUseCase(analyzer: analyzer),
             regenerateTranscript: RegenerateTranscriptUseCase(analyzer: analyzer),
             saveScript: SaveScriptUseCase(repository: repository)
         )
-        // The shipping interval is 2s, tuned for a real asset download. Tests assert the
-        // *behaviour* of the poll, not its pacing, so shrink it rather than sleeping.
         viewModel.availabilityPollInterval = .milliseconds(10)
         return viewModel
+    }
+
+    /// A reopened draft carrying a complete, saved per-pattern analysis for the top two inform patterns.
+    private func makeReopenedDraft() -> ScriptDraft {
+        func savedKeyPoints(_ patternID: String) -> [KeyPoint] {
+            guard let pattern = SpeechPatternCatalog.pattern(id: patternID) else { return [] }
+            return pattern.components.map {
+                KeyPoint(componentID: $0.id, componentName: $0.name,
+                         text: "Saved \($0.name).", orderIndex: $0.order)
+            }
+        }
+        return ScriptDraft(
+            existingScriptID: UUID(),
+            title: "Reopened script",
+            purpose: .inform,
+            transcript: Transcript(original: Self.transcript, refined: "Saved topical refinement."),
+            suggestedPatternIDs: Self.rankedIDs,
+            selectedPatternID: "inform.topical",
+            keyPoints: savedKeyPoints("inform.topical"),
+            keyPointsByPattern: [
+                "inform.topical": savedKeyPoints("inform.topical"),
+                "inform.causeEffect": savedKeyPoints("inform.causeEffect"),
+            ],
+            refinedByPattern: [
+                "inform.topical": "Saved topical refinement.",
+                "inform.causeEffect": "Saved cause-effect refinement.",
+            ]
+        )
     }
 
     private func makeAnalyzer(
@@ -70,9 +102,7 @@ struct TranscriptAnalysisViewModelTests {
         )
     }
 
-    /// Polls until `condition` holds, so tests wait on observable state rather than on a
-    /// fixed sleep. The view model's work runs in detached tasks with no completion handle
-    /// to await, and a fixed sleep would be both slower and flakier.
+    /// Polls until `condition` holds, so tests wait on observable state rather than on a fixed sleep.
     private func waitUntil(
         timeout: Duration = .seconds(5),
         _ condition: @MainActor () async -> Bool
@@ -114,7 +144,6 @@ struct TranscriptAnalysisViewModelTests {
 
     @Test("The top pattern's key points are requested before any other")
     func topPatternIsGeneratedFirst() async throws {
-        // The whole point of the eager-first schedule: the user waits only for pattern #1.
         let analyzer = makeAnalyzer()
         let viewModel = makeViewModel(analyzer: analyzer)
 
@@ -162,8 +191,6 @@ struct TranscriptAnalysisViewModelTests {
 
         viewModel.start()
         try await waitUntil { viewModel.viewState == .waitingForModel }
-        // Several poll intervals: enough that a gate that let the call through anyway would
-        // have done so by now.
         try await Task.sleep(for: .milliseconds(100))
 
         #expect(viewModel.viewState == .waitingForModel)
@@ -173,8 +200,6 @@ struct TranscriptAnalysisViewModelTests {
 
     @Test("Analysis continues on its own once the model becomes ready")
     func modelBecomesReady() async throws {
-        // The point of polling rather than failing: the user does nothing and the screen
-        // moves forward by itself.
         let analyzer = makeAnalyzer()
         let viewModel = makeViewModel(
             analyzer: analyzer,
@@ -193,8 +218,6 @@ struct TranscriptAnalysisViewModelTests {
 
     @Test("cancelAll stops the availability poll rather than leaving it running")
     func cancelAllStopsThePoll() async throws {
-        // A poll that outlives the screen would keep waking up forever, and would run the
-        // analysis into a sheet the user has already dismissed (CLAUDE.md §6).
         let analyzer = makeAnalyzer()
         let availability = FakeAIAvailabilityChecking(.modelNotReady)
         let viewModel = makeViewModel(analyzer: analyzer, availability: availability)
@@ -203,10 +226,8 @@ struct TranscriptAnalysisViewModelTests {
         try await waitUntil { viewModel.viewState == .waitingForModel }
         viewModel.cancelAll()
 
-        // Let any check already in flight when cancel landed finish, then take the reading.
         try await Task.sleep(for: .milliseconds(60))
         let afterCancel = await availability.callCount
-        // ~30 poll intervals. A live poll would be plainly ahead of the snapshot by now.
         try await Task.sleep(for: .milliseconds(300))
 
         let later = await availability.callCount
@@ -234,8 +255,6 @@ struct TranscriptAnalysisViewModelTests {
 
     @Test("Ineligible hardware is its own state, distinct from Apple Intelligence being off")
     func deviceNotEligibleIsItsOwnState() async throws {
-        // Both are dead ends, but one is a Settings toggle and the other is the device, so
-        // flattening them into a single state would guarantee wrong advice for one of them.
         let analyzer = makeAnalyzer()
         let viewModel = makeViewModel(
             analyzer: analyzer,
@@ -270,8 +289,6 @@ struct TranscriptAnalysisViewModelTests {
 
     @Test("Renaming the script writes through to the draft and marks it unsaved")
     func titleIsEditable() async throws {
-        // Without this the input step's optional title is permanent: a user who skipped it
-        // has no rename path anywhere in the app.
         let analyzer = makeAnalyzer()
         let repository = FakeScriptRepository()
         let viewModel = makeViewModel(analyzer: analyzer, repository: repository)
@@ -318,8 +335,6 @@ struct TranscriptAnalysisViewModelTests {
         try await waitUntil { viewModel.viewState == .loaded }
         try await waitUntil { await repository.saveCount == 1 }
 
-        // The binding behind the title field writes on every keystroke, so an unchanged
-        // value must not put the leave-confirmation dialog in the user's way.
         viewModel.title = viewModel.title
 
         #expect(!viewModel.hasUnsavedChanges)
@@ -335,8 +350,6 @@ struct TranscriptAnalysisViewModelTests {
         try await waitUntil { viewModel.viewState == .loaded }
         try await waitUntil { await repository.saveCount == 1 }
 
-        // Mid-edit the field is allowed to be empty — the user is clearing it to retype,
-        // and snapping the placeholder back under the cursor would fight them.
         viewModel.title = ""
         #expect(viewModel.title.isEmpty)
 
@@ -385,7 +398,6 @@ struct TranscriptAnalysisViewModelTests {
         try await waitUntil { await repository.saveCount == 1 }
         #expect(!viewModel.hasUnsavedChanges)
 
-        // The field commits on every focus loss, including ones where nothing was typed.
         viewModel.commitTitle()
 
         #expect(!viewModel.hasUnsavedChanges)
@@ -401,8 +413,6 @@ struct TranscriptAnalysisViewModelTests {
         try await waitUntil { viewModel.viewState == .loaded }
         try await waitUntil { await repository.saveCount == 1 }
 
-        // ✓ can be tapped without the field ever losing focus, so `save` has to settle the
-        // title itself rather than trusting the view to have done it.
         viewModel.title = ""
         viewModel.save()
         try await waitUntil { await repository.saveCount == 2 }
@@ -451,8 +461,6 @@ struct TranscriptAnalysisViewModelTests {
 
     @Test("A model failure is a retryable failure, not a rejection")
     func modelFailureIsRetryable() async throws {
-        // Blaming the user's content for the app's failure would be both wrong and a dead
-        // end — a rejection offers no retry.
         let analyzer = FakeSpeechAnalyzing(classification: .failure(.aiUnavailable))
         let viewModel = makeViewModel(analyzer: analyzer)
 
@@ -561,9 +569,6 @@ struct TranscriptAnalysisViewModelTests {
 
     @Test("A pattern whose prefetch failed is generated on demand when selected")
     func failedPrefetchRetriesOnSelection() async throws {
-        // Prefetch failures are swallowed deliberately — it is speculative work the user
-        // did not ask for. The cost of that choice is that selection must retry, and this
-        // is the test that keeps that true.
         let analyzer = makeAnalyzer()
         await analyzer.setKeyPoints(.failure(.aiGenerationFailed), forPatternID: "inform.spatial")
         let viewModel = makeViewModel(analyzer: analyzer)
@@ -603,8 +608,6 @@ struct TranscriptAnalysisViewModelTests {
 
     @Test("cancelAll stops the background prefetch")
     func cancelAllStopsPrefetch() async throws {
-        // The specific bug this guards: a prefetch firing an AI call after the user has
-        // dismissed the sheet (CLAUDE.md §6).
         let analyzer = makeAnalyzer(delay: .milliseconds(80))
         let viewModel = makeViewModel(analyzer: analyzer)
 
@@ -612,7 +615,6 @@ struct TranscriptAnalysisViewModelTests {
         try await waitUntil { viewModel.viewState == .loaded }
         viewModel.cancelAll()
 
-        // Long enough that both remaining prefetches would have completed had they run.
         try await Task.sleep(for: .milliseconds(400))
 
         let calls = await analyzer.keyPointCalls
@@ -633,8 +635,6 @@ struct TranscriptAnalysisViewModelTests {
 
     @Test("A slow generation for an abandoned pattern does not overwrite the screen")
     func staleGenerationDoesNotOverwrite() async throws {
-        // Selection cancels the previous selection task, but a result already in flight
-        // must also refuse to publish once it is no longer the selected pattern.
         let analyzer = makeAnalyzer(delay: .milliseconds(60))
         let viewModel = makeViewModel(analyzer: analyzer)
 
@@ -655,6 +655,19 @@ struct TranscriptAnalysisViewModelTests {
 
     // MARK: - Refined transcript
 
+    @Test("The refined transcript is never generated on load, for any pattern")
+    func loadDoesNotRefine() async throws {
+        let analyzer = makeAnalyzer()
+        let viewModel = makeViewModel(analyzer: analyzer)
+
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+        try await Task.sleep(for: .milliseconds(80))
+
+        #expect(viewModel.refinedTranscript == nil, "refinement must not run unasked")
+        #expect(await analyzer.refineCalls.isEmpty)
+    }
+
     @Test("Regenerating produces a refined transcript for the selected pattern")
     func regenerateProducesRefinedTranscript() async throws {
         let analyzer = makeAnalyzer()
@@ -662,13 +675,12 @@ struct TranscriptAnalysisViewModelTests {
 
         viewModel.start()
         try await waitUntil { viewModel.viewState == .loaded }
-        #expect(viewModel.refinedTranscript == nil, "refinement must not run unasked")
 
         viewModel.regenerate()
         try await waitUntil { viewModel.refinedTranscript != nil }
 
         let calls = await analyzer.refineCalls
-        #expect(calls == ["inform.topical"])
+        #expect(calls == ["inform.topical"], "exactly one refinement, for the pattern asked")
         #expect(viewModel.refinedTranscript?.contains("Topical") == true)
     }
 
@@ -690,8 +702,6 @@ struct TranscriptAnalysisViewModelTests {
 
     @Test("Switching patterns clears the refined transcript from the previous one")
     func switchingClearsRefinedTranscript() async throws {
-        // Leaving one pattern's rewritten text under another pattern's key points would be
-        // quietly, confusingly wrong.
         let analyzer = makeAnalyzer()
         let viewModel = makeViewModel(analyzer: analyzer)
 
@@ -813,16 +823,12 @@ struct TranscriptAnalysisViewModelTests {
 
     @Test("A successful analysis persists the script without the user asking")
     func analysisAutoSaves() async throws {
-        // From `.loaded` onwards the user can leave by ✕, by swipe, or by the app being
-        // killed — none of which we get to intercept reliably. Persisting the moment the
-        // analysis is real is what makes leaving survivable.
         let analyzer = makeAnalyzer()
         let repository = FakeScriptRepository()
         let viewModel = makeViewModel(analyzer: analyzer, repository: repository)
 
         viewModel.start()
         try await waitUntil { viewModel.viewState == .loaded }
-        // Note: no `viewModel.save()` here — that is the whole point of the test.
         try await waitUntil { await repository.saveCount == 1 }
 
         let scripts = await repository.scripts
@@ -834,8 +840,6 @@ struct TranscriptAnalysisViewModelTests {
 
     @Test("Saving after the automatic save updates that script rather than inserting a second")
     func explicitSaveUpdatesTheAutoSavedScript() async throws {
-        // The automatic save carries the assigned id back onto the draft; without that,
-        // tapping ✓ would leave the user with two copies of the same speech.
         let analyzer = makeAnalyzer()
         let repository = FakeScriptRepository()
         let viewModel = makeViewModel(analyzer: analyzer, repository: repository)
@@ -856,7 +860,6 @@ struct TranscriptAnalysisViewModelTests {
 
     @Test("hasUnsavedChanges is clear on load, set by a pattern switch, and cleared again by saving")
     func hasUnsavedChangesTracksTheDraft() async throws {
-        // This is what lets ✕ tell "nothing to lose" apart from "you have changes".
         let analyzer = makeAnalyzer()
         let repository = FakeScriptRepository()
         let viewModel = makeViewModel(analyzer: analyzer, repository: repository)
@@ -877,9 +880,6 @@ struct TranscriptAnalysisViewModelTests {
 
     @Test("cancelAll does not stop an in-flight save from completing")
     func cancelAllLetsTheSaveFinish() async throws {
-        // Generations are speculative and safe to abandon; a save is the one operation
-        // whose whole purpose is to outlive the screen. Cancelling it on dismissal would
-        // re-create exactly the data loss the automatic save exists to prevent.
         let analyzer = makeAnalyzer()
         let repository = FakeScriptRepository(after: .milliseconds(150))
         let viewModel = makeViewModel(analyzer: analyzer, repository: repository)
@@ -887,8 +887,6 @@ struct TranscriptAnalysisViewModelTests {
         viewModel.start()
         try await waitUntil { viewModel.viewState == .loaded }
 
-        // `.loaded` is published in the same turn the automatic save starts, so the save is
-        // still sitting in the repository's delay right now.
         #expect(viewModel.isSaving, "the save should still be in flight for this test to mean anything")
         let beforeCancel = await repository.saveCount
         #expect(beforeCancel == 0)
@@ -903,10 +901,6 @@ struct TranscriptAnalysisViewModelTests {
 
     @Test("A superseded key-point generation does not clear the spinner for the one that replaced it")
     func supersededGenerationLeavesTheSpinnerAlone() async throws {
-        // Cancelling a Task does not unwind it immediately: the loser resumes from its
-        // cancelled await and runs its `defer` *after* the winner has already raised the
-        // flag. Without a generation tag the loser turns the winner's spinner off, and the
-        // user watches an idle screen while work is actually running.
         let analyzer = makeAnalyzer(delay: .milliseconds(150))
         let viewModel = makeViewModel(analyzer: analyzer)
 
@@ -941,6 +935,175 @@ struct TranscriptAnalysisViewModelTests {
         viewModel.dismissActionError()
 
         #expect(viewModel.actionError == nil)
+    }
+
+    // MARK: - Reopening a saved script (no reprocessing)
+
+    @Test("Reopening a saved script restores it without any AI call")
+    func reopenMakesNoAICalls() async throws {
+        let analyzer = makeAnalyzer()
+        let viewModel = makeViewModel(draft: makeReopenedDraft(), analyzer: analyzer)
+
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+        try await Task.sleep(for: .milliseconds(150))
+
+        #expect(await analyzer.classifyCallCount == 0)
+        #expect(await analyzer.keyPointCalls.isEmpty)
+        #expect(await analyzer.refineCalls.isEmpty)
+        #expect(viewModel.selectedPattern?.id == "inform.topical")
+        #expect(viewModel.refinedTranscript == "Saved topical refinement.")
+    }
+
+    @Test("Switching patterns on a reopened script is served entirely from saved data")
+    func reopenSwitchUsesSavedDataOnly() async throws {
+        let analyzer = makeAnalyzer()
+        let viewModel = makeViewModel(draft: makeReopenedDraft(), analyzer: analyzer)
+
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+
+        let causeEffect = try #require(SpeechPatternCatalog.pattern(id: "inform.causeEffect"))
+        viewModel.select(causeEffect)
+        try await waitUntil { viewModel.selectedPattern?.id == "inform.causeEffect" }
+
+        #expect(viewModel.keyPoints.map(\.componentID) == causeEffect.components.map(\.id))
+        #expect(viewModel.keyPoints.allSatisfy { $0.text.hasPrefix("Saved ") })
+        #expect(viewModel.refinedTranscript == "Saved cause-effect refinement.")
+        #expect(await analyzer.keyPointCalls.isEmpty)
+        #expect(await analyzer.refineCalls.isEmpty)
+    }
+
+    @Test("A reopened script does not run the background prefetch")
+    func reopenDoesNotPrefetch() async throws {
+        let analyzer = makeAnalyzer(delay: .milliseconds(20))
+        let viewModel = makeViewModel(draft: makeReopenedDraft(), analyzer: analyzer)
+
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+        try await Task.sleep(for: .milliseconds(150))
+
+        #expect(await analyzer.keyPointCalls.isEmpty, "prefetch regenerated key points on reopen")
+    }
+
+    // MARK: - Editing the original transcript
+
+    @Test("Editing the original transcript re-runs the whole analysis from the new text")
+    func editingOriginalRegeneratesEverything() async throws {
+        let analyzer = makeAnalyzer()
+        let viewModel = makeViewModel(analyzer: analyzer)
+
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+        viewModel.regenerate()
+        try await waitUntil { viewModel.refinedTranscript != nil }
+        let classifyBefore = await analyzer.classifyCallCount
+
+        let newText = """
+            Here is an entirely different speech, long enough to pass the usability check, \
+            about how libraries quietly became the most important public spaces in every \
+            town, and why funding them is a decision about the kind of community we want.
+            """
+        viewModel.updateOriginalTranscript(newText)
+
+        try await waitUntil { viewModel.viewState == .loaded }
+
+        #expect(await analyzer.classifyCallCount == classifyBefore + 1,
+                "the edited transcript must be reclassified")
+        #expect(viewModel.originalTranscript.hasPrefix("Here is an entirely different"))
+        #expect(viewModel.refinedTranscript == nil,
+                "refinements are cleared and not auto-generated after an edit")
+        #expect(!viewModel.keyPoints.isEmpty, "key points are regenerated for the new transcript")
+    }
+
+    @Test("Re-saving the original transcript unchanged does nothing")
+    func editingOriginalUnchangedIsANoOp() async throws {
+        let analyzer = makeAnalyzer()
+        let viewModel = makeViewModel(analyzer: analyzer)
+
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+        let classifyBefore = await analyzer.classifyCallCount
+
+        viewModel.updateOriginalTranscript("  \(viewModel.originalTranscript)  ")
+        try await Task.sleep(for: .milliseconds(50))
+
+        #expect(await analyzer.classifyCallCount == classifyBefore)
+        #expect(viewModel.viewState == .loaded)
+    }
+
+    // MARK: - Per-pattern persistence
+
+    @Test("A new script persists every suggested pattern's key points, not just the selected one")
+    func savePersistsAllPatternsKeyPoints() async throws {
+        let analyzer = makeAnalyzer()
+        let repository = FakeScriptRepository()
+        let viewModel = makeViewModel(analyzer: analyzer, repository: repository)
+        viewModel.autoSaveDebounce = .milliseconds(20)
+
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+        try await waitUntil { await repository.saveCount >= 2 }
+
+        let scripts = await repository.scripts
+        let saved = try #require(scripts.first)
+        #expect(Set(saved.keyPointsByPattern.keys) == Set(Self.rankedIDs),
+                "all three patterns' key points must be persisted: \(saved.keyPointsByPattern.keys)")
+    }
+
+    @Test("A user-generated refined transcript is persisted per pattern")
+    func savePersistsRefinedPerPattern() async throws {
+        let analyzer = makeAnalyzer()
+        let repository = FakeScriptRepository()
+        let viewModel = makeViewModel(analyzer: analyzer, repository: repository)
+
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+        viewModel.regenerate()
+        try await waitUntil { viewModel.refinedTranscript != nil }
+        viewModel.save()
+        try await waitUntil { await repository.saveCount >= 1 }
+
+        let scripts = await repository.scripts
+        let saved = try #require(scripts.first)
+        #expect(saved.refinedByPattern["inform.topical"] == saved.transcript.refined)
+    }
+
+    // MARK: - On-demand refined transcript
+
+    @Test("Switching to a new pattern does not auto-generate its refined transcript")
+    func switchDoesNotAutoRegenerate() async throws {
+        let analyzer = makeAnalyzer()
+        let viewModel = makeViewModel(analyzer: analyzer)
+
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+        viewModel.regenerate()
+        try await waitUntil { await analyzer.refineCalls == ["inform.topical"] }
+
+        let second = try #require(SpeechPatternCatalog.pattern(id: "inform.causeEffect"))
+        viewModel.select(second)
+        try await waitUntil { viewModel.selectedPattern?.id == "inform.causeEffect" }
+        try await Task.sleep(for: .milliseconds(80))
+
+        #expect(await analyzer.refineCalls == ["inform.topical"],
+                "switching a pattern must not fire a refinement on its own")
+        #expect(viewModel.refinedTranscript == nil, "the new pattern has no refinement until asked")
+    }
+
+    @Test("hasUnfulfilledKeyPoints reflects whether any key point is still absent")
+    func unfulfilledKeyPointsFlag() async throws {
+        let analyzer = makeAnalyzer()
+        await analyzer.setKeyPoints(.fillAllComponents, forPatternID: "inform.topical")
+        let viewModel = makeViewModel(analyzer: analyzer)
+
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+        #expect(!viewModel.hasUnfulfilledKeyPoints, "a fully filled set has nothing unaddressed")
+
+        let first = try #require(viewModel.keyPoints.first)
+        viewModel.updateKeyPoint(id: first.id, text: KeyPoint.absentText)
+        #expect(viewModel.hasUnfulfilledKeyPoints)
     }
 
 }

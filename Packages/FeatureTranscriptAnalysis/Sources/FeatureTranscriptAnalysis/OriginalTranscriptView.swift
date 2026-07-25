@@ -9,35 +9,34 @@ import ShuoDesignSystem
 import SwiftUI
  
 /// Shows the original transcript full-screen, editable, with its own ✕ / ✓ toolbar.
-///
-/// ✕ discards whatever was typed in this session and leaves the transcript untouched —
-/// nothing is committed until ✓. ✓ hands the (possibly edited) text to `onSave` and
-/// dismisses; an empty transcript can't be saved, since a blank original would only
-/// bounce straight back as a rejected script with nothing on screen to explain why.
-///
-/// No script title/purpose header here — `TranscriptAnalysisView`'s `titleHeader`
-/// already shows both immediately behind this sheet, so repeating them here would
-/// just be the same information twice.
 struct OriginalTranscriptView: View {
  
     let onSave: (String) -> Void
     let onCancel: () -> Void
- 
+
+    private let originalText: String
     @State private var editedText: String
+    @State private var isConfirmingSave = false
     @Environment(\.dismiss) private var dismiss
- 
+
     init(
         originalText: String,
         onSave: @escaping (String) -> Void,
         onCancel: @escaping () -> Void = {}
     ) {
+        self.originalText = originalText
         self.onSave = onSave
         self.onCancel = onCancel
         _editedText = State(initialValue: originalText)
     }
-    
+
     private var wordCount: Int {
         editedText.split(whereSeparator: \.isWhitespace).count
+    }
+
+    private var hasChanges: Bool {
+        editedText.trimmingCharacters(in: .whitespacesAndNewlines)
+            != originalText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
  
     var body: some View {
@@ -53,6 +52,18 @@ struct OriginalTranscriptView: View {
             .toolbar { toolbarContent }
         }
         .presentationDragIndicator(.visible)
+        .alert(
+            "Regenerate the analysis?",
+            isPresented: $isConfirmingSave
+        ) {
+            Button("Save and Regenerate") {
+                onSave(editedText)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Saving these edits will regenerate everything from your new transcript — the suggested patterns, all key points, and any refined transcripts you've generated will be replaced.")
+        }
     }
  
     private var transcriptCard: some View {
@@ -80,22 +91,25 @@ struct OriginalTranscriptView: View {
  
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-//        ToolbarItem(placement: .topBarLeading) {
-//            Button {
-//                onCancel()
-//                dismiss()
-//            } label: {
-//                Image(systemName: "xmark")
-//                    .font(.subheadline.weight(.semibold))
-//                    .foregroundStyle(ShuoColor.primaryText)
-//            }
-//            .accessibilityLabel("Discard changes")
-//        }
- 
+        ToolbarItem(placement: .topBarLeading) {
+            Button {
+                onCancel()
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(ShuoColor.primaryText)
+            }
+            .accessibilityLabel("Discard changes")
+        }
+
         ToolbarItem(placement: .topBarTrailing) {
             Button {
-                onSave(editedText)
-                dismiss()
+                if hasChanges {
+                    isConfirmingSave = true
+                } else {
+                    dismiss()
+                }
             } label: {
                 Image(systemName: "checkmark")
                     .font(.subheadline.weight(.bold))

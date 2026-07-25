@@ -13,8 +13,7 @@ import ShuoCore
 @Suite("Script mapper")
 struct ScriptMapperTests {
 
-    /// A script with every optional populated, so a dropped field shows up as a failure
-    /// rather than as a nil that happened to match.
+    /// A script with every optional populated, so a dropped field shows up as a failure rather than as a nil that happened to match.
     static func fullyPopulatedScript() -> Script {
         Script(
             id: UUID(uuidString: "11111111-2222-3333-4444-555555555555") ?? UUID(),
@@ -29,6 +28,20 @@ struct ScriptMapperTests {
                 KeyPoint(componentID: "category1", componentName: "Category 1",
                          text: KeyPoint.absentText, orderIndex: 1,
                          suggestion: "First major aspect"),
+            ],
+            keyPointsByPattern: [
+                "inform.topical": [
+                    KeyPoint(componentID: "topicOverview", componentName: "Topic Overview",
+                             text: "Remote work since 2020.", orderIndex: 0),
+                ],
+                "inform.causeEffect": [
+                    KeyPoint(componentID: "cause", componentName: "Cause",
+                             text: "The pandemic forced the shift.", orderIndex: 0),
+                ],
+            ],
+            refinedByPattern: [
+                "inform.topical": "Refined text.",
+                "inform.causeEffect": "A cause-and-effect refinement.",
             ],
             grammarSuggestions: [
                 GrammarSuggestion(originalPhrase: "kind of",
@@ -51,6 +64,37 @@ struct ScriptMapperTests {
         #expect(restored == original)
     }
 
+    @Test("Per-pattern key points and refinements survive the round trip")
+    func roundTripPreservesPerPatternData() throws {
+        let original = Self.fullyPopulatedScript()
+
+        let restored = try ScriptMapper.toDomain(ScriptMapper.toEntity(original))
+
+        #expect(restored.keyPointsByPattern == original.keyPointsByPattern)
+        #expect(restored.refinedByPattern == original.refinedByPattern)
+        #expect(restored.keyPointsByPattern["inform.causeEffect"]?.first?.text
+                == "The pandemic forced the shift.")
+        #expect(restored.refinedByPattern["inform.causeEffect"] == "A cause-and-effect refinement.")
+    }
+
+    @Test("apply() overwrites per-pattern maps in place")
+    func applyUpdatesPerPatternMaps() throws {
+        let entity = ScriptMapper.toEntity(Self.fullyPopulatedScript())
+
+        var updated = Self.fullyPopulatedScript()
+        updated.keyPointsByPattern["inform.spatial"] = [
+            KeyPoint(componentID: "region1", componentName: "Region 1",
+                     text: "The first area.", orderIndex: 0),
+        ]
+        updated.refinedByPattern["inform.spatial"] = "A spatial refinement."
+
+        ScriptMapper.apply(updated, to: entity)
+        let restored = try ScriptMapper.toDomain(entity)
+
+        #expect(restored.keyPointsByPattern == updated.keyPointsByPattern)
+        #expect(restored.refinedByPattern == updated.refinedByPattern)
+    }
+
     @Test("A script with every optional empty round-trips too")
     func roundTripWithEmptyOptionals() throws {
         let minimal = Script(
@@ -68,6 +112,8 @@ struct ScriptMapperTests {
         #expect(restored.selectedPatternID == nil)
         #expect(restored.recordingDuration == nil)
         #expect(restored.keyPoints.isEmpty)
+        #expect(restored.keyPointsByPattern.isEmpty)
+        #expect(restored.refinedByPattern.isEmpty)
     }
 
     @Test("Updating an entity in place overwrites content but keeps its identity")
@@ -90,8 +136,6 @@ struct ScriptMapperTests {
 
     @Test("An unrecognized purpose is a persistence failure, not a silent default")
     func unknownPurposeThrows() {
-        // A row written by a build this one doesn't understand. Substituting a default
-        // would show the user someone else's speech type without telling them.
         let entity = ScriptMapper.toEntity(Self.fullyPopulatedScript())
         entity.purposeRawValue = "entertain"
 

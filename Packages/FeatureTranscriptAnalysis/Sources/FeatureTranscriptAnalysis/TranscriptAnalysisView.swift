@@ -5,39 +5,28 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// Root view for the Transcript & pattern suggestions screen.
-//
-// The `.loaded` state is deliberately unstyled: it exists to make the classify → map →
-// regenerate flow runnable and inspectable end to end. The designed screen —
-// Original/Refined segmented control, accordions, highlight ranges (ARCHITECTURE.md §3.2)
-// — is a separate pass. The loading and failure states are *not* placeholders: they share
-// `LoadingView`/`ErrorSheet` and the ✕/✓ toolbar with the transcription step, because the
-// user crosses from one to the other mid-flow and a change of visual language there reads
-// as having landed somewhere unrelated.
-
 import ShuoCore
 import ShuoDesignSystem
 import SwiftUI
 
 /// The analysis screen.
-///
-/// Switches on `TranscriptAnalysisViewState` rather than on a set of booleans, so there is
-/// exactly one thing on screen at a time by construction (CLAUDE.md §5).
 public struct TranscriptAnalysisView: View {
 
     @State private var viewModel: TranscriptAnalysisViewModel
     @State private var isConfirmingLeave = false
+    @State private var isConfirmingRegenerate = false
     @State private var isShowingOriginalTranscript = false
-    @FocusState private var isTitleFocused: Bool
-    @FocusState private var isRefinedFocused: Bool
-    @State private var isRefinedExpanded = false
+    /// An edited transcript awaiting the modal to finish dismissing before it re-runs the
+    /// analysis.
+    @State private var pendingOriginalEdit: String?
+    @FocusState private var focusedField: AnalysisField?
+    @State private var isRefinedExpanded = true
+    @State private var isEditingRefined = false
     private let onClose: () -> Void
     private let onBack: (ScriptDraft) -> Void
 
-    /// - Parameter onClose: leaves the create flow entirely. Offered only once the analysis
-    ///   has loaded, where ✕ means done rather than back.
-    /// - Parameter onBack: returns to Input Script carrying the transcript. This is the only
-    ///   control on every state *except* `.loaded` — see `toolbarContent`.
+    /// - Parameter onClose: leaves the create flow entirely.
+    /// - Parameter onBack: returns to Input Script carrying the transcript.
     public init(
         viewModel: TranscriptAnalysisViewModel,
         onClose: @escaping () -> Void,
@@ -61,47 +50,60 @@ public struct TranscriptAnalysisView: View {
                             .font(.headline)
                             .foregroundStyle(ShuoColor.primaryTextCream)
                     }
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button(action: dismissKeyboard) {
+                            Image(systemName: "checkmark")
+                                .fontWeight(.semibold)
+                        }
+                        .accessibilityLabel("Done editing")
+                    }
                 }
         }
         .background(ShuoColor.background)
         .task { viewModel.start() }
-        // The prefetch must not outlive the screen: a background generation firing after
-        // the user has dismissed this sheet is the bug class CLAUDE.md §6 calls out.
         .onDisappear { viewModel.cancelAll() }
-        // Locked whenever ‹ is the only way out, since a swipe there would abandon the
-        // whole create flow rather than step back. On `.loaded`, where ✕ is offered, the
-        // swipe returns and is guarded only while there is unsaved work.
         .interactiveDismissDisabled(
             viewModel.viewState.toolbarLayout == .back || viewModel.hasUnsavedChanges
         )
-        .confirmationDialog(
+        .alert(
             "Leave without saving your changes?",
-            isPresented: $isConfirmingLeave,
-            titleVisibility: .visible
+            isPresented: $isConfirmingLeave
         ) {
             Button("Save and Close") { viewModel.save { _ in onClose() } }
-            // Not "Discard": the analysed draft was already saved when it loaded, so what
-            // is actually lost is the pattern or refinement chosen since. Naming it
-            // "discard" would imply the whole speech goes, which would be a lie.
             Button("Leave", role: .destructive, action: onClose)
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Your speech is saved. The pattern and transcript changes you made since aren't.")
+        }
+        .sheet(
+            isPresented: $isShowingOriginalTranscript,
+            onDismiss: {
+                if let edited = pendingOriginalEdit {
+                    pendingOriginalEdit = nil
+                    viewModel.updateOriginalTranscript(edited)
+                }
+            }
+        ) {
+            OriginalTranscriptView(
+                originalText: viewModel.originalTranscript,
+                onSave: { pendingOriginalEdit = $0 }
+            )
+        }
+        .alert(
+            "Some key points are still empty",
+            isPresented: $isConfirmingRegenerate
+        ) {
+            Button("Generate Anyway") { regenerateNow() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("A few key points haven't been filled in yet. Generating the refined transcript now may lower its quality. You can add the missing points first, or continue anyway.")
         }
     }
 
     // MARK: - Toolbar
 
     /// **Two buttons on `.loaded`, one everywhere else.**
-    ///
-    /// `.loaded` is the only state holding something to keep, so it is the only state that
-    /// offers ✕ (leave) and ✓ (save). Every other state is a wait or a failure with nothing
-    /// to confirm, and gets a single ‹ back to Input Script — the same control, in the same
-    /// place, as the transcription screen the user just came from.
-    ///
-    /// Earlier this toolbar was unconditional, so a spinner and an error sheet both showed a
-    /// ✕ and a permanently-disabled ✓. A disabled button is still a button: it invites a tap
-    /// and answers with nothing, which reads as broken rather than as "not yet".
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         switch viewModel.viewState.toolbarLayout {
@@ -125,8 +127,7 @@ public struct TranscriptAnalysisView: View {
 
     // MARK: - Actions
 
-    /// ✕, from `.loaded` only. Asks first when there are changes the automatic save has not
-    /// captured; otherwise there is nothing to lose and a dialog would be noise.
+    /// ✕, from `.loaded` only.
     private func leave() {
         if viewModel.hasUnsavedChanges {
             isConfirmingLeave = true
@@ -136,12 +137,6 @@ public struct TranscriptAnalysisView: View {
     }
 
     /// ‹, from every state except `.loaded`.
-    ///
-    /// Cancels the analysis first so a generation cannot outlive the screen (CLAUDE.md §6),
-    /// then hands the transcript back to Input Script. This is uniform across waiting,
-    /// rejection, failure and unavailability because the recourse is identical in all four:
-    /// the transcript is the thing worth keeping, and the input screen is where it can be
-    /// changed or re-submitted. Re-confirming there is the retry.
     private func goBack() {
         viewModel.cancelAll()
         onBack(viewModel.draft)
@@ -153,13 +148,9 @@ public struct TranscriptAnalysisView: View {
     private var content: some View {
         switch viewModel.viewState {
         case .analyzing:
-            // The same component and copy the transcription step ends on, so crossing from
-            // that sheet into this one is continuous rather than a visible handover.
             LoadingView(systemImage: "sparkles", message: "Analyzing your speech…")
 
         case .waitingForModel:
-            // A wait, not a failure: the same `LoadingView` as `.analyzing`, differing only
-            // in what it says it is waiting on (ARCHITECTURE.md §3.2.4).
             LoadingView(systemImage: "sparkles", message: "Setting up on-device AI…")
 
         case .unavailable(let status):
@@ -235,6 +226,7 @@ public struct TranscriptAnalysisView: View {
                 KeyPointsListView(
                     keyPoints: viewModel.keyPoints,
                     isGenerating: viewModel.isGeneratingKeyPoints,
+                    focusedField: $focusedField,
                     onEdit: { id, text in viewModel.updateKeyPoint(id: id, text: text) }
                 )
 
@@ -247,6 +239,8 @@ public struct TranscriptAnalysisView: View {
                     }
                 } else if !viewModel.editableRefinedText.isEmpty {
                     refinedTranscriptSection
+                } else {
+                    generateRefinedTranscriptPrompt
                 }
             }
             .padding()
@@ -255,33 +249,38 @@ public struct TranscriptAnalysisView: View {
         .background(
             Color.clear
                 .contentShape(Rectangle())
-                .onTapGesture {
-                    if isTitleFocused { viewModel.commitTitle() }
-                    isTitleFocused = false
-                    isRefinedFocused = false
-                }
+                .onTapGesture { dismissKeyboard() }
         )
-        .sheet(isPresented: $isShowingOriginalTranscript) {
-            OriginalTranscriptView(
-                originalText: viewModel.originalTranscript,
-                onSave: { viewModel.updateOriginalTranscript($0) }
-            )
+    }
+
+    private func requestRegenerate() {
+        if viewModel.hasUnfulfilledKeyPoints {
+            isConfirmingRegenerate = true
+        } else {
+            regenerateNow()
         }
     }
 
+    /// Expands the refined-transcript section and generates it, so the result is visible the
+    /// moment it lands rather than collapsed behind the chevron.
+    private func regenerateNow() {
+        isRefinedExpanded = true
+        viewModel.forceRegenerate()
+    }
+
+    /// Resigns whichever field is focused — title, refined transcript, or any key-point card.
+    private func dismissKeyboard() {
+        if focusedField == .title { viewModel.commitTitle() }
+        focusedField = nil
+    }
+
     /// The script name and the purpose it was written for, at the top of the content.
-    ///
-    /// The name is editable here rather than as a bound `navigationTitle` because the input
-    /// step makes it optional — a user who skipped it arrives holding "Untitled Script",
-    /// and a plain field they can see and tap is a more discoverable way out of that than
-    /// the nav bar's rename gesture. Styled to echo Input Script's own title field, since
-    /// the user crosses directly from that screen to this one.
     private var titleHeader: some View {
         VStack(alignment: .leading, spacing: 15) {
             TextField("Title", text: $viewModel.title, axis: .vertical)
                 .font(ShuoTypography.title)
                 .foregroundStyle(ShuoColor.primaryTextCream)
-                .focused($isTitleFocused)
+                .focused($focusedField, equals: .title)
                 .submitLabel(.done)
                 .onSubmit { viewModel.commitTitle() }
                 .accessibilityLabel("Script title")
@@ -309,8 +308,8 @@ public struct TranscriptAnalysisView: View {
             .font(ShuoTypography.caption)
             .foregroundStyle(ShuoColor.pink)
         }
-        .onChange(of: isTitleFocused) { _, isFocused in
-            if !isFocused { viewModel.commitTitle() }
+        .onChange(of: focusedField) { oldValue, newValue in
+            if oldValue == .title, newValue != .title { viewModel.commitTitle() }
         }
     }
 
@@ -321,7 +320,7 @@ public struct TranscriptAnalysisView: View {
                     .font(.headline)
                     .foregroundStyle(ShuoColor.primaryTextCream)
 
-                Button("Regenerate") { viewModel.forceRegenerate() }
+                Button("Regenerate") { requestRegenerate() }
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 12)
@@ -336,7 +335,7 @@ public struct TranscriptAnalysisView: View {
                     }
                 } label: {
                     Image(systemName: "chevron.down")
-                        .font(.caption.weight(.semibold))
+                        .font(.title2.weight(.semibold))
                         .foregroundStyle(ShuoColor.primaryTextCream)
                         .rotationEffect(.degrees(isRefinedExpanded ? 180 : 0))
                         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isRefinedExpanded)
@@ -345,28 +344,80 @@ public struct TranscriptAnalysisView: View {
             }
 
             if isRefinedExpanded {
-                TextField("", text: $viewModel.editableRefinedText, axis: .vertical)
-                    .font(.body)
-                    .foregroundStyle(ShuoColor.secondaryTextCream)
-                    .padding(12)
-                    .focused($isRefinedFocused)
-                    .background(ShuoColor.background, in: RoundedRectangle(cornerRadius: 14))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .strokeBorder(ShuoColor.pink, lineWidth: 1.5)
-                    )
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                refinedTranscriptBody
+
+                if !isEditingRefined, !viewModel.refinedHighlightRanges.isEmpty {
+                    Label("Highlighted text matches your key points.", systemImage: "highlighter")
+                        .font(.caption2)
+                        .foregroundStyle(ShuoColor.secondaryText)
+                }
             }
+        }
+        // Editing ends when focus leaves the field — via the keyboard bar or a tap elsewhere —
+        // so the highlighted view returns without a dedicated Done control.
+        .onChange(of: focusedField) { _, newValue in
+            if newValue != .refined { isEditingRefined = false }
         }
     }
 
+    @ViewBuilder
+    private var refinedTranscriptBody: some View {
+        if isEditingRefined {
+            TextField("", text: $viewModel.editableRefinedText, axis: .vertical)
+                .font(.body)
+                .foregroundStyle(ShuoColor.secondaryTextCream)
+                .padding(16)
+                .focused($focusedField, equals: .refined)
+                .background(ShuoColor.background, in: RoundedRectangle(cornerRadius: 14))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(ShuoColor.pink, lineWidth: 1.5)
+                )
+                .onAppear { focusedField = .refined }
+        } else {
+            HighlightedText(
+                text: viewModel.editableRefinedText,
+                highlights: viewModel.refinedHighlightRanges,
+                highlightColor: ShuoColor.pink.opacity(0.35),
+                textColor: ShuoColor.secondaryTextCream
+            )
+            .font(.body)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            .background(ShuoColor.background, in: RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(ShuoColor.pink, lineWidth: 1.5)
+            )
+            .contentShape(Rectangle())
+            .onTapGesture { isEditingRefined = true }
+        }
+    }
+
+    /// Shown for a selected pattern that has no refined transcript yet — a pattern the user
+    /// switched to but hasn't generated a refinement for.
+    private var generateRefinedTranscriptPrompt: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Refined Transcript")
+                .font(.headline)
+                .foregroundStyle(ShuoColor.primaryTextCream)
+
+            Text("Generate a rewritten version of your speech, structured to this pattern and built from your key points.")
+                .font(.caption)
+                .foregroundStyle(ShuoColor.secondaryTextCream)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button("Generate Refined Transcript") { requestRegenerate() }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(ShuoColor.pink, in: RoundedRectangle(cornerRadius: 8))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     /// A failure from a pattern switch, a regeneration, or a save.
-    ///
-    /// At the top of the screen rather than beside the Regenerate button, because since
-    /// auto-save landed the most likely error here is a *persistence* failure, which has
-    /// nothing to do with regeneration — pinned next to that button it would name the wrong
-    /// cause. Still inline and dismissible rather than an alert or a state change: a failed
-    /// action must not tear down key points the user can still read.
     private func actionErrorBanner(_ error: ShuoError) -> some View {
         let copy = AnalysisErrorCopy(error: error)
         return HStack(alignment: .firstTextBaseline, spacing: 8) {

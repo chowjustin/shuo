@@ -25,8 +25,11 @@ public struct PatternCarouselView: View {
         return Array(0..<(patternCount * Self.loopMultiplier))
     }
 
-    private func pattern(atLoopedIndex index: Int) -> SpeechPattern {
-        viewModel.patterns[index % viewModel.patterns.count]
+    /// The pattern shown at a looped index, or nil when there are no patterns.
+    private func pattern(atLoopedIndex index: Int) -> SpeechPattern? {
+        let count = viewModel.patterns.count
+        guard count > 0 else { return nil }
+        return viewModel.patterns[index % count]
     }
 
     public var body: some View {
@@ -39,14 +42,15 @@ public struct PatternCarouselView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .center, spacing: ShuoSpacing.medium) {
                     ForEach(loopedIndices, id: \.self) { index in
-                        let currentPattern = pattern(atLoopedIndex: index)
-                        PatternCard(
-                            name: currentPattern.name,
-                            summary: currentPattern.summary,
-                            isFocused: focusedIndex == index,
-                            isMostRecommended: currentPattern.id == viewModel.mostRecommended?.id
-                        )
-                        .id(index)
+                        if let currentPattern = pattern(atLoopedIndex: index) {
+                            PatternCard(
+                                name: currentPattern.name,
+                                summary: currentPattern.summary,
+                                isFocused: focusedIndex == index,
+                                isMostRecommended: currentPattern.id == viewModel.mostRecommended?.id
+                            )
+                            .id(index)
+                        }
                     }
                 }
                 .scrollTargetLayout()
@@ -60,22 +64,16 @@ public struct PatternCarouselView: View {
                 setupInitialFocus()
             }
             .onChange(of: focusedIndex) { _, newIndex in
-                guard let newIndex else { return }
-                let newPattern = pattern(atLoopedIndex: newIndex)
+                guard let newIndex, let newPattern = pattern(atLoopedIndex: newIndex) else { return }
                 guard newPattern.id != viewModel.selectedPatternID else { return }
                 viewModel.select(newPattern)
             }
-            // When selection changes externally (e.g. content page swipe), scroll
-            // the carousel to the matching card. Guard prevents re-scrolling when
-            // the carousel itself caused the selection change.
             .onChange(of: viewModel.selectedPatternID) { _, newID in
                 guard let newID,
                       let patternIdx = viewModel.patterns.firstIndex(where: { $0.id == newID }),
                       let current = focusedIndex,
                       current % viewModel.patterns.count != patternIdx else { return }
                 let middleRepeat = Self.loopMultiplier / 2
-                // Instant jump prevents the scroll animation from firing onChange for every
-                // intermediate card, which would trigger rapid Task cancel/create cycles and freeze the UI.
                 withAnimation(.none) {
                     focusedIndex = middleRepeat * viewModel.patterns.count + patternIdx
                 }
@@ -105,8 +103,6 @@ public struct PatternCarouselView: View {
 }
 
 private struct PatternCarouselPreviewHost: View {
-    // Real catalog entries rather than invented ones: patterns are fixed app data now, so
-    // the preview shows exactly what ships (see `SpeechPatternCatalog`).
     @State private var viewModel = PatternCarouselViewModel(
         patterns: Array(SpeechPatternCatalog.patterns(for: .persuade).prefix(3)),
         selectedPatternID: nil

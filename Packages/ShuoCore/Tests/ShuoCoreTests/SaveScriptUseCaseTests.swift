@@ -102,8 +102,6 @@ struct SaveScriptUseCaseTests {
 
     @Test("An update preserves the original creation date and advances updatedAt")
     func updatePreservesCreatedAt() async throws {
-        // A reopened script that re-dated itself on every save would scramble the Home
-        // list's newest-first ordering.
         let existing = Script(
             title: "Old title",
             purpose: .inform,
@@ -122,8 +120,6 @@ struct SaveScriptUseCaseTests {
 
     @Test("An update carries forward stored grammar suggestions the draft never held")
     func updatePreservesGrammarSuggestions() async throws {
-        // `ScriptDraft` has no grammar field — that feature is deferred (CLAUDE.md §11).
-        // Saving must not wipe data the draft simply doesn't model.
         let suggestion = GrammarSuggestion(
             originalPhrase: "kind of",
             suggestedPhrase: "somewhat",
@@ -147,7 +143,6 @@ struct SaveScriptUseCaseTests {
 
     @Test("Reopening a script that has since vanished inserts it rather than failing")
     func missingOriginalFallsBackToInsert() async throws {
-        // The user's work is worth more than the broken link.
         let missingID = UUID()
         let repository = FakeScriptRepository()
         let save = SaveScriptUseCase(repository: repository, now: { Self.savedAt })
@@ -158,6 +153,47 @@ struct SaveScriptUseCaseTests {
         #expect(saved.createdAt == Self.savedAt)
         let scripts = await repository.scripts
         #expect(scripts.count == 1)
+    }
+
+    // MARK: - Per-pattern data
+
+    @Test("Per-pattern key points and refinements on the draft are persisted")
+    func persistsPerPatternMaps() async throws {
+        let repository = FakeScriptRepository()
+        let save = SaveScriptUseCase(repository: repository, now: { Self.savedAt })
+
+        var d = draft()
+        d.keyPointsByPattern = [
+            "inform.topical": d.keyPoints,
+            "inform.causeEffect": [
+                KeyPoint(componentID: "cause", componentName: "Cause",
+                         text: "The shift.", orderIndex: 0),
+            ],
+        ]
+        d.refinedByPattern = [
+            "inform.topical": "Refined text.",
+            "inform.causeEffect": "Cause-and-effect refinement.",
+        ]
+
+        let saved = try await save(d)
+
+        #expect(saved.keyPointsByPattern.keys.sorted() == ["inform.causeEffect", "inform.topical"])
+        #expect(saved.refinedByPattern["inform.causeEffect"] == "Cause-and-effect refinement.")
+    }
+
+    @Test("The selected pattern's live key points are folded into the map even if the caller didn't")
+    func foldsSelectedSliceIntoMap() async throws {
+        let repository = FakeScriptRepository()
+        let save = SaveScriptUseCase(repository: repository, now: { Self.savedAt })
+
+        var d = draft()
+        d.keyPointsByPattern = [:]
+        d.refinedByPattern = [:]
+
+        let saved = try await save(d)
+
+        #expect(saved.keyPointsByPattern["inform.topical"] == d.keyPoints)
+        #expect(saved.refinedByPattern["inform.topical"] == "Refined text.")
     }
 
     // MARK: - Failure

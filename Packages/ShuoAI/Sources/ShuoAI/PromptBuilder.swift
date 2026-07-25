@@ -5,22 +5,10 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// Centralizes prompt/instruction text for every `SpeechAnalyzing` call, keeping prompt
-// wording reviewable and testable as data rather than buried in
-// `FoundationModelSpeechAnalyzer`'s control flow (CLAUDE.md §8).
-
 import Foundation
 import ShuoCore
 
 /// Every instruction and prompt string the analyzer sends to the model.
-///
-/// Prompts live here rather than inline at the call sites so their wording can be read,
-/// diffed, and tested as data. Prompt text is the highest-leverage and most volatile part
-/// of an on-device LLM feature; buried inside control flow it becomes invisible in review.
-///
-/// Component guidance is rendered from `SpeechPatternCatalog` rather than restated here,
-/// so `Docs/SPEECH_PATTERNS.md` stays the single source of truth for what belongs in each
-/// slot.
 enum PromptBuilder {
 
     // MARK: - Classification
@@ -43,8 +31,7 @@ enum PromptBuilder {
         - Use only the pattern identifiers you are given, copied exactly.
         """
 
-    /// The classification prompt. `candidates` is always the catalog subset for the user's
-    /// chosen purpose, so the model is never asked to consider a pattern from another one.
+    /// The classification prompt.
     static func classificationPrompt(
         transcript: String,
         purpose: SpeechPurpose,
@@ -105,8 +92,7 @@ enum PromptBuilder {
         """
     }
 
-    /// One component as a prompt bullet: its name, what belongs in it, and its extraction
-    /// guideline where the catalog defines one.
+    /// One component as a prompt bullet: its name, what belongs in it, and its extraction guideline where the catalog defines one.
     private static func componentGuidance(_ component: SpeechPatternComponent) -> String {
         var line = "- \(component.name): \(component.contains.joined(separator: "; "))"
         if let guideline = component.aiGuideline {
@@ -118,92 +104,76 @@ enum PromptBuilder {
     // MARK: - Refinement
 
     static let refinementInstructions = """
-        You restructure speech drafts for a public-speaking practice app.
+        You write clean, engaging, deliverable speeches for a public-speaking practice app.
 
-        Rewrite the speaker's transcript so it follows a given structure, in the order that \
-        structure defines.
+        You are given the ordered points a speech must make. DEVELOP them into a full, \
+        polished speech the speaker could deliver as-is — not a list of the points.
 
         Rules:
-        - The transcript is your material. Reorder it, and keep essentially all of it.
-        - Preserve the speaker's own content, voice, and examples. You are reorganizing \
-        their words, not writing a new speech and not summarizing one.
-        - Keep the rewrite close to the length of the original. Removing filler should \
-        shorten it slightly, never substantially.
-        - Never invent facts, statistics, anecdotes, or conclusions the speaker did not give.
-        - Where the draft does not cover part of the structure, leave it out. Do not write \
-        material to fill the gap.
-        - Remove filler words and false starts. Keep it natural to say out loud.
-        - Return only the rewritten speech, with no headings, labels, or commentary.
+        - Cover every point, in the given order, and develop each into one or more natural \
+        spoken paragraphs. REPHRASE the points in your own words; never just repeat or \
+        concatenate them.
+        - Add a brief, natural opening and closing, and smooth transitions between points, so \
+        it reads as one flowing speech.
+        - You MAY add connective phrasing, transitions, and rhetorical framing to make it \
+        engaging — but do NOT introduce new facts, statistics, examples, or claims that are \
+        not in the points.
+        - Write ONE continuous speech in flowing paragraphs, in a confident first-person \
+        voice. Never use headings, section titles, numbered lists, bullet points, or labels, \
+        and never repeat these instructions.
+        - The result should be clearly more developed and polished than the bare points — a \
+        real speech to deliver, natural to say out loud, no "um" or false starts.
+        - Output only the finished speech.
         """
 
-    /// Words below which a length target is noise rather than guidance — a two-line draft
-    /// has no meaningful budget to hit.
-    static let minimumWordsForLengthTarget = 40
-
-    /// The floor is 80% of the original rather than an exact match: removing filler and
-    /// false starts genuinely should shorten a spoken draft a little.
-    static func minimumRewriteWords(forOriginalWords count: Int) -> Int {
-        count * 4 / 5
-    }
-
-    /// The refinement prompt.
-    ///
-    /// Absent key points are named as gaps rather than dropped silently. Making the gaps
-    /// explicit turns "don't invent content" into a concrete, checkable instruction, which
-    /// holds up better on a small model than the general rule alone.
-    ///
-    /// The outline is labelled as running order, and the length target is stated in words,
-    /// because without both the model reads the outline as its source material and returns
-    /// something outline-length — a few sentences standing in for a whole speech.
+    /// The refinement prompt. Built from the key points, which ARE the speech's content — the
+    /// raw transcript is deliberately NOT included in the covered case, because a small
+    /// on-device model handed the transcript tends to echo it verbatim instead of writing
+    /// from the points.
     static func refinementPrompt(
         transcript: String,
         pattern: SpeechPattern,
         keyPoints: [KeyPoint]
     ) -> String {
         let covered = keyPoints.filter { !$0.isAbsent }
-        let gaps = keyPoints.filter { $0.isAbsent }
 
-        var prompt = """
-            Structure: \(pattern.name) — \(pattern.summary)
+        guard !covered.isEmpty else {
+            let flow = pattern.components.map(\.name).joined(separator: " → ")
+            return """
+                Rewrite the rough talk below into a clean, deliverable speech, letting the \
+                ideas flow in this order (guidance only — do not print these words): \(flow)
 
-            Running order — these name the sections and their sequence. They are not the \
-            material to write from; the transcript below is.
-            \(covered.map { "- \($0.componentName): \($0.text)" }.joined(separator: "\n"))
-            """
+                Rough talk:
+                \"\"\"
+                \(transcript)
+                \"\"\"
 
-        if !gaps.isEmpty {
-            prompt += """
+                Write it as one continuous speech in a confident first-person voice. Cut \
+                filler and any off-topic asides (scheduling, small talk, logistics). Do not \
+                invent anything, and do not use headings, labels, or bullet points.
 
-
-                The draft does not cover these components. Leave them out entirely; do not \
-                write content for them:
-                \(gaps.map { "- \($0.componentName)" }.joined(separator: "\n"))
+                Speech:
                 """
         }
 
-        prompt += """
+        let points = covered
+            .enumerated()
+            .map { "\($0.offset + 1). \($0.element.text)" }
+            .joined(separator: "\n")
 
+        return """
+            Develop the following points into a polished, engaging speech, in this exact \
+            order. REPHRASE and expand each point into natural spoken paragraphs — do not just \
+            repeat or list them. Add a brief opening and closing and smooth transitions so it \
+            flows as one speech. Keep every point's meaning, and add connective and rhetorical \
+            phrasing to make it engaging, but do not add new facts, statistics, or examples \
+            beyond the points. Write plain flowing paragraphs — no headings, labels, numbers, \
+            or bullet points.
 
-            Original transcript:
-            \"\"\"
-            \(transcript)
-            \"\"\"
+            Points:
+            \(points)
 
-            Rewrite the transcript above so its content runs in the order given, keeping \
-            everything the speaker said.
+            Speech:
             """
-
-        let wordCount = transcript.split(whereSeparator: \.isWhitespace).count
-        if wordCount >= minimumWordsForLengthTarget {
-            prompt += """
-
-
-                The transcript is about \(wordCount) words. Your rewrite should be a \
-                similar length — at least \(minimumRewriteWords(forOriginalWords: wordCount)) \
-                words. Do not summarize.
-                """
-        }
-
-        return prompt
     }
 }

@@ -5,32 +5,27 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// One key point: its component name, and either the extracted content or a visible
-// "not covered" state carrying the component's own hint.
-//
-// Functional only — this exists so the flow can be seen end to end. Styling and the
-// editable `GhostTextField` treatment are a separate pass.
-
 import SwiftUI
 import ShuoCore
 import ShuoDesignSystem
 
 /// Renders one key point as a labelled card: component name above, editable text inside a
 /// pink-bordered card.
-///
-/// The absent case is deliberately *visible* rather than hidden or collapsed. Seeing which
-/// components a draft does not cover is much of the value of mapping onto a fixed
-/// structure — a silently shorter list would hide exactly the gap the speaker needs to
-/// notice.
 struct KeyPointRow: View {
 
     let keyPoint: KeyPoint
+    var focusedField: FocusState<AnalysisField?>.Binding
     let onEdit: (String) -> Void
 
     @State private var text: String
 
-    init(keyPoint: KeyPoint, onEdit: @escaping (String) -> Void) {
+    init(
+        keyPoint: KeyPoint,
+        focusedField: FocusState<AnalysisField?>.Binding,
+        onEdit: @escaping (String) -> Void
+    ) {
         self.keyPoint = keyPoint
+        self.focusedField = focusedField
         self.onEdit = onEdit
         _text = State(initialValue: keyPoint.isAbsent ? "" : keyPoint.text)
     }
@@ -50,6 +45,7 @@ struct KeyPointRow: View {
             .foregroundStyle(ShuoColor.secondaryTextCream)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
+            .focused(focusedField, equals: .keyPoint(keyPoint.componentID))
             .background(ShuoColor.background, in: RoundedRectangle(cornerRadius: 14))
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
@@ -68,8 +64,6 @@ struct KeyPointRow: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        // Reset local text when the key point content changes (pattern switch may reuse
-        // the same componentID across patterns, so watch the full value not just the id)
         .onChange(of: keyPoint) { _, newKeyPoint in
             text = newKeyPoint.isAbsent ? "" : newKeyPoint.text
         }

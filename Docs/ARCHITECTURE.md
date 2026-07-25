@@ -176,8 +176,26 @@ The reason this is worth the extra field is that it keeps live transcription a *
 
 #### 3.2.2 Transcript view
 - Segmented control (Original/Refined) and accordion expand/collapse are cheap: a mode enum in the ViewModel and local `@State` per section respectively — expand/collapse doesn't need to survive app relaunch, so it's fine to keep as ephemeral view state rather than persisted.
-- **Highlighting:** have the AI return highlight *snippets* (short excerpts), not character offsets — offsets break the moment the user edits the transcript. Compute highlight ranges client-side via substring/fuzzy matching between each key point's snippet and the current transcript text, then render with `AttributedString` (`Text(attributedString)` handles this natively in modern SwiftUI, no third-party rich text library needed).
-- **Editable transcript → auto-updated key points:** debounce edits (roughly 800ms–1.5s after typing stops), then re-invoke `GenerateKeyPointsUseCase`. Store the in-flight `Task` on the ViewModel and cancel-and-replace it on every new debounce firing, so rapid edits don't queue up redundant AI calls or race each other. Show a lightweight "Updating suggestions…" indicator while this runs.
+- **Highlighting (built).** The refined transcript highlights the parts that convey each key
+  point. Because the refined transcript is a *rewrite*, it rarely reuses a key point's exact
+  words, so matching is **fuzzy and sentence-level**: `TranscriptHighlighter` (ShuoCore, pure,
+  tested) tokenizes the refined text into sentences and lights up any whose meaningful-word
+  overlap with a key point clears a recall threshold (with cheap plural folding so
+  "microservices" matches "microservice"). It returns **character-offset ranges** — computed
+  client-side, not from the model, so nothing to persist — which the `HighlightedText`
+  design-system component turns into an `AttributedString` background (`Text(attributedString)`,
+  no third-party rich-text library). The refined section shows this highlighted view read-only
+  by default and swaps to a plain editable field on demand (a live-highlighted editable field
+  would fight the cursor); edits and pattern/key-point changes re-derive the ranges.
+- **Editing the original transcript re-runs the whole analysis (revised).** The original
+  design debounced edits and re-invoked only `GenerateKeyPointsUseCase`. As built, the
+  original transcript is edited in a dedicated modal (`OriginalTranscriptView`); saving a
+  changed transcript is a deliberate, confirmed action — a dialog warns that everything will
+  be regenerated — and `updateOriginalTranscript` then resets the analysis state and re-runs
+  the full pipeline from the new text (reclassify → key points → cleared refinements),
+  keeping `existingScriptID` so it updates the same record. The transcript is the source
+  every artifact derives from, so patching only key points would leave stale patterns and
+  refinements behind; an unchanged save is a no-op that simply closes the modal.
 
 #### 3.2.3 Pattern suggestions
 
@@ -208,9 +226,20 @@ The reason this is worth the extra field is that it keeps live transcription a *
   pattern are awaited and shown; the other two generate sequentially in the background so
   switching is a cache hit. Sequential, not concurrent — the analyzer is an actor and the
   neural engine serializes generations anyway.
-- **The refined transcript is user-triggered**, via a "Regenerate Transcript" button, not
-  produced on every pattern switch. It is the most expensive call in the flow, and it is
-  cached per pattern.
+- **The refined transcript is user-triggered for *every* pattern, including the top one.**
+  Key points generate automatically on load (top pattern first, the other two prefetched in
+  the background), but a refinement — the most expensive call in the flow — is only produced
+  when the user taps the "Generate / Regenerate Transcript" button. A pattern with no
+  refinement yet shows an empty state with a Generate button; switching patterns shows that
+  pattern's cached refinement or that empty state, never an automatic regeneration.
+  Refinements are cached per pattern and persisted in `Script.refinedByPattern`.
+- **Generating a refinement while key points are unfilled asks first.** A refinement built
+  from an incomplete key-point set has gaps the model must invent around, so the
+  Generate/Regenerate action shows a confirmation dialog when any key point is still absent
+  (`"-"`). The initial on-load generation does not prompt — it is not user-initiated.
+- **Per-pattern key points are prefetched *and persisted*.** After load, the other two
+  patterns' key points generate in the background, and once complete the draft auto-saves, so
+  a later reopen restores all three patterns without regenerating any of them.
 - `ScrollView(.horizontal) { LazyHStack { ... } }` over `[SpeechPattern]`.
 - "Suggestion under every empty key point textfield" is a near-perfect fit for SwiftUI's
   native placeholder parameter — the ghost text comes from the component's own `contains`
@@ -275,7 +304,7 @@ A few things worth designing in from the start, based on how the framework actua
 - `Script` is the aggregate root, persisted via SwiftData behind a `ScriptRepository` protocol; a mapper converts between the `@Model` persistence type and the plain domain `Script` struct (reasoning for this split is in §4.3).
 - **History list** should fetch a lightweight `ScriptSummary` projection (id, title, date, purpose, duration) rather than full `Script` objects with entire transcripts — keeps the Home list fast regardless of how large individual transcripts get.
 - **Search:** given the likely dataset size (§2.4), naive in-memory filtering of an already-fetched `[ScriptSummary]` array is simpler than a `#Predicate`-driven fetch and fully sufficient — I'd avoid the extra complexity unless you have evidence the dataset will be large. `.searchable(text:)` bound to the ViewModel's search string is all the SwiftUI wiring needed for "instant results."
-- **Reopening a script** loads the full `Script` aggregate directly from storage — no AI re-invocation needed, since "previously generated data remains available" means the persisted `Script` must capture the *entire* generated state (patterns, key points, refined transcript, grammar suggestions), not just the raw transcript.
+- **Reopening a script** loads the full `Script` aggregate directly from storage and makes **zero AI calls** — not one classification, key-point generation, or refinement. "Previously generated data remains available" is taken literally: the persisted `Script` captures the *entire* generated state for *every* suggested pattern (`keyPointsByPattern`, `refinedByPattern`), so `TranscriptAnalysisViewModel.loadReopenedScript()` hydrates its caches from the draft and switching patterns is a pure cache lookup. Background prefetch is disabled on reopen. This is a distinct load path from a new script's `runInitialAnalysis()`, chosen in `start()` by whether the draft is a reopened one carrying a complete analysis.
 - **Empty state:** model it as an explicit view-state enum rather than scattered booleans —
 
 ```swift
@@ -424,12 +453,21 @@ struct Script: Sendable, Identifiable, Equatable {
     var transcript: Transcript
     var suggestedPatterns: [SpeechPattern]      // up to 3
     var selectedPatternID: SpeechPattern.ID?
-    var keyPoints: [KeyPoint]
+    var keyPoints: [KeyPoint]                    // the selected pattern's slice
+    // Per-pattern generated state, so reopening restores ALL suggested patterns exactly as
+    // the user left them with zero AI re-invocation (see §3.3). `keyPoints` above and
+    // `transcript.refined` mirror the selected pattern's entries; the maps are the complete
+    // set. Empty for scripts saved before these existed (they regenerate on switch).
+    var keyPointsByPattern: [SpeechPattern.ID: [KeyPoint]]
+    var refinedByPattern: [SpeechPattern.ID: String]
     var grammarSuggestions: [GrammarSuggestion]   // always [] in v1 — see §2.5
     var recordingDuration: TimeInterval?
     var createdAt: Date
     var updatedAt: Date
 }
+// `ScriptDraft` carries the same two maps, hydrated by `ScriptDraft(reopening:)` and folded
+// back in by `SaveScriptUseCase`, so the create/reopen flows persist per-pattern data
+// through the exact same path.
 
 struct ScriptSummary: Sendable, Identifiable {   // lightweight Home-list projection
     let id: UUID
