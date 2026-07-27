@@ -6,6 +6,7 @@
 //
 
 import ShuoCore
+import ShuoDesignSystem
 import SwiftUI
 
 public struct InputScriptView: View {
@@ -34,8 +35,9 @@ public struct InputScriptView: View {
     public var body: some View {
         ZStack {
                 VStack(alignment: .leading, spacing: 20) {
-                    TextField("Title", text: $viewModel.title)
+                    TextField("Title", text: $viewModel.title, axis: .vertical)
                         .font(.system(.largeTitle, weight: .bold))
+                        .lineLimit(1...3)
                         .focused($isTitleFocused)
 
                     Picker("Input Mode", selection: $viewModel.mode) {
@@ -97,6 +99,8 @@ public struct InputScriptView: View {
             }
         }
         .animation(.spring(duration: 0.25), value: viewModel.attachVM.isFileTooLarge)
+        .foregroundStyle(ShuoColor.primaryTextCream)
+        .background(ShuoColor.background)
         .presentationDragIndicator(.visible)
         // The whole flow is one sheet, so swipe-dismiss here would tear down the create
         // flow entirely rather than stepping back — a half-filled session is not something
@@ -112,13 +116,13 @@ public struct InputScriptView: View {
 
             Text("File too large.")
                 .font(.title3.bold())
-                .foregroundStyle(.primary)
+                .foregroundStyle(ShuoColor.primaryTextCream)
 
             // Reads the limit from the domain rather than repeating it — the number and
             // the check it describes used to be able to drift apart.
             Text("Maximum file size: \(MediaLimits.formattedMaxFileSize)")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ShuoColor.secondaryTextCream)
 
             Button {
                 viewModel.attachVM.cancel()

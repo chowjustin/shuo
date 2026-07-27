@@ -35,8 +35,15 @@ public struct SpeakModeView: View {
     private var contentArea: some View {
         switch viewModel.viewState {
         case .idle:
-            Text("Let's hear your ideas.")
-                .foregroundStyle(ShuoColor.secondaryText)
+            VStack(spacing: 16) {
+                Image("SHUO LISTEN")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 160, height: 160)
+
+                Text("Let's hear your ideas.")
+                    .foregroundStyle(ShuoColor.secondaryTextCream)
+            }
 
         case .requestingPermission:
             ProgressView()
