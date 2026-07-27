@@ -9,17 +9,17 @@ import ShuoDesignSystem
 import SwiftUI
  
 /// Shows the original transcript full-screen, editable, with its own ✕ / ✓ toolbar.
-struct OriginalTranscriptView: View {
- 
+public struct OriginalTranscriptView: View {
+    
     let onSave: (String) -> Void
     let onCancel: () -> Void
-
+    
     private let originalText: String
     @State private var editedText: String
     @State private var isConfirmingSave = false
     @Environment(\.dismiss) private var dismiss
-
-    init(
+    
+    public init(
         originalText: String,
         onSave: @escaping (String) -> Void,
         onCancel: @escaping () -> Void = {}
@@ -29,28 +29,27 @@ struct OriginalTranscriptView: View {
         self.onCancel = onCancel
         _editedText = State(initialValue: originalText)
     }
-
+    
     private var wordCount: Int {
         editedText.split(whereSeparator: \.isWhitespace).count
     }
-
+    
     private var hasChanges: Bool {
         editedText.trimmingCharacters(in: .whitespacesAndNewlines)
-            != originalText.trimmingCharacters(in: .whitespacesAndNewlines)
+        != originalText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
- 
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                transcriptCard
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .top)
-            }
-            .background(ShuoColor.background)
-            .navigationTitle("Original Transcript")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { toolbarContent }
+    
+    public var body: some View {
+        ScrollView {
+            transcriptCard
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .top)
         }
+        .background(ShuoColor.background)
+        .navigationTitle("Original Transcript")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { toolbarContent }
+        
         .presentationDragIndicator(.visible)
         .alert(
             "Regenerate the analysis?",
@@ -65,7 +64,7 @@ struct OriginalTranscriptView: View {
             Text("Saving these edits will regenerate everything from your new transcript — the suggested patterns, all key points, and any refined transcripts you've generated will be replaced.")
         }
     }
- 
+    
     private var transcriptCard: some View {
         editor
             .padding(ShuoSpacing.medium)
@@ -79,7 +78,7 @@ struct OriginalTranscriptView: View {
                     .strokeBorder(ShuoColor.pink, lineWidth: 2)
             )
     }
- 
+    
     private var editor: some View {
         TextField("Transcript", text: $editedText, axis: .vertical)
             .font(ShuoTypography.body)
@@ -88,21 +87,9 @@ struct OriginalTranscriptView: View {
             .accessibilityLabel("Original transcript, editable")
             .accessibilityHint("Contains \(wordCount) words. Double tap to edit.")
     }
- 
+    
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Button {
-                onCancel()
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(ShuoColor.primaryText)
-            }
-            .accessibilityLabel("Discard changes")
-        }
-
         ToolbarItem(placement: .topBarTrailing) {
             Button {
                 if hasChanges {
@@ -120,6 +107,7 @@ struct OriginalTranscriptView: View {
             .buttonBorderShape(.circle)
             .tint(ShuoColor.pink)
             .disabled(editedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .navigationBarBackButtonHidden(true)
             .accessibilityLabel("Save changes")
         }
     }

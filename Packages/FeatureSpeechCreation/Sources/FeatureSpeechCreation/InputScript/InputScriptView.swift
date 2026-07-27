@@ -33,7 +33,6 @@ public struct InputScriptView: View {
 
     public var body: some View {
         ZStack {
-            NavigationStack {
                 VStack(alignment: .leading, spacing: 20) {
                     TextField("Title", text: $viewModel.title)
                         .font(.system(.largeTitle, weight: .bold))
@@ -59,6 +58,7 @@ public struct InputScriptView: View {
                 .onTapGesture { isTitleFocused = false }
                 .navigationTitle("Input \(viewModel.purpose.gerund) Script")
                 .navigationBarTitleDisplayMode(.inline)
+                .navigationBarBackButtonHidden(true)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Button(action: goBack) {
@@ -83,7 +83,7 @@ public struct InputScriptView: View {
                 } message: {
                     Text(viewModel.discardWarningMessage)
                 }
-            }
+            
             .blur(radius: viewModel.attachVM.isFileTooLarge ? 8 : 0)
             .animation(.spring(duration: 0.25), value: viewModel.attachVM.isFileTooLarge)
 

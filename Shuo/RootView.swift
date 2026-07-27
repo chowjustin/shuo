@@ -45,17 +45,19 @@ struct RootView: View {
         }
         .sheet(isPresented: isShowingReopenFlow) {
             if let reopenedDraft {
-                container.makeTranscriptAnalysisView(
-                    draft: reopenedDraft,
-                    onClose: {
-                        self.reopenedDraft = nil
-                        homeViewModel.load()
-                    },
-                    onBack: { _ in
-                        self.reopenedDraft = nil
-                        homeViewModel.load()
-                    }
-                )
+                NavigationStack{
+                    container.makeTranscriptAnalysisView(
+                        draft: reopenedDraft,
+                        onClose: {
+                            self.reopenedDraft = nil
+                            homeViewModel.load()
+                        },
+                        onBack: { _ in
+                            self.reopenedDraft = nil
+                            homeViewModel.load()
+                        }
+                    )
+                }
             }
         }
     }
@@ -99,18 +101,21 @@ struct RootView: View {
 /// A real `View` rather than an inline `if` in the sheet closure, so reading
 /// `coordinator.analysisDraft` registers an observation dependency and the swap fires.
 private struct CreateFlowSheet: View {
+
     let container: AppContainer
-    let coordinator: CreateScriptCoordinator
+
+    @Bindable var coordinator: CreateScriptCoordinator
 
     var body: some View {
-        if let draft = coordinator.analysisDraft {
+        CreateFlowView(
+            coordinator: coordinator
+        ) { draft, onClose, onBack in
+
             container.makeTranscriptAnalysisView(
                 draft: draft,
-                onClose: coordinator.close,
-                onBack: coordinator.returnToInput(rejecting:)
+                onClose: onClose,
+                onBack: onBack
             )
-        } else {
-            CreateFlowView(coordinator: coordinator, onAnalyze: coordinator.beginAnalysis)
         }
     }
 }

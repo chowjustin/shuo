@@ -133,4 +133,5 @@ final class AppContainer {
         // schema itself is invalid — a build-time mistake, not a runtime condition.
         preconditionFailure("Could not create a ModelContainer for the Shuo schema")
     }
+    
 }

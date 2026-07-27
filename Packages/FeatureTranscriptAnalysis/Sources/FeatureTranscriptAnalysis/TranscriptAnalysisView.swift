@@ -15,9 +15,7 @@ public struct TranscriptAnalysisView: View {
     @State private var viewModel: TranscriptAnalysisViewModel
     @State private var isConfirmingLeave = false
     @State private var isConfirmingRegenerate = false
-    @State private var isShowingOriginalTranscript = false
-    /// An edited transcript awaiting the modal to finish dismissing before it re-runs the
-    /// analysis.
+    @State private var isShowingOriginalTranscript = false  // 👈 Kembalikan variabel state ini
     @State private var pendingOriginalEdit: String?
     @FocusState private var focusedField: AnalysisField?
     @State private var isRefinedExpanded = true
@@ -25,8 +23,7 @@ public struct TranscriptAnalysisView: View {
     private let onClose: () -> Void
     private let onBack: (ScriptDraft) -> Void
 
-    /// - Parameter onClose: leaves the create flow entirely.
-    /// - Parameter onBack: returns to Input Script carrying the transcript.
+    // 👇 Hapus parameter `onOpenOriginalTranscript` dari inisialisasi
     public init(
         viewModel: TranscriptAnalysisViewModel,
         onClose: @escaping () -> Void,
@@ -38,67 +35,79 @@ public struct TranscriptAnalysisView: View {
     }
 
     public var body: some View {
-        NavigationStack {
-            content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(ShuoColor.background)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    toolbarContent
-                    ToolbarItem(placement: .principal) {
-                        Text("Script Analysis")
-                            .font(.headline)
-                            .foregroundStyle(ShuoColor.primaryTextCream)
-                    }
-                    ToolbarItemGroup(placement: .keyboard) {
-                        Spacer()
-                        Button(action: dismissKeyboard) {
-                            Image(systemName: "checkmark")
-                                .fontWeight(.semibold)
-                        }
-                        .accessibilityLabel("Done editing")
-                    }
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(ShuoColor.background)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                toolbarContent
+                ToolbarItem(placement: .principal) {
+                    Text("Script Analysis")
+                        .font(.headline)
+                        .foregroundStyle(ShuoColor.primaryTextCream)
                 }
-        }
-        .background(ShuoColor.background)
-        .task { viewModel.start() }
-        .onDisappear { viewModel.cancelAll() }
-        .interactiveDismissDisabled(
-            viewModel.viewState.toolbarLayout == .back || viewModel.hasUnsavedChanges
-        )
-        .alert(
-            "Leave without saving your changes?",
-            isPresented: $isConfirmingLeave
-        ) {
-            Button("Save and Close") { viewModel.save { _ in onClose() } }
-            Button("Leave", role: .destructive, action: onClose)
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Your speech is saved. The pattern and transcript changes you made since aren't.")
-        }
-        .sheet(
-            isPresented: $isShowingOriginalTranscript,
-            onDismiss: {
-                if let edited = pendingOriginalEdit {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button(action: dismissKeyboard) {
+                        Image(systemName: "checkmark")
+                            .fontWeight(.semibold)
+                    }
+                    .accessibilityLabel("Done editing")
+                }
+            }
+            .task { viewModel.start() }
+            .onDisappear { viewModel.cancelAll() }
+            // 👇 Ini adalah trik PUSH NATIVE untuk Original Transcript
+            .navigationDestination(isPresented: $isShowingOriginalTranscript) {
+                OriginalTranscriptView(
+                    originalText: viewModel.originalTranscript,
+                    onSave: { edited in
+                        pendingOriginalEdit = edited
+                        isShowingOriginalTranscript = false  // Ini otomatis memicu animasi Back Native (Pop)
+                    },
+                    onCancel: {
+                        isShowingOriginalTranscript = false  // Memicu Back Native (Pop)
+                    }
+                )
+            }
+            .onChange(of: isShowingOriginalTranscript) { _, showing in
+                if !showing, let edited = pendingOriginalEdit {
                     pendingOriginalEdit = nil
                     viewModel.updateOriginalTranscript(edited)
                 }
             }
-        ) {
-            OriginalTranscriptView(
-                originalText: viewModel.originalTranscript,
-                onSave: { pendingOriginalEdit = $0 }
+
+            .interactiveDismissDisabled(
+                viewModel.viewState.toolbarLayout == .back
+                    || viewModel.hasUnsavedChanges
             )
-        }
-        .alert(
-            "Some key points are still empty",
-            isPresented: $isConfirmingRegenerate
-        ) {
-            Button("Generate Anyway") { regenerateNow() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("A few key points haven't been filled in yet. Generating the refined transcript now may lower its quality. You can add the missing points first, or continue anyway.")
-        }
+            .alert(
+                "Leave without saving your changes?",
+                isPresented: $isConfirmingLeave
+            ) {
+                Button("Save and Close") { viewModel.save { _ in onClose() } }
+                Button("Leave", role: .destructive, action: onClose)
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(
+                    "Your speech is saved. The pattern and transcript changes you made since aren't."
+                )
+            }
+            .alert(
+                "Some key points are still empty",
+                isPresented: $isConfirmingRegenerate
+            ) {
+                Button("Generate Anyway") { regenerateNow() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("A few key points haven't been filled in yet...")
+            }
+            .onChange(of: isShowingOriginalTranscript) { _, showing in
+                if !showing, let edited = pendingOriginalEdit {
+                    pendingOriginalEdit = nil
+                    viewModel.updateOriginalTranscript(edited)
+                }
+            }
     }
 
     // MARK: - Toolbar
@@ -148,10 +157,16 @@ public struct TranscriptAnalysisView: View {
     private var content: some View {
         switch viewModel.viewState {
         case .analyzing:
-            LoadingView(systemImage: "sparkles", message: "Analyzing your speech…")
+            LoadingView(
+                systemImage: "sparkles",
+                message: "Analyzing your speech…"
+            )
 
         case .waitingForModel:
-            LoadingView(systemImage: "sparkles", message: "Setting up on-device AI…")
+            LoadingView(
+                systemImage: "sparkles",
+                message: "Setting up on-device AI…"
+            )
 
         case .unavailable(let status):
             errorSheet(AnalysisErrorCopy(availability: status))
@@ -164,7 +179,10 @@ public struct TranscriptAnalysisView: View {
 
         case .loaded:
             if viewModel.isForceRegenerating {
-                LoadingView(systemImage: "sparkles", message: "Refining transcript…")
+                LoadingView(
+                    systemImage: "sparkles",
+                    message: "Refining transcript…"
+                )
             } else {
                 loadedView
             }
@@ -172,7 +190,11 @@ public struct TranscriptAnalysisView: View {
     }
 
     private func errorSheet(_ copy: AnalysisErrorCopy) -> some View {
-        ErrorSheet(systemImage: copy.systemImage, title: copy.title, message: copy.message)
+        ErrorSheet(
+            systemImage: copy.systemImage,
+            title: copy.title,
+            message: copy.message
+        )
     }
 
     // MARK: - Loaded view helpers
@@ -192,13 +214,17 @@ public struct TranscriptAnalysisView: View {
                             .foregroundStyle(ShuoColor.primaryTextCream)
                         Spacer()
                         HStack(spacing: 4) {
-                            Button { viewModel.carousel.selectPrevious() } label: {
+                            Button {
+                                viewModel.carousel.selectPrevious()
+                            } label: {
                                 Image(systemName: "chevron.left")
                                     .font(.caption.weight(.semibold))
                                     .padding(6)
                             }
                             .opacity(0)
-                            Button { viewModel.carousel.selectNext() } label: {
+                            Button {
+                                viewModel.carousel.selectNext()
+                            } label: {
                                 Image(systemName: "chevron.right")
                                     .font(.caption.weight(.semibold))
                                     .padding(6)
@@ -209,13 +235,34 @@ public struct TranscriptAnalysisView: View {
                     PatternCarouselView(viewModel: viewModel.carousel)
 
                     if !viewModel.carousel.patterns.isEmpty {
-                        let activeIndex = viewModel.carousel.patterns.firstIndex(where: { $0.id == viewModel.carousel.selectedPatternID }) ?? 0
+                        let activeIndex =
+                            viewModel.carousel.patterns.firstIndex(where: {
+                                $0.id == viewModel.carousel.selectedPatternID
+                            }) ?? 0
                         HStack(spacing: 6) {
-                            ForEach(viewModel.carousel.patterns.indices, id: \.self) { index in
+                            ForEach(
+                                viewModel.carousel.patterns.indices,
+                                id: \.self
+                            ) { index in
                                 Circle()
-                                    .fill(index == activeIndex ? ShuoColor.primaryTextAqua : ShuoColor.primaryTextAqua.opacity(0.3))
-                                    .frame(width: index == activeIndex ? 8 : 6, height: index == activeIndex ? 8 : 6)
-                                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: activeIndex)
+                                    .fill(
+                                        index == activeIndex
+                                            ? ShuoColor.primaryTextAqua
+                                            : ShuoColor.primaryTextAqua.opacity(
+                                                0.3
+                                            )
+                                    )
+                                    .frame(
+                                        width: index == activeIndex ? 8 : 6,
+                                        height: index == activeIndex ? 8 : 6
+                                    )
+                                    .animation(
+                                        .spring(
+                                            response: 0.3,
+                                            dampingFraction: 0.7
+                                        ),
+                                        value: activeIndex
+                                    )
                             }
                         }
                         .frame(maxWidth: .infinity)
@@ -227,7 +274,9 @@ public struct TranscriptAnalysisView: View {
                     keyPoints: viewModel.keyPoints,
                     isGenerating: viewModel.isGeneratingKeyPoints,
                     focusedField: $focusedField,
-                    onEdit: { id, text in viewModel.updateKeyPoint(id: id, text: text) }
+                    onEdit: { id, text in
+                        viewModel.updateKeyPoint(id: id, text: text)
+                    }
                 )
 
                 if viewModel.isRegeneratingTranscript {
@@ -294,22 +343,34 @@ public struct TranscriptAnalysisView: View {
                     .foregroundStyle(Color.black)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
-                    .background(Color(red: 222/255, green: 222/255, blue: 222/255), in: Capsule())
+                    .background(
+                        Color(
+                            red: 222 / 255,
+                            green: 222 / 255,
+                            blue: 222 / 255
+                        ),
+                        in: Capsule()
+                    )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityLabel("Speech purpose: \(viewModel.draft.purpose.title)")
+            .accessibilityLabel(
+                "Speech purpose: \(viewModel.draft.purpose.title)"
+            )
 
             Button {
                 isShowingOriginalTranscript = true
             } label: {
                 Text("View Original Transcript")
-                    .underline()
-            }
-            .font(ShuoTypography.caption)
-            .foregroundStyle(ShuoColor.pink)
+            } .underline()
         }
-        .onChange(of: focusedField) { oldValue, newValue in
-            if oldValue == .title, newValue != .title { viewModel.commitTitle() }
+        .onChange(of: isShowingOriginalTranscript) { _, showing in
+            if !showing,
+                let edited = pendingOriginalEdit
+            {
+
+                pendingOriginalEdit = nil
+                viewModel.updateOriginalTranscript(edited)
+            }
         }
     }
 
@@ -325,12 +386,16 @@ public struct TranscriptAnalysisView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(ShuoColor.pink, in: RoundedRectangle(cornerRadius: 8))
+                    .background(
+                        ShuoColor.pink,
+                        in: RoundedRectangle(cornerRadius: 8)
+                    )
 
                 Spacer()
 
                 Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8))
+                    {
                         isRefinedExpanded.toggle()
                     }
                 } label: {
@@ -338,7 +403,10 @@ public struct TranscriptAnalysisView: View {
                         .font(.title2.weight(.semibold))
                         .foregroundStyle(ShuoColor.primaryTextCream)
                         .rotationEffect(.degrees(isRefinedExpanded ? 180 : 0))
-                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isRefinedExpanded)
+                        .animation(
+                            .spring(response: 0.3, dampingFraction: 0.8),
+                            value: isRefinedExpanded
+                        )
                 }
                 .buttonStyle(.plain)
             }
@@ -346,10 +414,14 @@ public struct TranscriptAnalysisView: View {
             if isRefinedExpanded {
                 refinedTranscriptBody
 
-                if !isEditingRefined, !viewModel.refinedHighlightRanges.isEmpty {
-                    Label("Highlighted text matches your key points.", systemImage: "highlighter")
-                        .font(.caption2)
-                        .foregroundStyle(ShuoColor.secondaryText)
+                if !isEditingRefined, !viewModel.refinedHighlightRanges.isEmpty
+                {
+                    Label(
+                        "Highlighted text matches your key points.",
+                        systemImage: "highlighter"
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(ShuoColor.secondaryText)
                 }
             }
         }
@@ -368,7 +440,10 @@ public struct TranscriptAnalysisView: View {
                 .foregroundStyle(ShuoColor.secondaryTextCream)
                 .padding(16)
                 .focused($focusedField, equals: .refined)
-                .background(ShuoColor.background, in: RoundedRectangle(cornerRadius: 14))
+                .background(
+                    ShuoColor.background,
+                    in: RoundedRectangle(cornerRadius: 14)
+                )
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
                         .strokeBorder(ShuoColor.pink, lineWidth: 1.5)
@@ -384,7 +459,10 @@ public struct TranscriptAnalysisView: View {
             .font(.body)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
-            .background(ShuoColor.background, in: RoundedRectangle(cornerRadius: 14))
+            .background(
+                ShuoColor.background,
+                in: RoundedRectangle(cornerRadius: 14)
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
                     .strokeBorder(ShuoColor.pink, lineWidth: 1.5)
@@ -402,17 +480,22 @@ public struct TranscriptAnalysisView: View {
                 .font(.headline)
                 .foregroundStyle(ShuoColor.primaryTextCream)
 
-            Text("Generate a rewritten version of your speech, structured to this pattern and built from your key points.")
-                .font(.caption)
-                .foregroundStyle(ShuoColor.secondaryTextCream)
-                .fixedSize(horizontal: false, vertical: true)
+            Text(
+                "Generate a rewritten version of your speech, structured to this pattern and built from your key points."
+            )
+            .font(.caption)
+            .foregroundStyle(ShuoColor.secondaryTextCream)
+            .fixedSize(horizontal: false, vertical: true)
 
             Button("Generate Refined Transcript") { requestRegenerate() }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(ShuoColor.pink, in: RoundedRectangle(cornerRadius: 8))
+                .background(
+                    ShuoColor.pink,
+                    in: RoundedRectangle(cornerRadius: 8)
+                )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -438,42 +521,44 @@ public struct TranscriptAnalysisView: View {
                 .font(.caption)
         }
         .padding(12)
-        .background(ShuoColor.error.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+        .background(
+            ShuoColor.error.opacity(0.1),
+            in: RoundedRectangle(cornerRadius: 12)
+        )
     }
 
 }
 
 #if DEBUG
 
-// MARK: - Previews (doubles live in PreviewDoubles.swift)
+    // MARK: - Previews (doubles live in PreviewDoubles.swift)
 
-#Preview("Loaded") {
-    _AnalysisPreviewHost(behavior: .instant)
-}
-
-#Preview("Analyzing") {
-    _AnalysisPreviewHost(behavior: .neverReturns)
-}
-
-#Preview("Failed") {
-    _AnalysisPreviewHost(behavior: .failing(.aiGenerationFailed))
-}
-
-private struct _AnalysisPreviewHost: View {
-    let behavior: PreviewSpeechAnalyzing.Behavior
-    @State private var isPresented = true
-
-    var body: some View {
-        Color(.systemGroupedBackground)
-            .ignoresSafeArea()
-            .sheet(isPresented: $isPresented) {
-                TranscriptAnalysisView(
-                    viewModel: .preview(behavior: behavior),
-                    onClose: { isPresented = false },
-                    onBack: { _ in isPresented = false }
-                )
-            }
+    #Preview("Loaded") {
+        _AnalysisPreviewHost(behavior: .instant)
     }
-}
-#endif
 
+    #Preview("Analyzing") {
+        _AnalysisPreviewHost(behavior: .neverReturns)
+    }
+
+    #Preview("Failed") {
+        _AnalysisPreviewHost(behavior: .failing(.aiGenerationFailed))
+    }
+
+    private struct _AnalysisPreviewHost: View {
+        let behavior: PreviewSpeechAnalyzing.Behavior
+        @State private var isPresented = true
+
+        var body: some View {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
+                .sheet(isPresented: $isPresented) {
+                    TranscriptAnalysisView(
+                        viewModel: .preview(behavior: behavior),
+                        onClose: { isPresented = false },
+                        onBack: { _ in isPresented = false }
+                    )
+                }
+        }
+    }
+#endif
