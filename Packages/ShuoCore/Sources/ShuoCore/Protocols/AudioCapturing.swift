@@ -37,6 +37,19 @@ public protocol AudioCapturing: Sendable {
     /// Suspends capture, retaining audio captured so far.
     func pause() async throws
 
+    /// A single playable file containing everything captured so far, for replaying a take
+    /// mid-session without ending it.
+    ///
+    /// Only meaningful while paused, and that is not an arbitrary restriction: an audio
+    /// file being written to is not yet a valid file to read, so producing this is what
+    /// *makes* the audio so far playable. The url is owned by the session and is not the
+    /// url `finish()` will return — treat it as valid until the next `resume()`.
+    ///
+    /// - Precondition: the session is paused. Calling this while recording throws.
+    /// - Throws: `ShuoError.recordingFailed` if nothing has been captured yet, or the
+    ///   captured audio could not be assembled into one file.
+    func previewURL() async throws -> URL
+
     /// Continues a paused session. Duration and waveform resume from where they stopped.
     func resume() async throws
 

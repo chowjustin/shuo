@@ -14,6 +14,11 @@ import SwiftUI
 public struct SpeakModeView: View {
     private let viewModel: SpeakModeViewModel
 
+    /// The inline replay control beside the waveform. Smaller than `CircularIconButton` on
+    /// purpose: hearing the take back sits *under* recording it in the hierarchy, and two
+    /// controls of equal weight would read as two equally likely next steps.
+    private static let replayButtonDiameter: CGFloat = 44
+
     public init(viewModel: SpeakModeViewModel) {
         self.viewModel = viewModel
     }
@@ -23,7 +28,7 @@ public struct SpeakModeView: View {
             contentArea
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            controlButton
+            controls
                 .padding(.bottom, 40)
         }
         .task { await viewModel.prepare() }
@@ -65,16 +70,52 @@ public struct SpeakModeView: View {
 
     private var capturePanel: some View {
         VStack(spacing: ShuoSpacing.xLarge) {
-            WaveformView(samples: viewModel.displaySamples)
+            HStack(spacing: ShuoSpacing.medium) {
+                if viewModel.canReplay {
+                    replayButton
+                }
 
-            Text(viewModel.formattedDuration)
+                // The playhead only dims bars while something is actually playing, so a
+                // paused take still reads as a whole recording rather than a half-empty one.
+                WaveformView(
+                    samples: viewModel.displaySamples,
+                    progress: viewModel.isPlayingBack ? viewModel.playbackProgress : nil
+                )
+            }
+
+            Text(viewModel.formattedTimeLabel)
                 .font(.subheadline.monospacedDigit())
                 .foregroundStyle(ShuoColor.primaryText)
-                .accessibilityLabel("Recorded \(viewModel.formattedDuration)")
+                .accessibilityLabel(
+                    viewModel.isPlayingBack
+                        ? "Playing, \(viewModel.formattedTimeLabel)"
+                        : "Recorded \(viewModel.formattedDuration)"
+                )
+
+            if let playbackError = viewModel.playbackError {
+                Text(playbackError)
+                    .font(.caption)
+                    .foregroundStyle(ShuoColor.error)
+                    .multilineTextAlignment(.center)
+            }
 
             debugTranscriptPanel // DEBUG_LIVE_TRANSCRIPT
         }
         .padding(.horizontal, ShuoSpacing.large)
+    }
+
+    private var replayButton: some View {
+        Button(action: viewModel.togglePlayback) {
+            ZStack {
+                Circle().stroke(ShuoColor.pink, lineWidth: 2)
+                Image(systemName: viewModel.isPlayingBack ? "pause.fill" : "play.fill")
+                    .font(.headline)
+                    .foregroundStyle(ShuoColor.pink)
+            }
+            .frame(width: Self.replayButtonDiameter, height: Self.replayButtonDiameter)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(viewModel.isPlayingBack ? "Pause playback" : "Play recording")
     }
 
     private func messagePanel(
@@ -100,7 +141,20 @@ public struct SpeakModeView: View {
         }
     }
 
-    // MARK: - Control button
+    // MARK: - Controls
+
+    /// The primary record control, with Retake beneath it once there is a take to replace
+    /// — the same pairing, in the same place, as Attach File's Reupload File.
+    private var controls: some View {
+        VStack(spacing: ShuoSpacing.medium) {
+            controlButton
+
+            if viewModel.canRetake {
+                PillButton("Retake") { viewModel.retake() }
+                    .accessibilityLabel("Retake recording")
+            }
+        }
+    }
 
     @ViewBuilder
     private var controlButton: some View {
@@ -109,9 +163,11 @@ public struct SpeakModeView: View {
             recordButton(icon: "mic.fill", emphasis: .filled, label: "Start recording")
         case .recording:
             recordButton(icon: "pause.fill", emphasis: .outlined, label: "Pause recording")
-        case .paused, .finished:
+        case .paused:
             recordButton(icon: "play.fill", emphasis: .filled, label: "Resume recording")
-        case .requestingPermission, .permissionDenied, .failed:
+        // A finished take's session is over and cannot be added to — offering a resume
+        // control that could only fail would be worse than offering none.
+        case .finished, .requestingPermission, .permissionDenied, .failed:
             EmptyView()
         }
     }
@@ -153,3 +209,10 @@ public struct SpeakModeView: View {
     }
     // MARK: END DEBUG_LIVE_TRANSCRIPT
 }
+
+#if DEBUG
+#Preview("Idle") {
+    SpeakModeView(viewModel: .preview())
+        .background(ShuoColor.background)
+}
+#endif

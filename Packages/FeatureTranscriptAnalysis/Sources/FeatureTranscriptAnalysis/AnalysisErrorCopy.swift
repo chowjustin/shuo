@@ -146,10 +146,10 @@ struct AnalysisErrorCopy: Equatable {
         case .fileTooLarge, .mediaTooLong, .mediaTooShort, .unsupportedMediaType,
              .importFailed, .audioExtractionFailed, .speechPermissionDenied,
              .speechModelUnavailable, .noSpeechDetected, .transcriptionFailed,
-             .microphonePermissionDenied, .recordingFailed:
-            // Not reachable from this screen: these belong to import, recording, and
-            // transcription, which finish before analysis begins and own their own copy in
-            // `TranscriptionErrorCopy`. Kept generic rather than duplicated.
+             .microphonePermissionDenied, .recordingFailed, .playbackFailed:
+            // Not reachable from this screen: these belong to import, recording, replay,
+            // and transcription, which all happen on Input Script and own their own copy
+            // there. Kept generic rather than duplicated.
             self.init(
                 systemImage: "exclamationmark.triangle.fill",
                 title: "Something went wrong.",

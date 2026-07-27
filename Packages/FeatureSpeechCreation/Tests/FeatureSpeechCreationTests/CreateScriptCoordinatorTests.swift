@@ -39,8 +39,10 @@ struct CreateScriptCoordinatorTests {
             return InputScriptViewModel(
                 purpose: purpose,
                 fileImporter: FakeFileImporting(throwing: ShuoError.importFailed),
-                audioCapturer: FakeAudioCapturing(),
+                makeAudioCapturer: { FakeAudioCapturing() },
                 microphonePermissions: FakeMicrophonePermissionProviding(status: .granted),
+                audioPlayer: FakeAudioPlaying(),
+                recordingDeleter: FakeAudioRecordingDeleting(),
                 generateTranscript: GenerateTranscriptUseCase(
                     transcriber: FakeSpeechTranscribing(returning: "")
                 ),
@@ -60,29 +62,47 @@ struct CreateScriptCoordinatorTests {
         return (coordinator, factory)
     }
 
+    /// Drives the coordinator to a live analysis step the way the flow reaches it: pick a
+    /// purpose, write a speech, confirm, and hand transcription's result on.
+    private func makeCoordinatorOnAnalysis(
+        text: String = CreateScriptCoordinatorTests.transcript
+    ) async -> (CreateScriptCoordinator, InputFactory, ScriptDraft) {
+        let (coordinator, factory) = makeCoordinator()
+        coordinator.selectPurpose(.persuade)
+        let input = coordinator.inputViewModel
+        input?.mode = .write
+        input?.writeVM.content = text
+        await coordinator.confirmInput()
+
+        let draft = input?.makeDraft(from: Transcript(original: text))
+            ?? Self.draft(purpose: .persuade)
+        coordinator.beginAnalysis(draft)
+        return (coordinator, factory, draft)
+    }
+
     // MARK: - Stepping forward
 
     @Test("starts on the purpose step, with nothing selected and no input step built")
     func startsAtPurpose() {
         let (coordinator, factory) = makeCoordinator()
 
-        #expect(coordinator.step == .purpose)
+        #expect(coordinator.path.isEmpty)
         #expect(coordinator.selectedPurpose == nil)
         #expect(coordinator.inputViewModel == nil)
         #expect(factory.requests.isEmpty)
     }
 
-    @Test("selecting a purpose moves to the input step and builds it for that purpose")
+    @Test("selecting a purpose pushes the input step and builds it for that purpose")
     func selectPurposeBuildsTheInputStep() {
         let (coordinator, factory) = makeCoordinator()
 
         coordinator.selectPurpose(.persuade)
 
-        #expect(coordinator.step == .input)
+        #expect(coordinator.path == [.input])
         #expect(coordinator.selectedPurpose == .persuade)
         #expect(coordinator.inputViewModel?.purpose == .persuade)
         #expect(factory.requests.count == 1)
-        // A fresh start seeds nothing — only the rejection path passes text.
+        // A fresh start seeds nothing — only a rebuilt step is handed text.
         #expect(factory.requests.first?.initialText == nil)
     }
 
@@ -93,50 +113,54 @@ struct CreateScriptCoordinatorTests {
         coordinator.selectPurpose(.inform)
         coordinator.selectPurpose(.inspire)
 
+        #expect(coordinator.path == [.input])
         #expect(coordinator.selectedPurpose == .inspire)
         #expect(coordinator.inputViewModel?.purpose == .inspire)
     }
 
-    @Test("the loading step is refused until there is transcription work to show")
-    func beginLoadingRequiresWork() {
-        // Otherwise ✓ on an empty mode would strand the user on a spinner with nothing
-        // behind it.
+    @Test("confirming a mode with nothing in it leaves the user on the input step")
+    func confirmingAnEmptyModeGoesNowhere() async {
+        // Otherwise ✓ would strand them on a spinner with nothing to transcribe.
         let (coordinator, _) = makeCoordinator()
         coordinator.selectPurpose(.persuade)
 
-        coordinator.beginLoading()
+        await coordinator.confirmInput()
 
-        #expect(coordinator.step == .input)
+        #expect(coordinator.path == [.input])
+        #expect(coordinator.inputViewModel?.loadingVM == nil)
     }
 
-    @Test("beginning analysis is where unconfirmed modes are released, not confirming")
-    func beginAnalysisDiscardsUnconfirmedModes() async {
-        // Everything before this point is reversible — a failed transcription returns to a
-        // step with all three modes intact. Analysis is the first moment nothing can reach
-        // them, which is why the release happens here and not at confirm time.
+    @Test("confirming real content opens the transcription step")
+    func confirmingOpensTranscription() async {
         let (coordinator, _) = makeCoordinator()
         coordinator.selectPurpose(.persuade)
-        let input = try! #require(coordinator.inputViewModel)
-        input.writeVM.content = "Typed draft."
-        input.mode = .speak
+        coordinator.inputViewModel?.mode = .write
+        coordinator.inputViewModel?.writeVM.content = Self.transcript
 
-        coordinator.beginAnalysis(Self.draft(purpose: .persuade))
+        await coordinator.confirmInput()
 
-        #expect(input.writeVM.content.isEmpty)
+        #expect(coordinator.path == [.input, .loading])
+        #expect(coordinator.inputViewModel?.loadingVM != nil)
     }
 
-    @Test("beginning analysis replaces the input step rather than keeping it alive")
-    func beginAnalysisReleasesTheInputStep() {
-        let (coordinator, _) = makeCoordinator()
-        coordinator.selectPurpose(.persuade)
-        let draft = Self.draft(purpose: .persuade)
+    @Test("beginning analysis keeps the input step alive behind it")
+    func beginAnalysisKeepsTheInputStep() async {
+        // The whole point of the back button on the analysis screen: the step behind it
+        // still holds the user's recording, and stepping back has to find it there.
+        let (coordinator, _, draft) = await makeCoordinatorOnAnalysis()
 
-        coordinator.beginAnalysis(draft)
-
-        #expect(coordinator.step == .analysis(draft))
+        #expect(coordinator.path == [.input, .analysis])
         #expect(coordinator.analysisDraft == draft)
-        // Held state would keep an abandoned recorder alive behind the analysis screen.
-        #expect(coordinator.inputViewModel == nil)
+        #expect(coordinator.inputViewModel != nil)
+    }
+
+    @Test("analysis replaces the transcription step rather than stacking on it")
+    func beginAnalysisDropsTheLoadingStep() async {
+        // ‹ from analysis belongs on Input Script, not on a loading screen the user has
+        // already passed through.
+        let (coordinator, _, _) = await makeCoordinatorOnAnalysis()
+
+        #expect(!coordinator.path.contains(.loading))
     }
 
     // MARK: - Stepping back
@@ -148,7 +172,7 @@ struct CreateScriptCoordinatorTests {
 
         coordinator.dismissInputScript()
 
-        #expect(coordinator.step == .purpose)
+        #expect(coordinator.path.isEmpty)
         #expect(coordinator.selectedPurpose == nil)
         #expect(coordinator.inputViewModel == nil)
     }
@@ -159,53 +183,144 @@ struct CreateScriptCoordinatorTests {
 
         coordinator.dismissInputScript()
 
-        #expect(coordinator.step == .purpose)
+        #expect(coordinator.path.isEmpty)
         #expect(coordinator.selectedPurpose == nil)
     }
 
-    // MARK: - Returning a rejected transcript to Input Script
-
-    @Test("returning a rejected draft leaves analysis and reopens Input Script on its purpose")
-    func returnToInputRestoresThePurpose() {
-        // The one place the flow moves backwards: "this isn't a speech" is precisely the
-        // verdict whose fix lives on the earlier screen.
+    @Test("leaving transcription keeps the same step, so nothing typed is rebuilt")
+    func dismissLoadingKeepsTheLiveStep() async {
         let (coordinator, _) = makeCoordinator()
-        let draft = Self.draft(purpose: .inspire)
-        coordinator.beginAnalysis(draft)
+        coordinator.selectPurpose(.persuade)
+        coordinator.inputViewModel?.title = "Draft title"
+        coordinator.inputViewModel?.mode = .write
+        coordinator.inputViewModel?.writeVM.content = Self.transcript
+        await coordinator.confirmInput()
+        let stepBefore = coordinator.inputViewModel
 
-        coordinator.returnToInput(rejecting: draft)
+        coordinator.dismissLoading()
 
-        #expect(coordinator.step == .input)
-        #expect(coordinator.analysisDraft == nil)
-        #expect(coordinator.selectedPurpose == .inspire)
+        #expect(coordinator.path == [.input])
+        #expect(coordinator.inputViewModel?.title == "Draft title")
+        #expect(coordinator.inputViewModel === stepBefore)
     }
 
-    @Test("the rejected transcript seeds the rebuilt step, so the user does not re-record it")
-    func returnToInputSeedsTheTranscript() {
+    // MARK: - Back from analysis
+
+    @Test("stepping back from analysis returns to the very same input step")
+    func returnToInputResumesTheStep() async {
+        // Rebuilding it would cost the user their recording, which is the one thing this
+        // path exists to preserve.
+        let (coordinator, factory, draft) = await makeCoordinatorOnAnalysis()
+        let stepBefore = coordinator.inputViewModel
+
+        coordinator.returnToInput(from: draft)
+
+        #expect(coordinator.path == [.input])
+        #expect(coordinator.inputViewModel === stepBefore)
+        // One build, at selectPurpose — nothing was reconstructed on the way back.
+        #expect(factory.requests.count == 1)
+    }
+
+    @Test("the analysis is retained on the way back, ready to be returned to")
+    func returnToInputRetainsTheAnalysis() async {
+        let (coordinator, _, draft) = await makeCoordinatorOnAnalysis()
+
+        coordinator.returnToInput(from: draft)
+
+        #expect(coordinator.analysisDraft == draft)
+    }
+
+    @Test("stepping back restores the title the analysis screen was showing")
+    func returnToInputRestoresTheTitle() async {
+        let (coordinator, _, _) = await makeCoordinatorOnAnalysis()
+        var draft = Self.draft(purpose: .persuade)
+        draft.title = "Why remote work stuck"
+
+        coordinator.returnToInput(from: draft)
+
+        #expect(coordinator.inputViewModel?.title == "Why remote work stuck")
+    }
+
+    @Test("the untitled placeholder is not restored as if the user had typed it")
+    func returnToInputDoesNotRestoreThePlaceholder() async {
+        // `makeDraft` substitutes this when the field was blank, so writing it back would
+        // turn a placeholder into real content the user would have to delete.
+        let (coordinator, _, _) = await makeCoordinatorOnAnalysis()
+        var draft = Self.draft(purpose: .persuade)
+        draft.title = InputScriptViewModel.untitledTitle
+
+        coordinator.returnToInput(from: draft)
+
+        #expect(coordinator.inputViewModel?.title.isEmpty == true)
+    }
+
+    @Test("a rejected transcript is left waiting in Write mode, not forced onto the screen")
+    func returnToInputStashesTheTranscript() async {
+        // The user recorded; they come back to their recording. The words are there if
+        // they go looking for them, which is what a rejection asks them to do.
+        let (coordinator, _, _) = await makeCoordinatorOnAnalysis(text: "Recorded speech.")
+        coordinator.inputViewModel?.mode = .speak
+        coordinator.inputViewModel?.writeVM.content = ""
+
+        coordinator.returnToInput(from: Self.draft(purpose: .persuade))
+
+        #expect(coordinator.inputViewModel?.mode == .speak)
+        #expect(coordinator.inputViewModel?.writeVM.content == Self.transcript)
+    }
+
+    @Test("a released input step is rebuilt rather than stranding the user")
+    func returnToInputRebuildsWhenThereIsNoStep() {
         let (coordinator, factory) = makeCoordinator()
         let draft = Self.draft(purpose: .inform)
+        coordinator.beginAnalysis(draft)
 
-        coordinator.returnToInput(rejecting: draft)
+        coordinator.returnToInput(from: draft)
 
+        #expect(coordinator.path == [.input])
+        #expect(coordinator.selectedPurpose == .inform)
         #expect(factory.requests.last?.initialText == Self.transcript)
-        #expect(coordinator.inputViewModel?.writeVM.content == Self.transcript)
-        // Write mode, not Speak: the user already has the words and needs to change them.
         #expect(coordinator.inputViewModel?.mode == .write)
     }
 
-    @Test("a rebuilt step is a fresh one, so the transcript is not resurrected later")
-    func rebuiltStepDoesNotLeakIntoTheNextSpeech() {
-        // Read-once by construction: the seed is passed at build time rather than parked on
-        // the coordinator, so returning to Purpose and starting over cannot pick it up.
-        let (coordinator, factory) = makeCoordinator()
-        coordinator.returnToInput(rejecting: Self.draft(purpose: .inform))
+    // MARK: - Confirming again after stepping back
 
-        coordinator.dismissInputScript()
-        coordinator.selectPurpose(.inform)
+    @Test("confirming unchanged input returns to the analysis instead of redoing it")
+    func reconfirmingUnchangedInputSkipsTranscription() async {
+        // The expensive half of this app is on-device generation. Reproducing an analysis
+        // the user already has, for input they did not touch, is the one cost worth
+        // engineering away here.
+        let (coordinator, _, draft) = await makeCoordinatorOnAnalysis()
+        coordinator.returnToInput(from: draft)
 
-        #expect(factory.requests.last?.initialText == nil)
-        #expect(coordinator.inputViewModel?.writeVM.content.isEmpty == true)
-        #expect(coordinator.inputViewModel?.mode == .speak)
+        await coordinator.confirmInput()
+
+        #expect(coordinator.path == [.input, .analysis])
+        // The same draft id is what lets the composition root hand back the same screen.
+        #expect(coordinator.analysisDraft?.id == draft.id)
+    }
+
+    @Test("a rename made on the way back travels into the analysis being returned to")
+    func reconfirmingCarriesARenameForward() async {
+        let (coordinator, _, draft) = await makeCoordinatorOnAnalysis()
+        coordinator.returnToInput(from: draft)
+        coordinator.inputViewModel?.title = "Why remote work stuck"
+
+        await coordinator.confirmInput()
+
+        #expect(coordinator.analysisDraft?.title == "Why remote work stuck")
+        #expect(coordinator.analysisDraft?.id == draft.id)
+    }
+
+    @Test("confirming changed input transcribes again rather than reusing the analysis")
+    func reconfirmingChangedInputStartsOver() async {
+        let (coordinator, _, draft) = await makeCoordinatorOnAnalysis()
+        coordinator.returnToInput(from: draft)
+        coordinator.inputViewModel?.writeVM.content = "An entirely different speech."
+
+        await coordinator.confirmInput()
+
+        #expect(coordinator.path == [.input, .loading])
+        #expect(coordinator.analysisDraft == nil)
     }
 
     // MARK: - Leaving
@@ -231,48 +346,19 @@ struct CreateScriptCoordinatorTests {
         #expect(finished)
         // Leaving must not strand a live recorder behind a dismissed sheet.
         #expect(coordinator.inputViewModel == nil)
-    }
-    // MARK: - Carrying the user's typing back
-
-    @Test("returning from analysis restores the title the user typed")
-    func returnToInputRestoresTheTitle() {
-        // The step is rebuilt rather than resumed, so anything typed has to be carried back
-        // explicitly or it is silently lost on the way out of a failure.
-        let (coordinator, _) = makeCoordinator()
-        var draft = Self.draft(purpose: .inform)
-        draft.title = "Why remote work stuck"
-
-        coordinator.returnToInput(rejecting: draft)
-
-        #expect(coordinator.inputViewModel?.title == "Why remote work stuck")
+        #expect(coordinator.path.isEmpty)
     }
 
-    @Test("the untitled placeholder is not restored as if the user had typed it")
-    func returnToInputDoesNotRestoreThePlaceholder() {
-        // `makeDraft` substitutes this when the field was blank, so writing it back would
-        // turn a placeholder into real content the user would have to delete.
-        let (coordinator, _) = makeCoordinator()
-        var draft = Self.draft(purpose: .inform)
-        draft.title = InputScriptViewModel.untitledTitle
+    @Test("close from analysis releases the retained analysis too")
+    func closeFromAnalysisReleasesEverything() async {
+        // This is the moment the recording is deleted, so nothing may outlive it still
+        // pointing at a file that is gone.
+        let (coordinator, _, _) = await makeCoordinatorOnAnalysis()
 
-        coordinator.returnToInput(rejecting: draft)
+        coordinator.close()
 
-        #expect(coordinator.inputViewModel?.title.isEmpty == true)
+        #expect(coordinator.analysisDraft == nil)
+        #expect(coordinator.inputViewModel == nil)
+        #expect(coordinator.path.isEmpty)
     }
-
-    @Test("returning from transcription keeps the same step, so the title is never rebuilt")
-    func dismissLoadingKeepsTheTypedTitle() {
-        // The other back path. It reuses the live step rather than rebuilding it, so this
-        // guards against a future refactor quietly making it rebuild too.
-        let (coordinator, _) = makeCoordinator()
-        coordinator.selectPurpose(.persuade)
-        coordinator.inputViewModel?.title = "Draft title"
-        let stepBefore = coordinator.inputViewModel
-
-        coordinator.dismissLoading()
-
-        #expect(coordinator.inputViewModel?.title == "Draft title")
-        #expect(coordinator.inputViewModel === stepBefore)
-    }
-
 }

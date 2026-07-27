@@ -21,13 +21,17 @@ public struct TranscriptAnalysisView: View {
     @State private var isRefinedExpanded = true
     @State private var isEditingRefined = false
     private let onClose: () -> Void
-    private let onBack: (ScriptDraft) -> Void
+    private let onBack: ((ScriptDraft) -> Void)?
 
-    // 👇 Hapus parameter `onOpenOriginalTranscript` dari inisialisasi
+    /// - Parameters:
+    ///   - onClose: the user is done with this screen and with the flow behind it.
+    ///   - onBack: return to Input Script, carrying the draft. `nil` when there is no
+    ///     Input Script to return to — a script reopened from the library was opened
+    ///     straight onto this screen — which is what hides ‹ there.
     public init(
         viewModel: TranscriptAnalysisViewModel,
         onClose: @escaping () -> Void,
-        onBack: @escaping (ScriptDraft) -> Void
+        onBack: ((ScriptDraft) -> Void)? = nil
     ) {
         _viewModel = State(wrappedValue: viewModel)
         self.onClose = onClose
@@ -77,9 +81,10 @@ public struct TranscriptAnalysisView: View {
                 }
             }
 
+            // Mid-create-flow a swipe would tear the whole flow down rather than step back,
+            // and unsaved edits are worth more than an accidental gesture either way.
             .interactiveDismissDisabled(
-                viewModel.viewState.toolbarLayout == .back
-                    || viewModel.hasUnsavedChanges
+                controls.showsBack || viewModel.hasUnsavedChanges
             )
             .alert(
                 "Leave without saving your changes?",
@@ -112,19 +117,15 @@ public struct TranscriptAnalysisView: View {
 
     // MARK: - Toolbar
 
-    /// **Two buttons on `.loaded`, one everywhere else.**
+    private var controls: AnalysisToolbarControls {
+        AnalysisToolbarControls(state: viewModel.viewState, canReturnToInput: onBack != nil)
+    }
+
+    /// ‹ to step back to Input Script, ✓ to finish. Never an ✕: leaving and discarding are
+    /// the same gesture here, and the prompt behind ✓ is what separates them.
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        switch viewModel.viewState.toolbarLayout {
-        case .leaveAndSave:
-            ToolbarItem(placement: .topBarLeading) {
-                Button(action: leave) {
-                    Image(systemName: "xmark")
-                }
-                .accessibilityLabel("Close")
-            }
-
-        case .back:
+        if controls.showsBack {
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: goBack) {
                     Image(systemName: "chevron.left")
@@ -132,12 +133,22 @@ public struct TranscriptAnalysisView: View {
                 .accessibilityLabel("Back to input")
             }
         }
+
+        if controls.showsFinish {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: finish) {
+                    Image(systemName: "checkmark")
+                }
+                .accessibilityLabel("Done")
+            }
+        }
     }
 
     // MARK: - Actions
 
-    /// ✕, from `.loaded` only.
-    private func leave() {
+    /// ✓. Done with the script — but never at the cost of unsaved work, so anything
+    /// outstanding is put to the user first.
+    private func finish() {
         if viewModel.hasUnsavedChanges {
             isConfirmingLeave = true
         } else {
@@ -145,10 +156,11 @@ public struct TranscriptAnalysisView: View {
         }
     }
 
-    /// ‹, from every state except `.loaded`.
+    /// ‹. Back to Input Script with the draft, leaving this screen's state intact: the
+    /// user can return to it, and the recording behind it is still theirs to replay.
     private func goBack() {
         viewModel.cancelAll()
-        onBack(viewModel.draft)
+        onBack?(viewModel.draft)
     }
 
     // MARK: - States

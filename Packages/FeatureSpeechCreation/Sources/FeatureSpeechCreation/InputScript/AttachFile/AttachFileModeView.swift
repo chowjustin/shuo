@@ -123,17 +123,9 @@ public struct AttachFileModeView: View {
     }
 
     private var reuploadButton: some View {
-        Button("Reupload File") {
+        PillButton("Reupload File") {
             viewModel.isPickerPresented = true
         }
-        .font(.body)
-        .foregroundStyle(ShuoColor.pink)
-        .padding(.horizontal, 32)
-        .padding(.vertical, 14)
-        .background(
-            Capsule()
-                .stroke(ShuoColor.pink, lineWidth: 2)
-        )
         .accessibilityLabel("Reupload file")
     }
 

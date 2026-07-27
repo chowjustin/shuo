@@ -25,6 +25,11 @@ final class AppContainer {
 
     private let fileImportService: any FileImporting = FileImportService()
     private let microphonePermissions: any MicrophonePermissionProviding = MicrophonePermissionProvider()
+    // Shared, unlike `AudioRecordingService`: one player serves every replay the user
+    // asks for, across takes and across create flows, and holds no per-item state
+    // between them.
+    private let audioPlayer: any AudioPlaying = AudioPlaybackService()
+    private let recordingDeleter: any AudioRecordingDeleting = AudioRecordingFileStore()
     // Stateless and safe to share, unlike `AudioRecordingService` below: each call
     // builds its own analyzer session and tears it down again.
     private let speechTranscriber: any SpeechTranscribing = SpeechTranscribingRouter()
@@ -73,23 +78,21 @@ final class AppContainer {
         )
     }
 
+    /// Builds the analysis step's view model.
+    ///
+    /// Handed back rather than wrapped in its view because the *caller* decides how long it
+    /// lives: stepping back to Input Script pops the analysis view off the navigation
+    /// stack, and a view model owned by that view would go with it — taking the patterns,
+    /// key points and edits the user is about to return to.
     @MainActor
-    func makeTranscriptAnalysisView(
-        draft: ScriptDraft,
-        onClose: @escaping () -> Void,
-        onBack: @escaping (ScriptDraft) -> Void
-    ) -> TranscriptAnalysisView {
-        TranscriptAnalysisView(
-            viewModel: TranscriptAnalysisViewModel(
-                draft: draft,
-                availability: availabilityChecker,
-                classifyTranscript: ClassifyTranscriptUseCase(analyzer: speechAnalyzer),
-                generateKeyPoints: GenerateKeyPointsUseCase(analyzer: speechAnalyzer),
-                regenerateTranscript: RegenerateTranscriptUseCase(analyzer: speechAnalyzer),
-                saveScript: SaveScriptUseCase(repository: scriptRepository)
-            ),
-            onClose: onClose,
-            onBack: onBack
+    func makeTranscriptAnalysisViewModel(draft: ScriptDraft) -> TranscriptAnalysisViewModel {
+        TranscriptAnalysisViewModel(
+            draft: draft,
+            availability: availabilityChecker,
+            classifyTranscript: ClassifyTranscriptUseCase(analyzer: speechAnalyzer),
+            generateKeyPoints: GenerateKeyPointsUseCase(analyzer: speechAnalyzer),
+            regenerateTranscript: RegenerateTranscriptUseCase(analyzer: speechAnalyzer),
+            saveScript: SaveScriptUseCase(repository: scriptRepository)
         )
     }
 
@@ -101,12 +104,13 @@ final class AppContainer {
         InputScriptViewModel(
             purpose: purpose,
             fileImporter: fileImportService,
-            // A fresh capturer per session rather than one shared instance:
-            // `AudioRecordingService` is single-use by contract — its event stream
-            // completes when the session ends — so reusing one would hand the next
-            // recording a dead stream.
-            audioCapturer: AudioRecordingService(),
+            // A factory, not an instance: `AudioRecordingService` is single-use by
+            // contract — its event stream completes when the session ends — so a retake
+            // has to be handed a brand new one or it would inherit a dead stream.
+            makeAudioCapturer: { AudioRecordingService() },
             microphonePermissions: microphonePermissions,
+            audioPlayer: audioPlayer,
+            recordingDeleter: recordingDeleter,
             generateTranscript: GenerateTranscriptUseCase(transcriber: speechTranscriber),
             initialText: initialText
         )

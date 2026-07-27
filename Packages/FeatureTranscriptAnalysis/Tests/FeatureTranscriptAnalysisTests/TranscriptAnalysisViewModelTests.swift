@@ -1106,4 +1106,28 @@ struct TranscriptAnalysisViewModelTests {
         #expect(viewModel.hasUnfulfilledKeyPoints)
     }
 
+
+    // MARK: - Re-entering a loaded screen
+
+    @Test("Returning to a loaded analysis does not regenerate it")
+    func reenteringALoadedScreenDoesNotRegenerate() async throws {
+        // ‹ back to Input Script and ✓ forward again puts this same view model behind a
+        // fresh view, whose `.task` calls `start()` again — and `cancelAll()` on the way
+        // out has already cleared the task handle that used to be the only guard. Without
+        // the `.loaded` check, returning reruns the whole on-device pipeline over an
+        // analysis sitting in memory, complete, with the user's edits in it.
+        let analyzer = makeAnalyzer()
+        let viewModel = makeViewModel(analyzer: analyzer)
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+        let classifyCallsAfterFirstLoad = await analyzer.classifyCallCount
+        let keyPointsBefore = viewModel.keyPoints
+
+        viewModel.cancelAll()
+        viewModel.start()
+
+        #expect(viewModel.viewState == .loaded)
+        #expect(await analyzer.classifyCallCount == classifyCallsAfterFirstLoad)
+        #expect(viewModel.keyPoints == keyPointsBefore)
+    }
 }

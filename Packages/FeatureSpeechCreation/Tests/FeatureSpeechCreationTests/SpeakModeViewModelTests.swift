@@ -9,10 +9,33 @@
 // injecting `FakeAudioCapturing` from ShuoTestSupport.
 
 import Foundation
+import Synchronization
 import Testing
 import ShuoCore
 import ShuoTestSupport
 @testable import FeatureSpeechCreation
+
+/// Vends capture sessions in order, so a test can hold on to both the session a take was
+/// recorded in *and* the one Retake replaces it with. Mirrors the real composition root,
+/// which hands over a factory rather than an instance because `AudioCapturing` is
+/// single-use.
+private final class CapturerSequence: Sendable {
+    private let capturers: [FakeAudioCapturing]
+    private let position = Mutex(0)
+
+    init(_ capturers: [FakeAudioCapturing]) {
+        self.capturers = capturers
+    }
+
+    func next() -> any AudioCapturing {
+        let index = position.withLock { value -> Int in
+            defer { value += 1 }
+            return value
+        }
+        guard index < capturers.count else { return FakeAudioCapturing() }
+        return capturers[index]
+    }
+}
 
 @MainActor
 @Suite("SpeakModeViewModel")
@@ -20,12 +43,41 @@ struct SpeakModeViewModelTests {
 
     private func makeViewModel(
         capturer: FakeAudioCapturing = FakeAudioCapturing(),
+        nextCapturer: FakeAudioCapturing = FakeAudioCapturing(),
+        player: FakeAudioPlaying = FakeAudioPlaying(),
+        deleter: FakeAudioRecordingDeleting = FakeAudioRecordingDeleting(),
         permissionStatus: MicrophonePermissionStatus = .granted
     ) -> SpeakModeViewModel {
-        SpeakModeViewModel(
-            capturer: capturer,
-            permissions: FakeMicrophonePermissionProviding(status: permissionStatus)
+        let sequence = CapturerSequence([capturer, nextCapturer])
+        return SpeakModeViewModel(
+            makeCapturer: { sequence.next() },
+            permissions: FakeMicrophonePermissionProviding(status: permissionStatus),
+            player: player,
+            recordingDeleter: deleter
         )
+    }
+
+    /// Drives the view model to a finished take — the state a user is in after confirming
+    /// and stepping back from a later screen.
+    private func makeFinishedViewModel(
+        capturer: FakeAudioCapturing = FakeAudioCapturing(),
+        nextCapturer: FakeAudioCapturing = FakeAudioCapturing(),
+        player: FakeAudioPlaying = FakeAudioPlaying(),
+        deleter: FakeAudioRecordingDeleting = FakeAudioRecordingDeleting()
+    ) async -> SpeakModeViewModel {
+        let viewModel = makeViewModel(
+            capturer: capturer,
+            nextCapturer: nextCapturer,
+            player: player,
+            deleter: deleter
+        )
+        viewModel.primaryAction()
+        await viewModel.transitionTask?.value
+        viewModel.handle(.tick(amplitudes: [0.5], duration: 3))
+        viewModel.primaryAction()
+        await viewModel.transitionTask?.value
+        _ = await viewModel.finish()
+        return viewModel
     }
 
     /// Drives the view model to `.recording`, the entry point for most of these tests.
@@ -423,6 +475,230 @@ struct SpeakModeViewModelTests {
     @Test("formats a zero duration before anything is recorded")
     func formatsZeroDurationWhenIdle() {
         #expect(makeViewModel().formattedDuration == "00.00,00")
+    }
+
+    // MARK: - Retake
+
+    @Test("retake throws the take away and returns to an empty recorder")
+    func retakeReturnsToIdle() async {
+        let viewModel = await makeRecordingViewModel()
+        viewModel.handle(.tick(amplitudes: [0.5], duration: 3))
+        viewModel.primaryAction()
+        await viewModel.transitionTask?.value
+
+        viewModel.retake()
+        await viewModel.transitionTask?.value
+
+        #expect(viewModel.viewState == .idle)
+        #expect(viewModel.duration == 0)
+        #expect(viewModel.displaySamples.isEmpty)
+        #expect(!viewModel.canProceed)
+    }
+
+    @Test("retake discards the session it replaces")
+    func retakeDiscardsTheOldSession() async {
+        let capturer = FakeAudioCapturing()
+        let viewModel = await makeRecordingViewModel(capturer: capturer)
+        viewModel.handle(.tick(amplitudes: [0.5], duration: 3))
+
+        viewModel.retake()
+        await viewModel.transitionTask?.value
+
+        #expect(await capturer.discardCount == 1)
+    }
+
+    @Test("retake records into a new session, not the one that already ended")
+    func retakeStartsAFreshSession() async {
+        // `AudioCapturing` is single-use — its event stream completes when the session
+        // ends — so reusing the finished one would leave the second take with a dead
+        // stream and a waveform that never moves.
+        let first = FakeAudioCapturing()
+        let second = FakeAudioCapturing()
+        let viewModel = await makeFinishedViewModel(capturer: first, nextCapturer: second)
+
+        viewModel.retake()
+        await viewModel.transitionTask?.value
+        viewModel.primaryAction()
+        await viewModel.transitionTask?.value
+
+        #expect(viewModel.viewState == .recording)
+        #expect(await second.startCount == 1)
+        #expect(await first.startCount == 1)
+    }
+
+    @Test("retake deletes the audio behind a take whose session already ended")
+    func retakeDeletesAFinishedTake() async {
+        // `discard()` is a no-op once the session has ended, so this is the only thing
+        // that actually removes the file a confirmed-then-abandoned take left on disk.
+        let deleter = FakeAudioRecordingDeleting()
+        let viewModel = await makeFinishedViewModel(deleter: deleter)
+
+        viewModel.retake()
+        await viewModel.transitionTask?.value
+
+        #expect(await deleter.deleted == [FakeAudioCapturing.defaultRecording])
+    }
+
+    @Test("there is nothing to retake until something has been captured")
+    func retakeIsOfferedOnlyOnceThereIsATake() async {
+        let viewModel = makeViewModel()
+        #expect(!viewModel.canRetake)
+
+        viewModel.primaryAction()
+        await viewModel.transitionTask?.value
+        viewModel.handle(.tick(amplitudes: [0.5], duration: 3))
+
+        #expect(viewModel.canRetake)
+    }
+
+    // MARK: - Replay
+
+    @Test("a paused take plays the preview the capturer assembles, not a finished file")
+    func pausedTakeReplaysThePreview() async {
+        // Mid-session the audio is still being written, so the capturer has to close it
+        // into a readable copy first — that copy is what plays.
+        let capturer = FakeAudioCapturing()
+        let player = FakeAudioPlaying()
+        let viewModel = makeViewModel(capturer: capturer, player: player)
+        viewModel.primaryAction()
+        await viewModel.transitionTask?.value
+        viewModel.handle(.tick(amplitudes: [0.5], duration: 3))
+        viewModel.primaryAction()
+        await viewModel.transitionTask?.value
+
+        viewModel.togglePlayback()
+        await viewModel.playbackTask?.value
+
+        #expect(await player.playedURLs == [FakeAudioCapturing.previewURL])
+        #expect(viewModel.isPlayingBack)
+    }
+
+    @Test("a finished take plays its own file")
+    func finishedTakeReplaysItsOwnFile() async {
+        let player = FakeAudioPlaying()
+        let viewModel = await makeFinishedViewModel(player: player)
+
+        viewModel.togglePlayback()
+        await viewModel.playbackTask?.value
+
+        #expect(await player.playedURLs == [FakeAudioCapturing.defaultRecording.fileURL])
+    }
+
+    @Test("there is nothing to replay until there is a take")
+    func replayIsOfferedOnlyOnceThereIsATake() async {
+        let player = FakeAudioPlaying()
+        let viewModel = makeViewModel(player: player)
+
+        #expect(!viewModel.canReplay)
+        viewModel.togglePlayback()
+        await viewModel.playbackTask?.value
+
+        #expect(await player.playedURLs.isEmpty)
+        #expect(!viewModel.isPlayingBack)
+    }
+
+    @Test("toggling again pauses playback rather than restarting it")
+    func togglingPausesPlayback() async {
+        let player = FakeAudioPlaying()
+        let viewModel = await makeFinishedViewModel(player: player)
+        viewModel.togglePlayback()
+        await viewModel.playbackTask?.value
+
+        viewModel.togglePlayback()
+        await viewModel.playbackTask?.value
+
+        #expect(!viewModel.isPlayingBack)
+        #expect(await player.pauseCount == 1)
+        #expect(await player.playedURLs.count == 1)
+    }
+
+    @Test("the playhead advances while playing and rewinds when the take ends")
+    func playheadTracksPlayback() async {
+        let viewModel = await makeFinishedViewModel()
+        viewModel.togglePlayback()
+        await viewModel.playbackTask?.value
+
+        viewModel.handle(playback: .progress(1.5))
+        #expect(viewModel.playbackPosition == 1.5)
+        #expect(viewModel.playbackProgress == 0.5)
+
+        viewModel.handle(playback: .finished)
+        #expect(!viewModel.isPlayingBack)
+        #expect(viewModel.playbackPosition == 0)
+    }
+
+    @Test("progress arriving after playback stopped does not move the playhead")
+    func lateProgressIsIgnored() async {
+        // The player's ticker and the user's tap race by nature; a late tick must not
+        // restart a playhead the user has already stopped.
+        let viewModel = await makeFinishedViewModel()
+
+        viewModel.handle(playback: .progress(2))
+
+        #expect(viewModel.playbackPosition == 0)
+    }
+
+    @Test("a replay failure is reported without taking the take away")
+    func replayFailureLeavesTheTakeUsable() async {
+        let player = FakeAudioPlaying(playError: .playbackFailed)
+        let viewModel = await makeFinishedViewModel(player: player)
+
+        viewModel.togglePlayback()
+        await viewModel.playbackTask?.value
+
+        #expect(!viewModel.isPlayingBack)
+        #expect(viewModel.playbackError == SpeakModeViewModel.playbackFailureMessage)
+        // The whole point: a take that will not play is still a take.
+        #expect(viewModel.canProceed)
+        #expect(viewModel.speechSource != nil)
+    }
+
+    @Test("resuming a recording stops playback first")
+    func resumingStopsPlayback() async {
+        // Otherwise the microphone would capture the take being played back through it.
+        let player = FakeAudioPlaying()
+        let viewModel = makeViewModel(player: player)
+        viewModel.primaryAction()
+        await viewModel.transitionTask?.value
+        viewModel.handle(.tick(amplitudes: [0.5], duration: 3))
+        viewModel.primaryAction()
+        await viewModel.transitionTask?.value
+        viewModel.togglePlayback()
+        await viewModel.playbackTask?.value
+
+        viewModel.primaryAction()
+        await viewModel.playbackTask?.value
+        await viewModel.transitionTask?.value
+
+        #expect(!viewModel.isPlayingBack)
+        #expect(await player.stopCount == 1)
+        #expect(viewModel.viewState == .recording)
+    }
+
+    @Test("a finished take cannot be recorded into again")
+    func finishedTakeCannotResume() async {
+        // Its session is over; the ways on are proceeding or retaking, and offering a
+        // resume control that could only fail would be worse than offering none.
+        let viewModel = await makeFinishedViewModel()
+
+        #expect(!viewModel.canResumeRecording)
+        #expect(viewModel.canRetake)
+        #expect(viewModel.canReplay)
+    }
+
+    // MARK: - cancel
+
+    @Test("cancel deletes the audio behind a finished take")
+    func cancelDeletesAFinishedTake() async {
+        let deleter = FakeAudioRecordingDeleting()
+        let player = FakeAudioPlaying()
+        let viewModel = await makeFinishedViewModel(player: player, deleter: deleter)
+
+        viewModel.cancel()
+        await viewModel.transitionTask?.value
+
+        #expect(await deleter.deleted == [FakeAudioCapturing.defaultRecording])
+        #expect(await player.stopCount == 1)
     }
 
     // MARK: - Helpers

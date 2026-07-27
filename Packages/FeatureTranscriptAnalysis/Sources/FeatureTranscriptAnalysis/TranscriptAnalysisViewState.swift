@@ -39,31 +39,6 @@ public enum TranscriptAnalysisViewState: Equatable, Sendable {
     case failed(ShuoError)
 }
 
-extension TranscriptAnalysisViewState {
-
-    /// Which controls the screen's toolbar offers.
-    ///
-    /// Derived from the state and expressed as a value so the rule can be asserted in a
-    /// unit test rather than only being visible by reading the view. This screen shipped
-    /// twice with an unconditional ✕/✓ pair, which put a permanently-disabled ✓ next to a
-    /// spinner and next to error sheets — a disabled button is still a button, and it
-    /// invites a tap that answers with nothing.
-    public enum ToolbarLayout: Equatable, Sendable {
-        /// ✕ to leave, ✓ to save. Only where there is something worth keeping.
-        case leaveAndSave
-        /// A single ‹ back to Input Script — the same control, in the same place, as the
-        /// transcription screen the user just came from.
-        case back
-    }
-
-    public var toolbarLayout: ToolbarLayout {
-        switch self {
-        case .loaded:
-            return .leaveAndSave
-        // A wait or a failure: nothing to confirm, and the transcript is worth more than
-        // this screen, so the only useful move is back to where it can be changed.
-        case .analyzing, .waitingForModel, .unavailable, .rejected, .failed:
-            return .back
-        }
-    }
-}
+// Which toolbar controls each state offers lives in `AnalysisToolbarControls`, since it
+// depends on more than this enum — a script reopened from the library has no step to go
+// back to.
