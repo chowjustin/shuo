@@ -27,6 +27,13 @@ public struct TranscriptUsabilityPrecheck: Sendable {
     /// shipped values — and so the values themselves stay reviewable in one place rather
     /// than scattered as magic numbers through the checks.
     public struct Thresholds: Sendable {
+        /// The shipped minimum word count.
+        ///
+        /// Exposed as a constant so UI copy can quote the real number — "we need at least
+        /// 25 words" — instead of repeating a literal that can silently drift away from
+        /// the rule it describes. Same reasoning as `MediaLimits.formattedMinDuration`.
+        public static let defaultMinimumWordCount = 25
+
         /// Below this many words there is not enough material to fill even a
         /// three-component pattern. Roughly ten seconds of speech.
         public var minimumWordCount: Int
@@ -46,7 +53,7 @@ public struct TranscriptUsabilityPrecheck: Sendable {
         public var alphanumericRatioMinimumSampleSize: Int
 
         public init(
-            minimumWordCount: Int = 25,
+            minimumWordCount: Int = Thresholds.defaultMinimumWordCount,
             minimumAlphanumericRatio: Double = 0.75,
             minimumDistinctWordRatio: Double = 0.25,
             distinctWordRatioMinimumSampleSize: Int = 40,
@@ -85,8 +92,10 @@ public struct TranscriptUsabilityPrecheck: Sendable {
 
         let words = Self.words(in: transcript)
 
+        // `.tooFewWords`, not `.tooShort`: this is the measured verdict, and it is the only
+        // one whose copy can honestly quote a number.
         guard words.count >= thresholds.minimumWordCount else {
-            return .tooShort
+            return .tooFewWords
         }
 
         if words.count >= thresholds.distinctWordRatioMinimumSampleSize {

@@ -43,10 +43,13 @@ enum GeneratedContentMapper {
                 forProperty: ClassificationSchema.Key.rejectionReason
             )
             // An unusable verdict with an unreadable reason is still an unusable verdict;
-            // `.notASpeech` is the broadest honest reading of one.
+            // `.notASpeech` is the broadest honest reading of one. A reason the model is
+            // not entitled to give — the precheck's measured verdict — is treated the same
+            // way, rather than passed on as if something had counted the words.
             let reason = rawReason
                 .flatMap { $0 }
                 .flatMap(TranscriptRejectionReason.init(rawValue:))
+                .flatMap { $0.isModelReportable ? $0 : nil }
             return .rejected(reason ?? .notASpeech)
         }
 

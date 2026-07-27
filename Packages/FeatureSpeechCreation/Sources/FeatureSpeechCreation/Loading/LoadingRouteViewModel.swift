@@ -42,6 +42,11 @@ public final class LoadingRouteViewModel {
         return nil
     }
 
+    /// What the speech is for, so the wait can name it — "Transcribing your persuading
+    /// script…" rather than a generic "your speech". Carried here rather than derived,
+    /// since this step has no other reason to know about purposes.
+    public let purpose: SpeechPurpose
+
     private let source: SpeechSource
     private let generateTranscript: GenerateTranscriptUseCase
     /// Held so the work can be cancelled explicitly when the user leaves. An
@@ -49,8 +54,13 @@ public final class LoadingRouteViewModel {
     /// class CLAUDE.md §6 flags for this app.
     private var workTask: Task<Void, Never>?
 
-    public init(source: SpeechSource, generateTranscript: GenerateTranscriptUseCase) {
+    public init(
+        source: SpeechSource,
+        purpose: SpeechPurpose,
+        generateTranscript: GenerateTranscriptUseCase
+    ) {
         self.source = source
+        self.purpose = purpose
         self.generateTranscript = generateTranscript
     }
 

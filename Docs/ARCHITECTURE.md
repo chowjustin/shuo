@@ -197,15 +197,23 @@ The reason this is worth the extra field is that it keeps live transcription a *
   no third-party rich-text library). The refined section shows this highlighted view read-only
   by default and swaps to a plain editable field on demand (a live-highlighted editable field
   would fight the cursor); edits and pattern/key-point changes re-derive the ranges.
-- **Editing the original transcript re-runs the whole analysis (revised).** The original
-  design debounced edits and re-invoked only `GenerateKeyPointsUseCase`. As built, the
-  original transcript is edited in a dedicated modal (`OriginalTranscriptView`); saving a
-  changed transcript is a deliberate, confirmed action — a dialog warns that everything will
-  be regenerated — and `updateOriginalTranscript` then resets the analysis state and re-runs
-  the full pipeline from the new text (reclassify → key points → cleared refinements),
-  keeping `existingScriptID` so it updates the same record. The transcript is the source
-  every artifact derives from, so patching only key points would leave stale patterns and
-  refinements behind; an unchanged save is a no-op that simply closes the modal.
+- **The original script is read-only (revised — decision #30).** `OriginalTranscriptView` is
+  a reading screen: full-height bordered text, selectable, with a single ‹ back. There is no
+  editor, no save, and no confirmation, because there is nothing to confirm.
+- **Everything on this screen is called a *script*, not a transcript (decision #31).**
+  "Original Script", "Refined Script", "Generate Refined Script", "Refining script…". The
+  type names still say transcript — `Transcript`, `TranscriptAnalysisView`,
+  `RegenerateTranscriptUseCase` — and deliberately so: that is what the domain models, and
+  renaming the code to chase the copy would churn every layer for a wording decision.
+
+  > **Superseded — editing the original transcript re-ran the whole analysis.** The screen
+  > was an editor, and saving a change reset the analysis state and re-ran the full pipeline
+  > from the new text (reclassify → key points → cleared refinements) behind a dialog warning
+  > that everything would be replaced. The reasoning was sound as far as it went — the
+  > transcript is the source every artifact derives from, so patching only key points would
+  > leave stale patterns behind — but it put the most destructive action in the app one
+  > keystroke away on the one screen whose entire job is *checking what you actually said*.
+  > `updateOriginalTranscript` is deleted along with it; nothing else reached it.
 
 #### 3.2.3 Pattern suggestions
 
@@ -583,6 +591,10 @@ This split follows current (2026) Apple guidance directly: Swift Testing is the 
 | 27 | What does ‹ from the analysis screen return to? | **The same live Input Script step, with the recording intact and playable — not a rebuilt one.** This reverses the "release at `beginAnalysis`" half of #21 and the "rebuild seeded in Write mode" of #18. The step is what holds the recording, and a user stepping back to change their input wants the take they made, not a transcription of it; rebuilding could only ever hand back text. Consequences, all deliberate: nothing is released until `close()`/`dismissInputScript()`, `discardUnconfirmedModes()` is deleted, and the transcript is *stashed* into Write mode rather than opened there — so it is available to a user acting on a rejection without displacing the recording for a user who is not. |
 | 28 | What actually deletes a recording, and when? | **`AudioRecordingDeleting`, at the moment the flow ends.** Two problems forced a new seam. First, timing: with #27 the take must survive transcription *and* analysis *and* a trip back, so the only safe point left is Save-and-Close or Leave. Second, reach: by then the capture session has ended, and `AudioCapturing.discard()` is a documented no-op in that state — so the file was surviving the whole flow and leaking storage v1 gives no way to reclaim. A capture session and the file it produced have genuinely different lifetimes, which is why this is its own one-method protocol rather than another method on `AudioCapturing`. Retake uses the same path. |
 | 29 | What does the analysis screen's toolbar offer now? | **‹ and ✓ — never ✕.** ✕ and ✓ meant "leave" and "save and leave" while sharing one confirmation dialog between them, which made the ✕ redundant; ✓ now carries that behaviour whole, dialog included, and ‹ takes the leading position it has on every other screen in the flow. ‹ is hidden — not disabled — for a script reopened from the library, which was opened straight onto analysis and has no earlier step to return to. That hiding is *why* ✓ is offered unconditionally there: with no ‹, suppressing ✓ on a spinner or an error sheet would leave the user on a screen with no controls at all. In the create flow ✓ still appears only on `.loaded`, per #23's rule that a disabled button is still a button. The rule is a value, `AnalysisToolbarControls`, so it is asserted in tests rather than only visible by reading the view. |
+| 30 | Can the user edit the original script from the analysis screen? | **No — it is read-only.** The screen exists so a user can check what they actually said; it also happened to be the only place a single edit would silently discard every pattern, key point and refinement in the session. A confirmation dialog was carrying that entire risk. Removing the editor removes the risk rather than warning about it, and it costs nothing that is not still available: the transcript can be re-recorded or re-written from Input Script, which is one ‹ away. The text is selectable, so a user who wants their own words back can copy them without an edit mode. `TranscriptAnalysisViewModel.updateOriginalTranscript` is deleted with it — leaving unreachable public API that regenerates everything would be worse than removing it. |
+| 31 | "Transcript" or "script" in the UI? | **"Script" everywhere the user can see, "transcript" everywhere the code can.** The product is a *script* — that is what the user set out to write and what Home lists — and "transcript" is an implementation detail of how the words got there. The domain keeps the accurate name (`Transcript`, `RegenerateTranscriptUseCase`, `TranscriptHighlighter`) because that is precisely what those types model, and renaming them to track a copy decision would churn every layer to no benefit. The seam is the same one `AnalysisErrorCopy` already sits on: domain says what, presentation says how to say it. |
+| 32 | Does the loading screen name what it is processing? | **Yes — the purpose, and still the step.** "Transcribing your persuading script…", "Analyzing your persuading script…". Naming the purpose makes the wait read as the user's own work; keeping the step is what tells someone waiting on a long video that extraction is running rather than that the app has hung. The analysis screen's own `.analyzing` message is word-for-word identical, because #15 established these are consecutive states of one continuous wait the user crosses with no interaction — a different sentence halfway through reads as having landed somewhere else. Waiting for the model keeps generic copy: nothing is being done to the script yet. |
+| 33 | Can the "too short" rejection quote the 25-word minimum? | **Only when the precheck is what rejected it — so the reason was split in two.** `.tooShort` had two sources: the precheck's measured word count, and the model's own judgement. Quoting "at least 25 words" covered both, which meant a 60-word draft the model found thin was told it needed 25 — copy guessing at a cause it does not know, the same bug #23 exists to prevent. `TranscriptRejectionReason` now carries `.tooFewWords` (measured, precheck-only, quotes the number) alongside `.tooShort` (a judgement, no number, because the precheck runs first so this user has already cleared that bar). The classification schema offers `modelReportable` rather than `allCases`, so the model cannot claim a measurement it never made, and `GeneratedContentMapper` rejects one anyway on the way back in — constrained decoding is a strong guarantee, not an absolute one (CLAUDE.md §8). |
 
 ## 10. Tooling decisions (scaffolding phase)
 
@@ -668,7 +680,8 @@ Packages/ShuoCore/
 │   │   ├── SpeechPatternComponent.swift  struct: id, name, contains, aiGuideline, order — one key-point slot
 │   │   ├── SpeechPatternCatalog.swift    the fixed 23-entry catalog (see Docs/SPEECH_PATTERNS.md)
 │   │   ├── PatternClassification.swift   struct: isUsable, rejectionReason, rankedPatternIDs
-│   │   ├── TranscriptRejectionReason.swift  enum: tooShort/mostlySilence/unintelligible/notASpeech
+│   │   ├── TranscriptRejectionReason.swift  enum: tooFewWords (precheck-only, measured) /
+│   │   │                                    tooShort/mostlySilence/unintelligible/notASpeech
 │   │   ├── AIAvailabilityStatus.swift    enum mirroring SystemLanguageModel.Availability
 │   │   ├── KeyPoint.swift             struct: componentID, componentName, text, orderIndex, suggestion
 │   │   ├── GrammarSuggestion.swift    struct — defined, unused in v1 (§2.5)
@@ -938,6 +951,7 @@ Packages/FeatureSpeechCreation/
 Packages/FeatureTranscriptAnalysis/
 ├── Sources/FeatureTranscriptAnalysis/
 │   ├── TranscriptAnalysisView.swift
+│   ├── OriginalTranscriptView.swift        read-only, full-height view of the original script (#30)
 │   ├── TranscriptAnalysisViewModel.swift   classify -> key points -> prefetch -> refine,
 │   │                                       per-pattern caches, save-on-load, cancellation
 │   ├── TranscriptAnalysisViewState.swift   .analyzing / .rejected / .loaded / .failed

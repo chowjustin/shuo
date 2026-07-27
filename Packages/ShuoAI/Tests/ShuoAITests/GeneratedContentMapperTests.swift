@@ -81,6 +81,22 @@ struct GeneratedContentMapperTests {
         #expect(result.rejectionReason == .notASpeech)
     }
 
+    @Test("A rejection claiming the precheck's measured verdict falls back to notASpeech")
+    func rejectionClaimingAPrecheckOnlyReason() throws {
+        // `tooFewWords` is a count the precheck made and the model cannot repeat — and the
+        // precheck runs first, so anything reaching the model already cleared that bar.
+        // Passing it through would put a specific number in front of a user that nothing
+        // measured. The schema does not offer it as a candidate; this is the check on the
+        // way back in, since constrained decoding is a strong guarantee, not an absolute
+        // one (CLAUDE.md §8).
+        let result = try GeneratedContentMapper.classification(from: try content("""
+            { "isUsable": false, "rejectionReason": "tooFewWords", "rankedPatternIDs": [] }
+            """))
+
+        #expect(!result.isUsable)
+        #expect(result.rejectionReason == .notASpeech)
+    }
+
     @Test("A usable classification with no ids decodes as an empty ranking")
     func usableWithMissingIDs() throws {
         // Left for `ClassifyTranscriptUseCase` to treat as a generation failure — the

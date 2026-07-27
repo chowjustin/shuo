@@ -586,33 +586,4 @@ public final class TranscriptAnalysisViewModel {
             return updated
         }
     }
-
-    /// Replaces the original transcript text after the user edits it, and re-runs the **entire** analysis from it.
-    public func updateOriginalTranscript(_ text: String) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed != draft.transcript.original else { return }
-
-        cancelAll()
-
-        keyPointCache.removeAll()
-        refinedCache.removeAll()
-        draft.transcript = Transcript(original: trimmed, refined: nil)
-        draft.suggestedPatternIDs = []
-        draft.selectedPatternID = nil
-        draft.keyPoints = []
-        draft.keyPointsByPattern = [:]
-        draft.refinedByPattern = [:]
-        keyPoints = []
-        editableRefinedText = ""
-        actionError = nil
-        hasUnsavedChanges = true
-
-        autoSaveTask?.cancel()
-        autoSaveTask = nil
-
-        viewState = .analyzing
-        analysisTask = Task { [weak self] in
-            await self?.runInitialAnalysis()
-        }
-    }
 }

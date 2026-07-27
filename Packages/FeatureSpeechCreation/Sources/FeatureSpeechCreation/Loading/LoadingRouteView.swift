@@ -131,13 +131,25 @@ public struct LoadingRouteView: View {
     // Lives here rather than on `LoadingContext` so the domain stays free of UI wording,
     // and `LoadingView` stays free of domain types.
 
+    /// Each step still says what it is doing, and names what it is doing it to.
+    ///
+    /// Naming the purpose — "your persuading script" — is what makes this read as the
+    /// user's own work rather than a generic progress screen; keeping the *step* is what
+    /// tells someone waiting on a long video that extraction is running rather than that
+    /// the app is stuck. Waiting for the model is the exception: nothing is being done to
+    /// the script yet, so saying otherwise would be a small lie.
     private func message(for context: LoadingContext) -> String {
         switch context {
-        case .extractingAudio: "Getting the audio from your video…"
-        case .transcribing: "Transcribing your speech…"
-        case .analyzing: "Analyzing your speech…"
+        case .extractingAudio: "Getting the audio from your \(scriptDescription)…"
+        case .transcribing: "Transcribing your \(scriptDescription)…"
+        case .analyzing: "Analyzing your \(scriptDescription)…"
         case .waitingForModel: "Getting the on-device model ready…"
         }
+    }
+
+    /// "persuading script" / "inspiring script" / "informing script".
+    private var scriptDescription: String {
+        "\(viewModel.purpose.gerund.lowercased()) script"
     }
 
     private func systemImage(for context: LoadingContext) -> String {

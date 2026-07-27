@@ -453,7 +453,7 @@ struct TranscriptAnalysisViewModelTests {
         )
 
         viewModel.start()
-        try await waitUntil { viewModel.viewState == .rejected(.tooShort) }
+        try await waitUntil { viewModel.viewState == .rejected(.tooFewWords) }
 
         let count = await analyzer.classifyCallCount
         #expect(count == 0)
@@ -984,52 +984,6 @@ struct TranscriptAnalysisViewModelTests {
         try await Task.sleep(for: .milliseconds(150))
 
         #expect(await analyzer.keyPointCalls.isEmpty, "prefetch regenerated key points on reopen")
-    }
-
-    // MARK: - Editing the original transcript
-
-    @Test("Editing the original transcript re-runs the whole analysis from the new text")
-    func editingOriginalRegeneratesEverything() async throws {
-        let analyzer = makeAnalyzer()
-        let viewModel = makeViewModel(analyzer: analyzer)
-
-        viewModel.start()
-        try await waitUntil { viewModel.viewState == .loaded }
-        viewModel.regenerate()
-        try await waitUntil { viewModel.refinedTranscript != nil }
-        let classifyBefore = await analyzer.classifyCallCount
-
-        let newText = """
-            Here is an entirely different speech, long enough to pass the usability check, \
-            about how libraries quietly became the most important public spaces in every \
-            town, and why funding them is a decision about the kind of community we want.
-            """
-        viewModel.updateOriginalTranscript(newText)
-
-        try await waitUntil { viewModel.viewState == .loaded }
-
-        #expect(await analyzer.classifyCallCount == classifyBefore + 1,
-                "the edited transcript must be reclassified")
-        #expect(viewModel.originalTranscript.hasPrefix("Here is an entirely different"))
-        #expect(viewModel.refinedTranscript == nil,
-                "refinements are cleared and not auto-generated after an edit")
-        #expect(!viewModel.keyPoints.isEmpty, "key points are regenerated for the new transcript")
-    }
-
-    @Test("Re-saving the original transcript unchanged does nothing")
-    func editingOriginalUnchangedIsANoOp() async throws {
-        let analyzer = makeAnalyzer()
-        let viewModel = makeViewModel(analyzer: analyzer)
-
-        viewModel.start()
-        try await waitUntil { viewModel.viewState == .loaded }
-        let classifyBefore = await analyzer.classifyCallCount
-
-        viewModel.updateOriginalTranscript("  \(viewModel.originalTranscript)  ")
-        try await Task.sleep(for: .milliseconds(50))
-
-        #expect(await analyzer.classifyCallCount == classifyBefore)
-        #expect(viewModel.viewState == .loaded)
     }
 
     // MARK: - Per-pattern persistence

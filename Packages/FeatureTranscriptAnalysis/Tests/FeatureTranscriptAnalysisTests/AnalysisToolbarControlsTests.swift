@@ -21,6 +21,7 @@ struct AnalysisToolbarControlsTests {
         .unavailable(.appleIntelligenceNotEnabled),
         .unavailable(.deviceNotEligible),
         .unavailable(.modelNotReady),
+        .rejected(.tooFewWords),
         .rejected(.tooShort),
         .rejected(.mostlySilence),
         .rejected(.unintelligible),

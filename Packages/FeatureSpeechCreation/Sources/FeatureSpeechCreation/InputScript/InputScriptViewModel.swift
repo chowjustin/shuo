@@ -177,7 +177,11 @@ public final class InputScriptViewModel {
     /// user already has for this exact source — and only one of them involves this screen.
     public func beginTranscription(of source: SpeechSource) {
         loadingVM?.cancel()
-        loadingVM = LoadingRouteViewModel(source: source, generateTranscript: generateTranscript)
+        loadingVM = LoadingRouteViewModel(
+            source: source,
+            purpose: purpose,
+            generateTranscript: generateTranscript
+        )
     }
 
     /// Leaves the transcription step, cancelling any in-flight work.

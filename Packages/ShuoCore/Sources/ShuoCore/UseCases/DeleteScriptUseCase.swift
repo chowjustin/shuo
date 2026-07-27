@@ -7,7 +7,6 @@
 
 
 import Foundation
-import ShuoCore
 
 /// Deletes a script by its ID.
 public struct DeleteScriptUseCase: Sendable {

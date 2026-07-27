@@ -27,11 +27,24 @@ struct AnalysisErrorCopy: Equatable {
     /// is different input, which means leaving this screen.
     init(reason: TranscriptRejectionReason) {
         switch reason {
-        case .tooShort:
+        case .tooFewWords:
+            // The one rejection with a number behind it, read from the domain so the
+            // sentence cannot drift from the rule that produced it. "A bit more" left the
+            // user guessing how much more — and guessing wrong costs another recording.
             self.init(
                 systemImage: "text.badge.xmark",
+                title: "There aren't enough words yet.",
+                message: "Shuo needs at least \(TranscriptUsabilityPrecheck.Thresholds.defaultMinimumWordCount) words of speech before it can suggest a structure. Try again with a longer draft."
+            )
+
+        case .tooShort:
+            // Deliberately no number. This user already cleared the word-count floor — the
+            // precheck runs first — so quoting it would name a bar they have passed and
+            // send them away thinking length alone is the problem.
+            self.init(
+                systemImage: "text.badge.questionmark",
                 title: "There isn't enough here yet.",
-                message: "We need a bit more of your speech before we can suggest a structure. Try again with a longer draft."
+                message: "There isn't enough of a speech here yet to structure. Try adding more of your points, or say more about the ones you have."
             )
 
         case .mostlySilence:
@@ -126,7 +139,7 @@ struct AnalysisErrorCopy: Equatable {
             self.init(
                 systemImage: "text.append",
                 title: "That speech is a bit too long.",
-                message: "There's more here than we can analyze in one pass. Try again with a shorter section."
+                message: "Shuo can analyze up to \(MediaLimits.formattedMaxDuration) of speech in one pass. Try again with a shorter section."
             )
 
         case .aiGenerationFailed:

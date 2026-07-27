@@ -51,9 +51,11 @@ enum ClassificationSchema {
                 DynamicGenerationSchema.Property(
                     name: Key.rejectionReason,
                     description: "Why the transcript is not a speech. Omit when isUsable is true.",
+                    // Not `allCases`: the precheck-only verdict is excluded, so the model
+                    // cannot claim a measurement it never made (see `modelReportable`).
                     schema: DynamicGenerationSchema(
                         name: "RejectionReason",
-                        anyOf: TranscriptRejectionReason.allCases.map(\.rawValue)
+                        anyOf: TranscriptRejectionReason.modelReportable.map(\.rawValue)
                     ),
                     isOptional: true
                 ),

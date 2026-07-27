@@ -29,6 +29,25 @@ struct AnalysisErrorCopyTests {
         }
     }
 
+    // MARK: - Quoting the real limits
+
+    @Test("the too-short rejection names the word count the check actually used")
+    func tooShortQuotesTheRule() {
+        // Read from the domain on both sides, so changing the threshold and forgetting the
+        // copy fails here rather than telling users a number that is no longer true.
+        let minimum = TranscriptUsabilityPrecheck.Thresholds.defaultMinimumWordCount
+
+        #expect(AnalysisErrorCopy(reason: .tooFewWords).message.contains("\(minimum) words"))
+    }
+
+    @Test("the too-long error names the real duration limit")
+    func tooLongQuotesTheLimit() {
+        #expect(
+            AnalysisErrorCopy(error: .contextWindowExceeded)
+                .message.contains(MediaLimits.formattedMaxDuration)
+        )
+    }
+
     // MARK: - Availability
 
     /// Every status, since `AIAvailabilityStatus` is not `CaseIterable`. Adding a case
@@ -135,7 +154,8 @@ struct AnalysisErrorCopyTests {
         // the user looking for it.
         let phrases = ["tap try again", "press try again", "tap retry", "use the button below"]
         let allCopy: [AnalysisErrorCopy] =
-            [.tooShort, .mostlySilence, .unintelligible, .notASpeech].map(AnalysisErrorCopy.init(reason:))
+            [.tooFewWords, .tooShort, .mostlySilence, .unintelligible, .notASpeech]
+            .map(AnalysisErrorCopy.init(reason:))
             + [.appleIntelligenceNotEnabled, .deviceNotEligible, .modelNotReady, .available]
                 .map(AnalysisErrorCopy.init(availability:))
             + [ShuoError.aiUnavailable, .contextWindowExceeded, .aiGenerationFailed, .persistenceFailed]
@@ -151,7 +171,9 @@ struct AnalysisErrorCopyTests {
 
     @Test("every rejection reason reads differently, so the verdict is specific")
     func rejectionReasonsReadDifferently() {
-        let reasons: [TranscriptRejectionReason] = [.tooShort, .mostlySilence, .unintelligible, .notASpeech]
+        let reasons: [TranscriptRejectionReason] = [
+            .tooFewWords, .tooShort, .mostlySilence, .unintelligible, .notASpeech,
+        ]
         let messages = Set(reasons.map { AnalysisErrorCopy(reason: $0).message })
 
         #expect(messages.count == reasons.count, "two rejection reasons share a message")
