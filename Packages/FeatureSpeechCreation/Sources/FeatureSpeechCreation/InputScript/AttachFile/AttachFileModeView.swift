@@ -96,8 +96,11 @@ public struct AttachFileModeView: View {
     @ViewBuilder
     private var bottomActions: some View {
         switch viewModel.viewState {
-        case .idle, .failed, .ready, .fileTooLarge:
+        case .idle, .failed, .fileTooLarge:
             attachButton
+
+        case .ready:
+            reuploadButton
 
         case .processing:
             EmptyView()
@@ -110,6 +113,21 @@ public struct AttachFileModeView: View {
         CircularIconButton(systemImage: "paperclip", accessibilityTitle: "Attach a file") {
             viewModel.isPickerPresented = true
         }
+    }
+
+    private var reuploadButton: some View {
+        Button("Reupload File") {
+            viewModel.isPickerPresented = true
+        }
+        .font(.body)
+        .foregroundStyle(ShuoColor.pink)
+        .padding(.horizontal, 32)
+        .padding(.vertical, 14)
+        .background(
+            Capsule()
+                .stroke(ShuoColor.pink, lineWidth: 2)
+        )
+        .accessibilityLabel("Reupload file")
     }
 
     private func fileCard(name: String, systemIcon: String, durationLabel: String?) -> some View {
