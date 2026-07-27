@@ -55,10 +55,17 @@ public struct AttachFileModeView: View {
     private var contentArea: some View {
         switch viewModel.viewState {
         case .idle, .fileTooLarge:
-            Text("Upload your audio or video file.")
-                .font(.body)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
+            VStack(spacing: 16) {
+                Image("SHUO ATTACH")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 160, height: 160)
+
+                Text("Upload your audio or video file.")
+                    .font(.body)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(ShuoColor.secondaryTextCream)
+            }
             
         case .processing:
             ProgressView("Importing…")

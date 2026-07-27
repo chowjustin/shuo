@@ -35,7 +35,7 @@ public struct WriteModeView: View {
             if viewModel.content.isEmpty {
                 Text("Let's write your ideas.")
                     .font(.body)
-                    .foregroundStyle(ShuoColor.secondaryText)
+                    .foregroundStyle(ShuoColor.secondaryTextCream)
                     // Sits on TextEditor's inset text, not its frame, so the placeholder
                     // and the caret share a baseline.
                     .padding(.leading, Self.textInset.leading)
@@ -49,6 +49,15 @@ public struct WriteModeView: View {
         .padding(.leading, -Self.textInset.leading)
         .padding(.top, -Self.textInset.top)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .overlay {
+            if viewModel.content.isEmpty && !isEditorFocused {
+                Image("SHUO WRITE")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 160, height: 160)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 }
 
