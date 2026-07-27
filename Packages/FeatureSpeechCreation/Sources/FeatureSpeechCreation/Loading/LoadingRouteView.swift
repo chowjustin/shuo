@@ -54,7 +54,7 @@ public struct LoadingRouteView: View {
     }
 
     public var body: some View {
-        NavigationStack {
+
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .navigationTitle(navigationTitle)
@@ -67,7 +67,7 @@ public struct LoadingRouteView: View {
                         .accessibilityLabel("Back to input")
                     }
                 }
-        }
+        
         .task { viewModel.start() }
         // Covers every way out — the ‹ button or the whole flow being torn down — so no
         // transcription outlives the screen that asked for it.

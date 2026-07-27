@@ -26,13 +26,12 @@ public struct PurposeSelectionView: View {
     }
 
     public var body: some View {
-        NavigationStack{
             ScrollView {
                 VStack(alignment: .center, spacing: ShuoSpacing.large) {
                     
                     Text("Tell us your purpose")
                         .font(ShuoTypography.title)
-                        .foregroundStyle(ShuoColor.primaryText)
+                        .foregroundStyle(ShuoColor.primaryTextCream)
                         .accessibilityAddTraits(.isHeader)
                     
                     ForEach(SpeechPurpose.allCases) { purpose in
@@ -66,7 +65,7 @@ public struct PurposeSelectionView: View {
                     .accessibilityLabel("Close")
                 }
             }
-        }
+        
         .presentationDragIndicator(.visible)
         .onDisappear {
             navigationTask?.cancel()
@@ -97,15 +96,22 @@ private struct PurposeSelectionPreviewHost: View {
         Color(uiColor: .systemGroupedBackground)
             .ignoresSafeArea()
             .sheet(isPresented: $isPresented) {
+
                 CreateFlowView(
                     coordinator: CreateScriptCoordinator(
                         onFinish: { isPresented = false },
                         makeInputScriptViewModel: { purpose, text in
-                            .preview(purpose: purpose, initialText: text)
+                            .preview(
+                                purpose: purpose,
+                                initialText: text
+                            )
                         }
-                    ),
-                    onAnalyze: { _ in }
-                )
+                    )
+
+                ) { _, _, _ in
+                    EmptyView()
+                }
+
             }
     }
 }
