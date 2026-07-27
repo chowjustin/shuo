@@ -84,9 +84,10 @@ public struct AttachFileModeView: View {
             // is already the way to retry.
             let copy = TranscriptionErrorCopy(error: error)
             VStack(spacing: 12) {
-                Image(systemName: copy.systemImage)
-                    .font(.largeTitle)
-                    .foregroundStyle(.secondary)
+                Image("SHUO ERROR")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 120, height: 120)
                 Text(copy.title)
                     .font(.headline)
                     .foregroundStyle(.primary)

@@ -22,26 +22,39 @@ import SwiftUI
 /// sheet previewable in isolation and reusable for any failure, not just transcription.
 public struct ErrorSheet: View {
     private let systemImage: String
+    private let mascotImageName: String?
     private let title: String
     private let message: String
 
-    /// - Parameter systemImage: SF Symbol shown above the title.
+    /// - Parameters:
+    ///   - systemImage: SF Symbol shown above the title (fallback when no mascot).
+    ///   - mascotImageName: Optional asset catalog image name; when provided, replaces the SF Symbol.
     public init(
         systemImage: String = "exclamationmark.triangle.fill",
+        mascotImageName: String? = nil,
         title: String,
         message: String
     ) {
         self.systemImage = systemImage
+        self.mascotImageName = mascotImageName
         self.title = title
         self.message = message
     }
 
     public var body: some View {
         VStack(spacing: ShuoSpacing.large) {
-            Image(systemName: systemImage)
-                .font(.system(size: 52))
-                .foregroundStyle(ShuoColor.error)
-                .accessibilityHidden(true)
+            if let mascotImageName {
+                Image(mascotImageName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 120, height: 120)
+                    .accessibilityHidden(true)
+            } else {
+                Image(systemName: systemImage)
+                    .font(.system(size: 52))
+                    .foregroundStyle(ShuoColor.error)
+                    .accessibilityHidden(true)
+            }
 
             VStack(spacing: ShuoSpacing.small) {
                 Text(title)

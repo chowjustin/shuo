@@ -89,7 +89,7 @@ public struct LoadingRouteView: View {
 
         case .failed(let error):
             let copy = TranscriptionErrorCopy(error: error)
-            ErrorSheet(systemImage: copy.systemImage, title: copy.title, message: copy.message)
+            ErrorSheet(mascotImageName: "SHUO ERROR", title: copy.title, message: copy.message)
 
         case .finished(let transcript):
             // No confirmation step: the user already chose to transcribe, so showing them

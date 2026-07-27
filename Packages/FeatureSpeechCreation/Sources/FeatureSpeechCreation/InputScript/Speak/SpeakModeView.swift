@@ -124,9 +124,10 @@ public struct SpeakModeView: View {
         action: (title: String, handler: () -> Void)?
     ) -> some View {
         VStack(spacing: ShuoSpacing.medium) {
-            Image(systemName: icon)
-                .font(.largeTitle)
-                .foregroundStyle(ShuoColor.secondaryText)
+            Image("SHUO ERROR")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 120, height: 120)
 
             Text(message)
                 .foregroundStyle(ShuoColor.secondaryText)
