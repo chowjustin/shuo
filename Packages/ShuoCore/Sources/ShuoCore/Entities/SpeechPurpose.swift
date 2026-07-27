@@ -38,9 +38,9 @@ public enum SpeechPurpose: String, Codable, CaseIterable, Sendable, Identifiable
 
     public var description: String {
         switch self {
-        case .persuade: "The act of using spoken or nonverbal messages to influence an audience's beliefs, attitudes, or behaviors to convince listeners to voluntarily adopt a new perspective or take a specific action, without using force or manipulation."
-        case .inspire: "To inspire in public speaking means to connect with your audience emotionally, shifting their mindset and moving them to action. Rather than just presenting facts, an inspirational speaker uses storytelling and shared values to spark enthusiasm, build trust, and empower listeners."
-        case .inform: "To inform means to educate, enlighten, or teach your audience about a specific topic that aims to change beliefs or behaviors, the primary goal is to present objective facts, concepts, or processes clearly so the audience leaves with a deeper understanding."
+        case .persuade: "Using spoken or nonverbal messages to ethically influence beliefs or behavior, persuading an audience to voluntarily change perspective or act."
+        case .inspire: "To connect emotionally with your audience, shifting their mindset and action using storytelling and shared values rather than just facts."
+        case .inform: "To educate or teach your audience about a topic, presenting objective facts, concepts, or processes clearly so listeners leave with a deeper understanding."
         }
     }
 }
