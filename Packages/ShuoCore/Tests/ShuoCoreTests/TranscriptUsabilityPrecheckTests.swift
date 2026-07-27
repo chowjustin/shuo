@@ -31,20 +31,20 @@ struct TranscriptUsabilityPrecheckTests {
 
     @Test("Empty and whitespace-only text is too short")
     func rejectsEmpty() {
-        #expect(precheck.reasonForRejection("") == .tooShort)
-        #expect(precheck.reasonForRejection("   \n\t  ") == .tooShort)
+        #expect(precheck.reasonForRejection("") == .tooFewWords)
+        #expect(precheck.reasonForRejection("   \n\t  ") == .tooFewWords)
     }
 
     @Test("A handful of words is too short")
     func rejectsShortText() {
-        #expect(precheck.reasonForRejection("Just a quick note to self.") == .tooShort)
+        #expect(precheck.reasonForRejection("Just a quick note to self.") == .tooFewWords)
     }
 
     @Test("Punctuation alone does not count as words")
     func punctuationIsNotWords() {
         // Kept short so it stays below the alphanumeric-ratio sample size — this test is
         // about word tokenization, not the ratio check.
-        #expect(precheck.reasonForRejection("... --- ,,,") == .tooShort)
+        #expect(precheck.reasonForRejection("... --- ,,,") == .tooFewWords)
     }
 
     @Test("Text right at the word-count floor passes")
@@ -56,13 +56,13 @@ struct TranscriptUsabilityPrecheckTests {
         #expect(precheck.reasonForRejection(tenWords) == nil)
         #expect(
             precheck.reasonForRejection("alpha bravo charlie delta echo foxtrot golf hotel india")
-                == .tooShort
+                == .tooFewWords
         )
     }
 
     @Test("Below the ratio sample size, short junk reads as too short")
     func shortJunkIsTooShort() {
-        #expect(precheck.reasonForRejection("#$%^&*") == .tooShort)
+        #expect(precheck.reasonForRejection("#$%^&*") == .tooFewWords)
     }
 
     @Test("A long run of symbols is unintelligible, not merely short")

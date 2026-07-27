@@ -12,24 +12,23 @@ import SwiftUI
 public struct InputScriptView: View {
     @Bindable private var viewModel: InputScriptViewModel
     private let onBack: () -> Void
-    private let onClose: () -> Void
-    private let onProceed: () -> Void
+    private let onConfirm: () async -> Void
     @FocusState private var isTitleFocused: Bool
     @State private var isConfirmingProceed = false
 
-    /// - Parameter onProceed: Advances the flow to the transcription step. Called only once
-    ///   the active mode has actually produced a source, so a mode that finishes empty
-    ///   leaves the user here rather than on a loading screen with nothing to transcribe.
+    /// - Parameter onConfirm: Finalizes the active mode and advances the flow. Async
+    ///   because Speak mode has real work to do first — ending its session and flushing
+    ///   the take — and because what follows depends on the result: a source the user has
+    ///   already had analyzed goes straight back to that analysis, anything else is
+    ///   transcribed afresh.
     public init(
         viewModel: InputScriptViewModel,
         onBack: @escaping () -> Void,
-        onClose: @escaping () -> Void,
-        onProceed: @escaping () -> Void
+        onConfirm: @escaping () async -> Void
     ) {
         self.viewModel = viewModel
         self.onBack = onBack
-        self.onClose = onClose
-        self.onProceed = onProceed
+        self.onConfirm = onConfirm
     }
 
     public var body: some View {
@@ -104,7 +103,7 @@ public struct InputScriptView: View {
         .presentationDragIndicator(.visible)
         // The whole flow is one sheet, so swipe-dismiss here would tear down the create
         // flow entirely rather than stepping back — a half-filled session is not something
-        // to lose to an accidental gesture. ✕/back are the deliberate exits.
+        // to lose to an accidental gesture. ‹ and ✓ are the deliberate exits.
         .interactiveDismissDisabled(true)
     }
 
@@ -176,17 +175,11 @@ public struct InputScriptView: View {
         }
     }
 
-    // Finalizes the active mode, then hands its `SpeechSource` to the transcription step
-    // — Speak has to end its session and flush the transcript first, which cannot happen
-    // synchronously from a button action.
-    /// ✓. Finalizes the active mode, discards the other two, and — only if that produced a
-    /// source — advances to transcription.
+    /// ✓. Hands off to the coordinator, which finalizes the active mode and decides where
+    /// it goes. The other two modes are left intact — this screen is still reachable, in
+    /// both directions, until the flow ends.
     private func confirm() {
-        Task {
-            await viewModel.proceed()
-            guard viewModel.loadingVM != nil else { return }
-            onProceed()
-        }
+        Task { await onConfirm() }
     }
 }
 
@@ -204,9 +197,8 @@ private struct InputScriptPreviewHost: View {
             .sheet(isPresented: $isPresented) {
                 InputScriptView(
                     viewModel: .preview(purpose: .persuade),
-                    onBack: {},
-                    onClose: { isPresented = false },
-                    onProceed: {}
+                    onBack: { isPresented = false },
+                    onConfirm: {}
                 )
             }
     }

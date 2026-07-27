@@ -39,8 +39,7 @@ public struct CreateFlowView<Analysis: View>: View {
                             InputScriptView(
                                 viewModel: viewModel,
                                 onBack: coordinator.dismissInputScript,
-                                onClose: coordinator.close,
-                                onProceed: coordinator.beginLoading
+                                onConfirm: coordinator.confirmInput
                             )
                             .navigationBarBackButtonHidden(true)
                         }
@@ -64,7 +63,7 @@ public struct CreateFlowView<Analysis: View>: View {
                             analysisBuilder(
                                 draft,
                                 coordinator.close,
-                                coordinator.returnToInput(rejecting:)
+                                coordinator.returnToInput(from:)
                             )
                             .navigationBarBackButtonHidden(true)
                         }

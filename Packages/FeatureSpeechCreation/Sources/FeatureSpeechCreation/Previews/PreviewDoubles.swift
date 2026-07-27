@@ -28,8 +28,10 @@ extension InputScriptViewModel {
         InputScriptViewModel(
             purpose: purpose,
             fileImporter: PreviewFileImporting(),
-            audioCapturer: PreviewAudioCapturing(),
+            makeAudioCapturer: { PreviewAudioCapturing() },
             microphonePermissions: PreviewMicrophonePermissionProviding(status: permissionStatus),
+            audioPlayer: PreviewAudioPlaying(),
+            recordingDeleter: PreviewAudioRecordingDeleting(),
             generateTranscript: GenerateTranscriptUseCase(transcriber: PreviewSpeechTranscribing()),
             initialText: initialText
         )
@@ -41,8 +43,10 @@ extension SpeakModeViewModel {
         permissionStatus: MicrophonePermissionStatus = .granted
     ) -> SpeakModeViewModel {
         SpeakModeViewModel(
-            capturer: PreviewAudioCapturing(),
-            permissions: PreviewMicrophonePermissionProviding(status: permissionStatus)
+            makeCapturer: { PreviewAudioCapturing() },
+            permissions: PreviewMicrophonePermissionProviding(status: permissionStatus),
+            player: PreviewAudioPlaying(),
+            recordingDeleter: PreviewAudioRecordingDeleting()
         )
     }
 }
@@ -79,6 +83,58 @@ struct PreviewMicrophonePermissionProviding: MicrophonePermissionProviding {
 
     func currentStatus() async -> MicrophonePermissionStatus { status }
     func request() async -> MicrophonePermissionStatus { status }
+}
+
+/// Advances a playhead on a timer, so previews show the replay control counting up rather
+/// than sitting inert.
+actor PreviewAudioPlaying: AudioPlaying {
+    nonisolated let events: AsyncStream<AudioPlaybackEvent>
+    private let continuation: AsyncStream<AudioPlaybackEvent>.Continuation
+    private var tickTask: Task<Void, Never>?
+    private var position: TimeInterval = 0
+
+    private static let tickInterval: Duration = .milliseconds(100)
+    private static let tickSeconds: TimeInterval = 0.1
+    private static let previewLength: TimeInterval = 6
+
+    init() {
+        let (events, continuation) = AsyncStream.makeStream(of: AudioPlaybackEvent.self)
+        self.events = events
+        self.continuation = continuation
+    }
+
+    func play(url: URL) async throws {
+        tickTask?.cancel()
+        tickTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: PreviewAudioPlaying.tickInterval)
+                guard !Task.isCancelled else { return }
+                await self?.tick()
+            }
+        }
+    }
+
+    func pause() async { tickTask?.cancel() }
+
+    func stop() async {
+        tickTask?.cancel()
+        position = 0
+    }
+
+    private func tick() {
+        position += Self.tickSeconds
+        guard position < Self.previewLength else {
+            tickTask?.cancel()
+            position = 0
+            continuation.yield(.finished)
+            return
+        }
+        continuation.yield(.progress(position))
+    }
+}
+
+struct PreviewAudioRecordingDeleting: AudioRecordingDeleting {
+    func delete(_ recording: AudioRecording) async {}
 }
 
 /// Emits synthetic ticks on a timer, so previews show a moving waveform and a running
@@ -124,6 +180,10 @@ actor PreviewAudioCapturing: AudioCapturing {
         )
         continuation.finish()
         return recording
+    }
+
+    func previewURL() async throws -> URL {
+        URL(filePath: "/tmp/preview-take.m4a")
     }
 
     func discard() async {

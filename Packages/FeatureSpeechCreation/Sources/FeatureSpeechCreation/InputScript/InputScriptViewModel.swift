@@ -37,13 +37,20 @@ public final class InputScriptViewModel {
     /// user recorded or wrote a whole speech, and blocking them at the last step over an
     /// empty text field would be a poor trade. They can rename it on the analysis screen.
     public func makeDraft(from transcript: Transcript) -> ScriptDraft {
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return ScriptDraft(
-            title: trimmedTitle.isEmpty ? Self.untitledTitle : trimmedTitle,
+        ScriptDraft(
+            title: resolvedTitle,
             purpose: purpose,
             transcript: transcript,
             recordingDuration: confirmedDuration
         )
+    }
+
+    /// The title as it would be saved: what the user typed, or the placeholder if they
+    /// typed nothing. Read by the coordinator when it carries a rename forward into an
+    /// analysis the user is returning to rather than starting over.
+    public var resolvedTitle: String {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? Self.untitledTitle : trimmed
     }
 
     /// How long the confirmed source runs, when that is knowable.
@@ -94,11 +101,11 @@ public final class InputScriptViewModel {
 
     /// Modes other than the active one that still hold content confirming would discard.
     ///
-    /// Confirming commits to a single mode — `discardUnconfirmedModes()` drops the other
-    /// two, and a Speak take is a real audio file on disk that v1 offers no way to recover.
-    /// When any inactive mode holds real content the confirm flow warns first, so a
-    /// recording or a typed draft is never silently thrown away. Returned in
-    /// `InputMode.allCases` order so the warning message reads consistently.
+    /// Confirming sends exactly one mode forward, and only that one becomes a speech.
+    /// Nothing is deleted at that point — the user can step back and the other modes are
+    /// still here — but a user who recorded a take *and* typed a draft would otherwise
+    /// watch one of them silently not happen. Returned in `InputMode.allCases` order so
+    /// the warning message reads consistently.
     public var unconfirmedModesWithContent: [InputMode] {
         InputMode.allCases.filter { $0 != mode && hasContent(in: $0) }
     }
@@ -118,21 +125,31 @@ public final class InputScriptViewModel {
 
     private let generateTranscript: GenerateTranscriptUseCase
 
-    /// - Parameter initialText: text to open in Write mode, used when analysis rejected a
-    ///   transcript and handed it back to be edited. Opening in Write mode rather than the
-    ///   default Speak mode is the point: the user already has the words, and what they
-    ///   need now is to change them, not to record again.
+    /// - Parameters:
+    ///   - makeAudioCapturer: builds a capture session. A factory rather than an instance
+    ///     because `AudioCapturing` is single-use — see `SpeakModeViewModel`.
+    ///   - initialText: text to open in Write mode, used when this step is rebuilt rather
+    ///     than resumed. Opening in Write mode rather than the default Speak mode is the
+    ///     point: the user already has the words, and what they need now is to change
+    ///     them, not to record again.
     public init(
         purpose: SpeechPurpose,
         fileImporter: any FileImporting,
-        audioCapturer: any AudioCapturing,
+        makeAudioCapturer: @escaping @Sendable () -> any AudioCapturing,
         microphonePermissions: any MicrophonePermissionProviding,
+        audioPlayer: any AudioPlaying,
+        recordingDeleter: any AudioRecordingDeleting,
         generateTranscript: GenerateTranscriptUseCase,
         initialText: String? = nil
     ) {
         self.purpose = purpose
         self.generateTranscript = generateTranscript
-        self.speakVM = SpeakModeViewModel(capturer: audioCapturer, permissions: microphonePermissions)
+        self.speakVM = SpeakModeViewModel(
+            makeCapturer: makeAudioCapturer,
+            permissions: microphonePermissions,
+            player: audioPlayer,
+            recordingDeleter: recordingDeleter
+        )
         self.writeVM = WriteModeViewModel()
         self.attachVM = AttachFileModeViewModel(fileImporter: fileImporter)
 
@@ -153,13 +170,18 @@ public final class InputScriptViewModel {
         dismissLoading()
     }
 
-    /// Finalizes the active mode and moves to the transcription step.
+    /// Opens the transcription step on an already-confirmed source.
     ///
-    /// Does nothing when the active mode has no content — the confirm button is disabled
-    /// in that case, but Speak mode can still finish empty.
-    public func proceed() async {
-        guard let source = await prepareToProceed() else { return }
-        loadingVM = LoadingRouteViewModel(source: source, generateTranscript: generateTranscript)
+    /// Separate from `prepareToProceed()` because the coordinator decides between the two
+    /// things that can follow a ✓ — transcribing afresh, or returning to an analysis the
+    /// user already has for this exact source — and only one of them involves this screen.
+    public func beginTranscription(of source: SpeechSource) {
+        loadingVM?.cancel()
+        loadingVM = LoadingRouteViewModel(
+            source: source,
+            purpose: purpose,
+            generateTranscript: generateTranscript
+        )
     }
 
     /// Leaves the transcription step, cancelling any in-flight work.
@@ -175,9 +197,10 @@ public final class InputScriptViewModel {
     /// Speak mode has real work to do here (ending the session, flushing the transcript),
     /// which is why this is async and why callers must not read `speechSource` instead.
     ///
-    /// Confirming does **not** discard anything. Transcription can still fail, and the user
-    /// returns here with every mode exactly as they left it — see `discardUnconfirmedModes()`
-    /// for where the commitment actually happens.
+    /// Confirming does **not** discard anything. Transcription can fail, and analysis can
+    /// be stepped back out of, and in both cases the user returns here with every mode
+    /// exactly as they left it — including a recording they can still play back. The
+    /// modes are released only when the flow itself ends, in `discard()`.
     public func prepareToProceed() async -> SpeechSource? {
         switch mode {
         case .speak:
@@ -193,21 +216,19 @@ public final class InputScriptViewModel {
         }
     }
 
-    /// Releases the two modes the user did not confirm.
+    /// Parks a transcript the analysis step handed back, so the words are within reach
+    /// without taking over the screen.
     ///
-    /// Called at the point of no return — when analysis takes over — rather than when the
-    /// user confirms. Confirming looks like commitment but isn't: transcription can fail,
-    /// and the user comes straight back to this screen expecting their work intact, in
-    /// whichever mode they were in. Discarding at confirm time would delete a recording
-    /// they are about to be handed back.
+    /// Stepping back from analysis returns the user to the mode they left — a recording
+    /// they can still play, not a wall of transcribed text (`ARCHITECTURE.md` §6). But
+    /// when analysis rejected the transcript, changing the wording *is* the fix, so the
+    /// text is left waiting in Write mode for a user who switches tabs to look for it.
     ///
-    /// This matters most for Speak, where `cancel()` discards a real audio file on disk;
-    /// leaving it would leak storage the user has no way to reclaim, since v1 ships no
-    /// deletion UI. Attach File needs no file cleanup — import is bookmark-based and never
-    /// copies into the sandbox — so cancelling it only drops the reference.
-    func discardUnconfirmedModes() {
-        if mode != .speak { speakVM.cancel() }
-        if mode != .attachFile { attachVM.cancel() }
-        if mode != .write { writeVM.content = "" }
+    /// Never overwrites: anything already typed there is the user's, and worth more than
+    /// a transcript they can regenerate.
+    func stashTranscript(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, mode != .write, !writeVM.hasContent else { return }
+        writeVM.content = trimmed
     }
 }

@@ -7,6 +7,7 @@
 
 import FeatureHome
 import FeatureSpeechCreation
+import FeatureTranscriptAnalysis
 import ShuoCore
 import SwiftUI
 
@@ -45,14 +46,10 @@ struct RootView: View {
         }
         .sheet(isPresented: isShowingReopenFlow) {
             if let reopenedDraft {
-                NavigationStack{
-                    container.makeTranscriptAnalysisView(
-                        draft: reopenedDraft,
+                NavigationStack {
+                    TranscriptAnalysisView(
+                        viewModel: container.makeTranscriptAnalysisViewModel(draft: reopenedDraft),
                         onClose: {
-                            self.reopenedDraft = nil
-                            homeViewModel.load()
-                        },
-                        onBack: { _ in
                             self.reopenedDraft = nil
                             homeViewModel.load()
                         }
@@ -106,16 +103,56 @@ private struct CreateFlowSheet: View {
 
     @Bindable var coordinator: CreateScriptCoordinator
 
+    @State private var analysisCache = AnalysisViewModelCache()
+
     var body: some View {
         CreateFlowView(
             coordinator: coordinator
         ) { draft, onClose, onBack in
 
-            container.makeTranscriptAnalysisView(
-                draft: draft,
+            TranscriptAnalysisView(
+                viewModel: analysisCache.viewModel(
+                    for: draft,
+                    make: container.makeTranscriptAnalysisViewModel
+                ),
                 onClose: onClose,
                 onBack: onBack
             )
         }
+    }
+}
+
+/// Keeps one analysis view model alive per draft, across pushes and pops.
+///
+/// `NavigationStack` destroys a destination view when it is popped, and with it any state
+/// that view owns — so an analysis the user stepped back from would be regenerated from
+/// scratch, on device, when they stepped forward again. Holding the view model out here
+/// instead means the coordinator can hand back the same draft and get the same screen,
+/// patterns, key points and edits included.
+///
+/// Deliberately *not* `@Observable`: it is a cache read during view construction, and
+/// nothing should re-render because it changed.
+@MainActor
+private final class AnalysisViewModelCache {
+    private var draftID: ScriptDraft.ID?
+    private var viewModel: TranscriptAnalysisViewModel?
+
+    /// The view model for `draft`, reusing the retained one when it is the same editing
+    /// session. A different draft id means genuinely different input, and gets a new one.
+    func viewModel(
+        for draft: ScriptDraft,
+        make: (ScriptDraft) -> TranscriptAnalysisViewModel
+    ) -> TranscriptAnalysisViewModel {
+        if let viewModel, draftID == draft.id {
+            // The title is the one thing Input Script can still have changed on the way
+            // back; everything else on this screen belongs to the analysis itself.
+            viewModel.applyTitle(draft.title)
+            return viewModel
+        }
+
+        let fresh = make(draft)
+        viewModel = fresh
+        draftID = draft.id
+        return fresh
     }
 }

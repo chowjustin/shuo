@@ -15,19 +15,22 @@ public struct TranscriptAnalysisView: View {
     @State private var viewModel: TranscriptAnalysisViewModel
     @State private var isConfirmingLeave = false
     @State private var isConfirmingRegenerate = false
-    @State private var isShowingOriginalTranscript = false  // 👈 Kembalikan variabel state ini
-    @State private var pendingOriginalEdit: String?
+    @State private var isShowingOriginalScript = false
     @FocusState private var focusedField: AnalysisField?
     @State private var isRefinedExpanded = true
     @State private var isEditingRefined = false
     private let onClose: () -> Void
-    private let onBack: (ScriptDraft) -> Void
+    private let onBack: ((ScriptDraft) -> Void)?
 
-    // 👇 Hapus parameter `onOpenOriginalTranscript` dari inisialisasi
+    /// - Parameters:
+    ///   - onClose: the user is done with this screen and with the flow behind it.
+    ///   - onBack: return to Input Script, carrying the draft. `nil` when there is no
+    ///     Input Script to return to — a script reopened from the library was opened
+    ///     straight onto this screen — which is what hides ‹ there.
     public init(
         viewModel: TranscriptAnalysisViewModel,
         onClose: @escaping () -> Void,
-        onBack: @escaping (ScriptDraft) -> Void
+        onBack: ((ScriptDraft) -> Void)? = nil
     ) {
         _viewModel = State(wrappedValue: viewModel)
         self.onClose = onClose
@@ -46,40 +49,20 @@ public struct TranscriptAnalysisView: View {
                         .font(.headline)
                         .foregroundStyle(ShuoColor.primaryTextCream)
                 }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button(action: dismissKeyboard) {
-                        Image(systemName: "checkmark")
-                            .fontWeight(.semibold)
-                    }
-                    .accessibilityLabel("Done editing")
-                }
             }
             .task { viewModel.start() }
             .onDisappear { viewModel.cancelAll() }
-            // 👇 Ini adalah trik PUSH NATIVE untuk Original Transcript
-            .navigationDestination(isPresented: $isShowingOriginalTranscript) {
+            // Pushed, not sheeted, to match the rest of the flow.
+            .navigationDestination(isPresented: $isShowingOriginalScript) {
                 OriginalTranscriptView(
                     originalText: viewModel.originalTranscript,
-                    onSave: { edited in
-                        pendingOriginalEdit = edited
-                        isShowingOriginalTranscript = false  // Ini otomatis memicu animasi Back Native (Pop)
-                    },
-                    onCancel: {
-                        isShowingOriginalTranscript = false  // Memicu Back Native (Pop)
-                    }
+                    onBack: { isShowingOriginalScript = false }
                 )
             }
-            .onChange(of: isShowingOriginalTranscript) { _, showing in
-                if !showing, let edited = pendingOriginalEdit {
-                    pendingOriginalEdit = nil
-                    viewModel.updateOriginalTranscript(edited)
-                }
-            }
-
+            // Mid-create-flow a swipe would tear the whole flow down rather than step back,
+            // and unsaved edits are worth more than an accidental gesture either way.
             .interactiveDismissDisabled(
-                viewModel.viewState.toolbarLayout == .back
-                    || viewModel.hasUnsavedChanges
+                controls.showsBack || viewModel.hasUnsavedChanges
             )
             .alert(
                 "Leave without saving your changes?",
@@ -90,7 +73,7 @@ public struct TranscriptAnalysisView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text(
-                    "Your speech is saved. The pattern and transcript changes you made since aren't."
+                    "Your speech is saved. The pattern and script changes you made since aren't."
                 )
             }
             .alert(
@@ -102,29 +85,19 @@ public struct TranscriptAnalysisView: View {
             } message: {
                 Text("A few key points haven't been filled in yet...")
             }
-            .onChange(of: isShowingOriginalTranscript) { _, showing in
-                if !showing, let edited = pendingOriginalEdit {
-                    pendingOriginalEdit = nil
-                    viewModel.updateOriginalTranscript(edited)
-                }
-            }
     }
 
     // MARK: - Toolbar
 
-    /// **Two buttons on `.loaded`, one everywhere else.**
+    private var controls: AnalysisToolbarControls {
+        AnalysisToolbarControls(state: viewModel.viewState, canReturnToInput: onBack != nil)
+    }
+
+    /// ‹ to step back to Input Script, ✓ to finish. Never an ✕: leaving and discarding are
+    /// the same gesture here, and the prompt behind ✓ is what separates them.
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        switch viewModel.viewState.toolbarLayout {
-        case .leaveAndSave:
-            ToolbarItem(placement: .topBarLeading) {
-                Button(action: leave) {
-                    Image(systemName: "xmark")
-                }
-                .accessibilityLabel("Close")
-            }
-
-        case .back:
+        if controls.showsBack {
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: goBack) {
                     Image(systemName: "chevron.left")
@@ -132,12 +105,22 @@ public struct TranscriptAnalysisView: View {
                 .accessibilityLabel("Back to input")
             }
         }
+
+        if controls.showsFinish {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: finish) {
+                    Image(systemName: "checkmark")
+                }
+                .accessibilityLabel("Done")
+            }
+        }
     }
 
     // MARK: - Actions
 
-    /// ✕, from `.loaded` only.
-    private func leave() {
+    /// ✓. Done with the script — but never at the cost of unsaved work, so anything
+    /// outstanding is put to the user first.
+    private func finish() {
         if viewModel.hasUnsavedChanges {
             isConfirmingLeave = true
         } else {
@@ -145,10 +128,11 @@ public struct TranscriptAnalysisView: View {
         }
     }
 
-    /// ‹, from every state except `.loaded`.
+    /// ‹. Back to Input Script with the draft, leaving this screen's state intact: the
+    /// user can return to it, and the recording behind it is still theirs to replay.
     private func goBack() {
         viewModel.cancelAll()
-        onBack(viewModel.draft)
+        onBack?(viewModel.draft)
     }
 
     // MARK: - States
@@ -157,9 +141,13 @@ public struct TranscriptAnalysisView: View {
     private var content: some View {
         switch viewModel.viewState {
         case .analyzing:
+            // Word-for-word what the transcription step says. The user crosses from that
+            // screen into this one with no interaction in between (ARCHITECTURE.md #15), so
+            // changing the sentence halfway through one continuous wait reads as having
+            // landed somewhere unrelated.
             LoadingView(
                 systemImage: "sparkles",
-                message: "Analyzing your speech…"
+                message: "Analyzing your \(scriptDescription)…"
             )
 
         case .waitingForModel:
@@ -181,12 +169,18 @@ public struct TranscriptAnalysisView: View {
             if viewModel.isForceRegenerating {
                 LoadingView(
                     systemImage: "sparkles",
-                    message: "Refining transcript…"
+                    message: "Refining script…"
                 )
             } else {
                 loadedView
             }
         }
+    }
+
+    /// "persuading script" / "inspiring script" / "informing script" — matching the
+    /// transcription step's wording exactly.
+    private var scriptDescription: String {
+        "\(viewModel.draft.purpose.gerund.lowercased()) script"
     }
 
     private func errorSheet(_ copy: AnalysisErrorCopy) -> some View {
@@ -282,7 +276,7 @@ public struct TranscriptAnalysisView: View {
                 if viewModel.isRegeneratingTranscript {
                     HStack(spacing: 8) {
                         ProgressView().controlSize(.small)
-                        Text("Refining transcript…")
+                        Text("Refining script…")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -358,26 +352,17 @@ public struct TranscriptAnalysisView: View {
             )
 
             Button {
-                isShowingOriginalTranscript = true
+                isShowingOriginalScript = true
             } label: {
-                Text("View Original Transcript")
+                Text("View Original Script")
             } .underline()
-        }
-        .onChange(of: isShowingOriginalTranscript) { _, showing in
-            if !showing,
-                let edited = pendingOriginalEdit
-            {
-
-                pendingOriginalEdit = nil
-                viewModel.updateOriginalTranscript(edited)
-            }
         }
     }
 
     private var refinedTranscriptSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Text("Refined Transcript")
+                Text("Refined Script")
                     .font(.headline)
                     .foregroundStyle(ShuoColor.primaryTextCream)
 
@@ -476,7 +461,7 @@ public struct TranscriptAnalysisView: View {
     /// switched to but hasn't generated a refinement for.
     private var generateRefinedTranscriptPrompt: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Refined Transcript")
+            Text("Refined Script")
                 .font(.headline)
                 .foregroundStyle(ShuoColor.primaryTextCream)
 
@@ -487,7 +472,7 @@ public struct TranscriptAnalysisView: View {
             .foregroundStyle(ShuoColor.secondaryTextCream)
             .fixedSize(horizontal: false, vertical: true)
 
-            Button("Generate Refined Transcript") { requestRegenerate() }
+            Button("Generate Refined Script") { requestRegenerate() }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 12)

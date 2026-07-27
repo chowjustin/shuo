@@ -22,6 +22,13 @@ import ShuoCore
 /// `LiveTranscriptionSession`. The file is always written even when live transcription
 /// succeeds — it is what makes transcription recoverable if the live pass failed.
 ///
+/// A take is written as one file *per run of recording*, not one file per session: an AAC
+/// file that is still open for writing has no index and cannot be read back, so pausing
+/// closes the current segment and resuming opens the next. That is what makes
+/// `previewURL()` — replaying a take mid-session — possible at all. `AudioSegmentMerger`
+/// puts the pieces back together, and the common case of a single pause never merges
+/// anything because there is only ever one segment.
+///
 /// Kept as thin as it can be: the only real logic lives in `WaveformSampler`, which is
 /// pure and tested. This type is verified by hand on a device (CLAUDE.md §7).
 public actor AudioRecordingService: AudioCapturing {
@@ -50,8 +57,15 @@ public actor AudioRecordingService: AudioCapturing {
     private let transcription: LiveTranscriptionSession
 
     private var state: State = .idle
+    /// The segment currently open for writing, if any. Closed on every pause.
     private var file: AVAudioFile?
     private var fileURL: URL?
+    /// Segments closed so far, in capture order.
+    private var segmentURLs: [URL] = []
+    /// A merged copy of `segmentURLs` handed out by `previewURL()`, and the segment count
+    /// it was built from — the cache key, since any further recording invalidates it.
+    private var previewFileURL: URL?
+    private var previewSegmentCount = 0
     private var recordingFormat: AVAudioFormat?
     private var framesWritten: AVAudioFramePosition = 0
     private var waveformSamples: [Float] = []
@@ -110,19 +124,8 @@ public actor AudioRecordingService: AudioCapturing {
                 interleaved: false
             ) else { throw ShuoError.recordingFailed }
 
-            let url = try Self.makeRecordingURL()
-            let file = try AVAudioFile(
-                forWriting: url,
-                settings: [
-                    AVFormatIDKey: kAudioFormatMPEG4AAC,
-                    AVSampleRateKey: recordingFormat.sampleRate,
-                    AVNumberOfChannelsKey: 1,
-                ]
-            )
-
-            self.file = file
-            self.fileURL = url
             self.recordingFormat = recordingFormat
+            try openSegment()
 
             // The tap runs on a realtime audio thread and cannot touch actor state.
             // It extracts plain `[Float]` (Sendable) and hands them over through a
@@ -150,12 +153,12 @@ public actor AudioRecordingService: AudioCapturing {
             state = .recording
         } catch let error as ShuoError {
             Self.log.error("Recording could not start: \(String(describing: error), privacy: .public)")
-            await tearDown(deletingFile: true)
+            await tearDown(deletingFiles: true)
             throw error
         } catch {
             // The one place the real AVFoundation error exists before it is flattened.
             Self.log.error("Recording could not start: \(error.localizedDescription, privacy: .public) — \(String(describing: error), privacy: .public)")
-            await tearDown(deletingFile: true)
+            await tearDown(deletingFiles: true)
             throw ShuoError.recordingFailed
         }
     }
@@ -164,17 +167,46 @@ public actor AudioRecordingService: AudioCapturing {
         guard state == .recording else { return }
         engine.pause()
         state = .paused
+        // Closing the segment is what turns the audio so far into a file that can be read
+        // back — see `previewURL()`.
+        sealCurrentSegment()
     }
 
     public func resume() async throws {
         guard state == .paused else { return }
         do {
-            try AVAudioSession.sharedInstance().setActive(true)
+            // Reconfigured rather than merely reactivated: replaying the take switches the
+            // shared session to `.playAndRecord` (see `AudioPlaybackService`), and this is
+            // where the recording category is claimed back.
+            try configureSession()
+            try openSegment()
             try engine.start()
             state = .recording
         } catch {
+            Self.log.error("Recording could not resume: \(error.localizedDescription, privacy: .public)")
             throw ShuoError.recordingFailed
         }
+    }
+
+    public func previewURL() async throws -> URL {
+        guard state == .paused else { throw ShuoError.recordingFailed }
+        guard !segmentURLs.isEmpty else { throw ShuoError.recordingFailed }
+
+        if segmentURLs.count == 1, let only = segmentURLs.first { return only }
+        if let previewFileURL, previewSegmentCount == segmentURLs.count { return previewFileURL }
+
+        let merged = try Self.makeRecordingURL()
+        do {
+            try await AudioSegmentMerger.merge(segmentURLs, into: merged)
+        } catch {
+            try? FileManager.default.removeItem(at: merged)
+            throw ShuoError.recordingFailed
+        }
+
+        if let stale = previewFileURL { try? FileManager.default.removeItem(at: stale) }
+        previewFileURL = merged
+        previewSegmentCount = segmentURLs.count
+        return merged
     }
 
     public func finish() async throws -> AudioRecording {
@@ -182,16 +214,27 @@ public actor AudioRecordingService: AudioCapturing {
 
         engine.stop()
         state = .ended
+        sealCurrentSegment()
 
         let liveTranscript = await transcription.finish()
         let duration = currentDuration
         let samples = waveformSamples
-        guard let url = fileURL, duration > 0 else {
-            await tearDown(deletingFile: true)
+        guard duration > 0, !segmentURLs.isEmpty else {
+            await tearDown(deletingFiles: true)
             throw ShuoError.recordingFailed
         }
 
-        await tearDown(deletingFile: false)
+        let url: URL
+        do {
+            url = try await consolidatedRecordingURL()
+        } catch {
+            await tearDown(deletingFiles: true)
+            throw ShuoError.recordingFailed
+        }
+
+        // Keeps `url`; `consolidatedRecordingURL()` has already removed anything it
+        // superseded.
+        await tearDown(deletingFiles: false)
 
         return AudioRecording(
             fileURL: url,
@@ -206,7 +249,57 @@ public actor AudioRecordingService: AudioCapturing {
         engine.stop()
         state = .ended
         await transcription.cancel()
-        await tearDown(deletingFile: true)
+        await tearDown(deletingFiles: true)
+    }
+
+    // MARK: - Segments
+
+    /// Opens the next segment for writing.
+    private func openSegment() throws {
+        guard let recordingFormat else { throw ShuoError.recordingFailed }
+        let url = try Self.makeRecordingURL()
+        file = try AVAudioFile(
+            forWriting: url,
+            settings: [
+                AVFormatIDKey: kAudioFormatMPEG4AAC,
+                AVSampleRateKey: recordingFormat.sampleRate,
+                AVNumberOfChannelsKey: 1,
+            ]
+        )
+        fileURL = url
+    }
+
+    /// Closes the open segment, if there is one, and records it as complete.
+    ///
+    /// Releasing the `AVAudioFile` is what writes the AAC index and makes the file
+    /// readable — there is no explicit close on the API, which is why this reads as an
+    /// assignment doing more than an assignment.
+    private func sealCurrentSegment() {
+        file = nil
+        if let fileURL { segmentURLs.append(fileURL) }
+        fileURL = nil
+    }
+
+    /// The whole take as one file, merging only when it was actually captured in pieces.
+    ///
+    /// Adopts an up-to-date `previewURL()` result rather than exporting the same audio
+    /// twice — the ordinary path here is a user who paused, replayed their take, and then
+    /// confirmed it.
+    private func consolidatedRecordingURL() async throws -> URL {
+        if segmentURLs.count == 1, let only = segmentURLs.first { return only }
+
+        if let previewFileURL, previewSegmentCount == segmentURLs.count {
+            for segment in segmentURLs { try? FileManager.default.removeItem(at: segment) }
+            segmentURLs = [previewFileURL]
+            self.previewFileURL = nil
+            return previewFileURL
+        }
+
+        let merged = try Self.makeRecordingURL()
+        try await AudioSegmentMerger.merge(segmentURLs, into: merged)
+        for segment in segmentURLs { try? FileManager.default.removeItem(at: segment) }
+        segmentURLs = [merged]
+        return merged
     }
 
     // MARK: - Capture pipeline
@@ -300,7 +393,7 @@ public actor AudioRecordingService: AudioCapturing {
 
     // MARK: - Teardown
 
-    private func tearDown(deletingFile: Bool) async {
+    private func tearDown(deletingFiles: Bool) async {
         if engine.isRunning { engine.stop() }
         engine.inputNode.removeTap(onBus: 0)
 
@@ -311,9 +404,22 @@ public actor AudioRecordingService: AudioCapturing {
         removeDisruptionObservers()
 
         file = nil
-        if deletingFile, let fileURL {
-            try? FileManager.default.removeItem(at: fileURL)
-            self.fileURL = nil
+
+        // Always: a preview is a throwaway copy for the replay control, never the take
+        // itself. `consolidatedRecordingURL()` clears this first when it adopts one.
+        if let previewFileURL {
+            try? FileManager.default.removeItem(at: previewFileURL)
+            self.previewFileURL = nil
+            previewSegmentCount = 0
+        }
+
+        if deletingFiles {
+            for segment in segmentURLs { try? FileManager.default.removeItem(at: segment) }
+            segmentURLs = []
+            if let fileURL {
+                try? FileManager.default.removeItem(at: fileURL)
+                self.fileURL = nil
+            }
         }
 
         eventContinuation.finish()

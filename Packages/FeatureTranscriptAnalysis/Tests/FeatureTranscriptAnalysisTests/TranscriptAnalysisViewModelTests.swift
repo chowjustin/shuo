@@ -453,7 +453,7 @@ struct TranscriptAnalysisViewModelTests {
         )
 
         viewModel.start()
-        try await waitUntil { viewModel.viewState == .rejected(.tooShort) }
+        try await waitUntil { viewModel.viewState == .rejected(.tooFewWords) }
 
         let count = await analyzer.classifyCallCount
         #expect(count == 0)
@@ -986,52 +986,6 @@ struct TranscriptAnalysisViewModelTests {
         #expect(await analyzer.keyPointCalls.isEmpty, "prefetch regenerated key points on reopen")
     }
 
-    // MARK: - Editing the original transcript
-
-    @Test("Editing the original transcript re-runs the whole analysis from the new text")
-    func editingOriginalRegeneratesEverything() async throws {
-        let analyzer = makeAnalyzer()
-        let viewModel = makeViewModel(analyzer: analyzer)
-
-        viewModel.start()
-        try await waitUntil { viewModel.viewState == .loaded }
-        viewModel.regenerate()
-        try await waitUntil { viewModel.refinedTranscript != nil }
-        let classifyBefore = await analyzer.classifyCallCount
-
-        let newText = """
-            Here is an entirely different speech, long enough to pass the usability check, \
-            about how libraries quietly became the most important public spaces in every \
-            town, and why funding them is a decision about the kind of community we want.
-            """
-        viewModel.updateOriginalTranscript(newText)
-
-        try await waitUntil { viewModel.viewState == .loaded }
-
-        #expect(await analyzer.classifyCallCount == classifyBefore + 1,
-                "the edited transcript must be reclassified")
-        #expect(viewModel.originalTranscript.hasPrefix("Here is an entirely different"))
-        #expect(viewModel.refinedTranscript == nil,
-                "refinements are cleared and not auto-generated after an edit")
-        #expect(!viewModel.keyPoints.isEmpty, "key points are regenerated for the new transcript")
-    }
-
-    @Test("Re-saving the original transcript unchanged does nothing")
-    func editingOriginalUnchangedIsANoOp() async throws {
-        let analyzer = makeAnalyzer()
-        let viewModel = makeViewModel(analyzer: analyzer)
-
-        viewModel.start()
-        try await waitUntil { viewModel.viewState == .loaded }
-        let classifyBefore = await analyzer.classifyCallCount
-
-        viewModel.updateOriginalTranscript("  \(viewModel.originalTranscript)  ")
-        try await Task.sleep(for: .milliseconds(50))
-
-        #expect(await analyzer.classifyCallCount == classifyBefore)
-        #expect(viewModel.viewState == .loaded)
-    }
-
     // MARK: - Per-pattern persistence
 
     @Test("A new script persists every suggested pattern's key points, not just the selected one")
@@ -1106,4 +1060,28 @@ struct TranscriptAnalysisViewModelTests {
         #expect(viewModel.hasUnfulfilledKeyPoints)
     }
 
+
+    // MARK: - Re-entering a loaded screen
+
+    @Test("Returning to a loaded analysis does not regenerate it")
+    func reenteringALoadedScreenDoesNotRegenerate() async throws {
+        // ‹ back to Input Script and ✓ forward again puts this same view model behind a
+        // fresh view, whose `.task` calls `start()` again — and `cancelAll()` on the way
+        // out has already cleared the task handle that used to be the only guard. Without
+        // the `.loaded` check, returning reruns the whole on-device pipeline over an
+        // analysis sitting in memory, complete, with the user's edits in it.
+        let analyzer = makeAnalyzer()
+        let viewModel = makeViewModel(analyzer: analyzer)
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+        let classifyCallsAfterFirstLoad = await analyzer.classifyCallCount
+        let keyPointsBefore = viewModel.keyPoints
+
+        viewModel.cancelAll()
+        viewModel.start()
+
+        #expect(viewModel.viewState == .loaded)
+        #expect(await analyzer.classifyCallCount == classifyCallsAfterFirstLoad)
+        #expect(viewModel.keyPoints == keyPointsBefore)
+    }
 }

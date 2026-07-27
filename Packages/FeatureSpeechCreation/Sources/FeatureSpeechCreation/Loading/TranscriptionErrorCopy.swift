@@ -120,11 +120,15 @@ struct TranscriptionErrorCopy: Equatable {
             )
 
         case .aiUnavailable, .contextWindowExceeded, .persistenceFailed,
-             .transcriptNotUsable, .aiGenerationFailed:
+             .transcriptNotUsable, .aiGenerationFailed, .playbackFailed:
             // Not reachable from this flow: these belong to the analysis and saving steps,
             // which own their own copy — `TranscriptAnalysisView` maps every
             // `TranscriptRejectionReason` to its own actionable wording. Kept generic here
             // rather than duplicated, since the attach-file sheet never shows them.
+            //
+            // `.playbackFailed` is likewise never routed here: a take that will not replay
+            // is still a take, so Speak mode says so beside the replay control and lets the
+            // user carry on rather than surfacing a failure sheet.
             self.init(
                 systemImage: "exclamationmark.triangle.fill",
                 title: "Something went wrong.",

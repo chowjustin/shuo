@@ -26,19 +26,23 @@ public actor FakeAudioCapturing: AudioCapturing {
     public private(set) var resumeCount = 0
     public private(set) var finishCount = 0
     public private(set) var discardCount = 0
+    public private(set) var previewCount = 0
 
     private let recording: AudioRecording
     private let startError: ShuoError?
     private let finishError: ShuoError?
+    private let previewError: ShuoError?
 
     public init(
         recording: AudioRecording = FakeAudioCapturing.defaultRecording,
         startError: ShuoError? = nil,
-        finishError: ShuoError? = nil
+        finishError: ShuoError? = nil,
+        previewError: ShuoError? = nil
     ) {
         self.recording = recording
         self.startError = startError
         self.finishError = finishError
+        self.previewError = previewError
 
         let (events, continuation) = AsyncStream.makeStream(of: AudioCaptureEvent.self)
         self.events = events
@@ -75,6 +79,16 @@ public actor FakeAudioCapturing: AudioCapturing {
     public func resume() async throws {
         resumeCount += 1
     }
+
+    public func previewURL() async throws -> URL {
+        previewCount += 1
+        if let previewError { throw previewError }
+        return Self.previewURL
+    }
+
+    /// Where a paused take would be assembled for replay. Distinct from the finished
+    /// recording's url, as it is in the real service.
+    public static let previewURL = URL(filePath: "/tmp/preview-take.m4a")
 
     public func finish() async throws -> AudioRecording {
         finishCount += 1

@@ -27,14 +27,17 @@ struct InputScriptViewModelTests {
         purpose: SpeechPurpose = .persuade,
         fileImporter: (any FileImporting)? = nil,
         capturer: FakeAudioCapturing = FakeAudioCapturing(),
+        deleter: FakeAudioRecordingDeleting = FakeAudioRecordingDeleting(),
         transcriber: (any SpeechTranscribing)? = nil,
         initialText: String? = nil
     ) -> InputScriptViewModel {
         InputScriptViewModel(
             purpose: purpose,
             fileImporter: fileImporter ?? FakeFileImporting(returning: makeMedia()),
-            audioCapturer: capturer,
+            makeAudioCapturer: { capturer },
             microphonePermissions: FakeMicrophonePermissionProviding(status: .granted),
+            audioPlayer: FakeAudioPlaying(),
+            recordingDeleter: deleter,
             generateTranscript: GenerateTranscriptUseCase(
                 transcriber: transcriber ?? FakeSpeechTranscribing(returning: "Transcribed speech.")
             ),
@@ -323,8 +326,11 @@ struct InputScriptViewModelTests {
         #expect(await capturer.discardCount == 0)
     }
 
-    @Test("discarding unconfirmed modes releases the other two and keeps the chosen one")
-    func discardUnconfirmedModesKeepsOnlyTheChosenMode() async {
+    @Test("every mode survives confirming, so stepping back finds the screen as it was")
+    func confirmingKeepsEveryMode() async {
+        // Confirming used to release the two modes the user did not pick. It cannot any
+        // more: ‹ from the analysis screen comes back here, and it has to find the
+        // recording, the typed draft and the attachment exactly where they were left.
         let capturer = FakeAudioCapturing()
         let viewModel = makeViewModel(capturer: capturer)
         viewModel.writeVM.content = "Typed draft."
@@ -333,33 +339,71 @@ struct InputScriptViewModelTests {
         await viewModel.attachVM.importTask?.value
         viewModel.mode = .speak
         await recordAndPause(viewModel)
-        _ = await viewModel.prepareToProceed()
 
-        viewModel.discardUnconfirmedModes()
+        _ = await viewModel.prepareToProceed()
         await viewModel.speakVM.transitionTask?.value
 
-        #expect(viewModel.writeVM.content.isEmpty)
-        #expect(viewModel.attachVM.importedMedia == nil)
-        // The confirmed recording is the one thing that must NOT be discarded.
+        #expect(viewModel.writeVM.content == "Typed draft.")
+        #expect(viewModel.attachVM.importedMedia != nil)
         #expect(await capturer.discardCount == 0)
         #expect(viewModel.speakVM.viewState == .finished(FakeAudioCapturing.defaultRecording))
     }
 
-    @Test("discarding unconfirmed modes releases an abandoned recording's audio file")
-    func discardUnconfirmedModesReleasesAbandonedRecording() async {
-        // Speak writes a real file. Confirming on Write means that file is unreachable, and
-        // v1 ships no way for the user to reclaim the storage.
+    @Test("leaving the flow deletes the audio a confirmed take left on disk")
+    func discardDeletesTheConfirmedRecording() async {
+        // Nothing releases the take until the flow itself ends — and by then its capture
+        // session has finished, so `discard()` can no longer reach the file. Deleting it
+        // explicitly is the only thing that reclaims the storage.
         let capturer = FakeAudioCapturing()
-        let viewModel = makeViewModel(capturer: capturer)
+        let deleter = FakeAudioRecordingDeleting()
+        let viewModel = makeViewModel(capturer: capturer, deleter: deleter)
         await recordAndPause(viewModel)
-        viewModel.mode = .write
-        viewModel.writeVM.content = "Typed draft."
+        _ = await viewModel.prepareToProceed()
 
-        viewModel.discardUnconfirmedModes()
+        viewModel.discard()
         await viewModel.speakVM.transitionTask?.value
 
-        #expect(await capturer.discardCount == 1)
-        #expect(viewModel.writeVM.content == "Typed draft.")
+        #expect(await deleter.deleted == [FakeAudioCapturing.defaultRecording])
+    }
+
+    // MARK: - Carrying a rejected transcript back
+
+    @Test("a transcript handed back waits in Write mode without stealing the screen")
+    func stashedTranscriptWaitsInWriteMode() async {
+        // Stepping back lands the user in the mode they left — a recording they can still
+        // play — but when analysis rejected the wording, the words are what needs changing,
+        // so they are left within reach for a user who switches tabs to look.
+        let viewModel = makeViewModel()
+        await recordAndPause(viewModel)
+
+        viewModel.stashTranscript("A speech about campus organizations.")
+
+        #expect(viewModel.mode == .speak)
+        #expect(viewModel.writeVM.content == "A speech about campus organizations.")
+    }
+
+    @Test("a stashed transcript never overwrites what the user typed")
+    func stashedTranscriptDoesNotOverwriteTyping() async {
+        let viewModel = makeViewModel()
+        viewModel.writeVM.content = "My own draft."
+        viewModel.mode = .speak
+        await recordAndPause(viewModel)
+
+        viewModel.stashTranscript("A transcript.")
+
+        #expect(viewModel.writeVM.content == "My own draft.")
+    }
+
+    @Test("a transcript is not stashed into the mode that produced it")
+    func stashedTranscriptSkipsWriteMode() {
+        // In Write mode the transcript *is* what the user typed; writing it back would be
+        // a no-op at best and a duplicate at worst.
+        let viewModel = makeViewModel()
+        viewModel.mode = .write
+
+        viewModel.stashTranscript("A transcript.")
+
+        #expect(viewModel.writeVM.content.isEmpty)
     }
 
     // MARK: - Warning before dropping other modes

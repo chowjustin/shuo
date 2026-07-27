@@ -112,6 +112,19 @@ public final class TranscriptAnalysisViewModel {
         }
     }
 
+    /// Adopts a title the user changed on Input Script before stepping forward again.
+    ///
+    /// Returning to an analysis that is already on screen skips the whole pipeline, so the
+    /// rename made on the way back would otherwise be the one edit that silently didn't
+    /// take. A no-op when the title is unchanged, so re-entering cannot mark a clean draft
+    /// dirty on its own.
+    public func applyTitle(_ newTitle: String) {
+        let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != draft.title else { return }
+        title = trimmed
+        scheduleSave()
+    }
+
     /// Settles the title once the user is done editing it: trims surrounding whitespace, and falls back to `untitledTitle` if that leaves nothing.
     public func commitTitle() {
         let trimmed = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -148,7 +161,12 @@ public final class TranscriptAnalysisViewModel {
     /// Starts the screen. If the draft already has saved analysis data (reopened script),
     /// loads directly from it; otherwise runs the AI pipeline.
     public func start() {
-        guard analysisTask == nil else { return }
+        // `.loaded` is checked as well as the task handle, because this screen is now
+        // re-entered rather than rebuilt: ‹ back to Input Script and ✓ forward again puts
+        // the same view model behind a fresh view, and `cancelAll()` on the way out
+        // already cleared `analysisTask`. Without this, returning would regenerate an
+        // analysis that is sitting in memory, complete, with the user's edits in it.
+        guard analysisTask == nil, viewState != .loaded else { return }
         analysisTask = Task { [weak self] in
             guard let self else { return }
             if hasReopenableAnalysis {
@@ -566,35 +584,6 @@ public final class TranscriptAnalysisViewModel {
                 updated.suggestion = sentence
             }
             return updated
-        }
-    }
-
-    /// Replaces the original transcript text after the user edits it, and re-runs the **entire** analysis from it.
-    public func updateOriginalTranscript(_ text: String) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed != draft.transcript.original else { return }
-
-        cancelAll()
-
-        keyPointCache.removeAll()
-        refinedCache.removeAll()
-        draft.transcript = Transcript(original: trimmed, refined: nil)
-        draft.suggestedPatternIDs = []
-        draft.selectedPatternID = nil
-        draft.keyPoints = []
-        draft.keyPointsByPattern = [:]
-        draft.refinedByPattern = [:]
-        keyPoints = []
-        editableRefinedText = ""
-        actionError = nil
-        hasUnsavedChanges = true
-
-        autoSaveTask?.cancel()
-        autoSaveTask = nil
-
-        viewState = .analyzing
-        analysisTask = Task { [weak self] in
-            await self?.runInitialAnalysis()
         }
     }
 }

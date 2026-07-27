@@ -153,7 +153,7 @@ struct ClassifyTranscriptUseCaseTests {
         let analyzer = FakeSpeechAnalyzing()
         let classify = ClassifyTranscriptUseCase(analyzer: analyzer)
 
-        await #expect(throws: ShuoError.transcriptNotUsable(.tooShort)) {
+        await #expect(throws: ShuoError.transcriptNotUsable(.tooFewWords)) {
             try await classify(transcript: Transcript(original: "hi"), purpose: .inform)
         }
 

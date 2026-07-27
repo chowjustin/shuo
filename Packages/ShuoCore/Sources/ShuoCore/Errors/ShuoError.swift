@@ -69,4 +69,11 @@ public enum ShuoError: Error, Sendable, Equatable {
     case microphonePermissionDenied
     /// Audio capture could not start, or produced nothing usable.
     case recordingFailed
+
+    // MARK: - Playback
+
+    /// A captured take could not be played back. Never fatal to the flow — the audio is
+    /// still transcribable — so callers surface it beside the replay control rather than
+    /// taking over the screen.
+    case playbackFailed
 }

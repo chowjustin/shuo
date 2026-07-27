@@ -28,10 +28,12 @@ struct LoadingRouteViewModelTests {
 
     private func makeViewModel(
         source: SpeechSource? = nil,
+        purpose: SpeechPurpose = .persuade,
         transcriber: FakeSpeechTranscribing = FakeSpeechTranscribing(returning: "Transcribed speech.")
     ) -> LoadingRouteViewModel {
         LoadingRouteViewModel(
             source: source ?? .importedMedia(makeMedia()),
+            purpose: purpose,
             generateTranscript: GenerateTranscriptUseCase(transcriber: transcriber)
         )
     }
