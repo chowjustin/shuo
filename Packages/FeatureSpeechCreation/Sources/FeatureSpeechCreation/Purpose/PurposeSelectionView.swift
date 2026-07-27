@@ -26,13 +26,14 @@ public struct PurposeSelectionView: View {
     }
 
     public var body: some View {
-            ScrollView {
+        ScrollView {
                 VStack(alignment: .center, spacing: ShuoSpacing.large) {
                     
                     Text("Tell us your purpose")
                         .font(ShuoTypography.title)
                         .foregroundStyle(ShuoColor.primaryTextCream)
                         .accessibilityAddTraits(.isHeader)
+                        .padding(.top, ShuoSpacing.medium)
                     
                     ForEach(SpeechPurpose.allCases) { purpose in
                         PurposeCard(
@@ -50,7 +51,6 @@ public struct PurposeSelectionView: View {
                     }
                 }
                 .padding(ShuoSpacing.large)
-
             }
             .background(ShuoColor.background)
             .toolbar {

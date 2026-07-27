@@ -4,7 +4,7 @@
 //
 //  Created by Justin Chow on 13/07/26.
 //
- 
+
 import Foundation
 import ShuoCore
 import ShuoDesignSystem
@@ -28,11 +28,15 @@ public struct HomeView: View {
         self.viewModel = viewModel
         self.onTapCreate = onTapCreate
         self.onSelectScript = onSelectScript
-        
+
         let appearance = UINavigationBarAppearance()
         appearance.configureWithTransparentBackground()
-        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor(ShuoColor.primaryTextCream)]
-        appearance.titleTextAttributes = [.foregroundColor: UIColor(ShuoColor.primaryTextCream)]
+        appearance.largeTitleTextAttributes = [
+            .foregroundColor: UIColor(ShuoColor.primaryTextCream)
+        ]
+        appearance.titleTextAttributes = [
+            .foregroundColor: UIColor(ShuoColor.primaryTextCream)
+        ]
 
         UINavigationBar.appearance().standardAppearance = appearance
         UINavigationBar.appearance().scrollEdgeAppearance = appearance
@@ -43,14 +47,20 @@ public struct HomeView: View {
         ZStack {
             ShuoColor.background
                 .ignoresSafeArea()
+            
+            Image("SHUO BACKGROUND HD")
+                        .resizable()
+                        .scaledToFill()
+                        .ignoresSafeArea()
+                        .opacity(0.8)
 
-                content
+            content
         }
         .navigationTitle("All Scripts")
-                .searchable(
-                    text: $viewModel.searchQuery,
-                    placement: .navigationBarDrawer(displayMode: .always),
-                    prompt: "Search"
+        .searchable(
+            text: $viewModel.searchQuery,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "Search"
         )
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -63,13 +73,13 @@ public struct HomeView: View {
                 .tint(ShuoColor.pink)
                 .accessibilityLabel("New script")
                 .accessibilityInputLabels([
-                                    "New script",
-                                    "Input new script",
-                                    "Input script",
-                                    "Create script",
-                                    "Add script",
-                                    "Create new script"
-                                ])
+                    "New script",
+                    "Input new script",
+                    "Input script",
+                    "Create script",
+                    "Add script",
+                    "Create new script",
+                ])
             }
         }
         .onAppear {
@@ -88,7 +98,9 @@ public struct HomeView: View {
                 scriptToDelete = nil
             }
         } message: { script in
-            Text("Are you sure you want to delete \"\(script.title)\"? This action cannot be undone.")
+            Text(
+                "Are you sure you want to delete \"\(script.title)\"? This action cannot be undone."
+            )
         }
     }
 
@@ -102,14 +114,20 @@ public struct HomeView: View {
         case .empty:
             emptyStateView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .offset(y: -60)
 
         case .loaded(let summaries):
             List {
                 ForEach(summaries) { summary in
                     ScriptCard(
                         title: summary.title,
-                        dateText: summary.createdAt.formatted(date: .abbreviated, time: .omitted),
-                        durationText: summary.recordingDuration.map(formattedDuration) ?? "—",
+                        dateText: summary.createdAt.formatted(
+                            date: .abbreviated,
+                            time: .omitted
+                        ),
+                        durationText: summary.recordingDuration.map(
+                            formattedDuration
+                        ) ?? "—",
                         purposeLabel: summary.purpose.title,
                         isSelected: selectedID == summary.id,
                         onTap: {
@@ -117,13 +135,20 @@ public struct HomeView: View {
                             onSelectScript(summary.id)
                         }
                     )
-                    .listRowInsets(EdgeInsets(top: ShuoSpacing.small, leading: ShuoSpacing.medium, bottom: ShuoSpacing.small, trailing: ShuoSpacing.medium))
+                    .listRowInsets(
+                        EdgeInsets(
+                            top: ShuoSpacing.small,
+                            leading: ShuoSpacing.medium,
+                            bottom: ShuoSpacing.small,
+                            trailing: ShuoSpacing.medium
+                        )
+                    )
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                     .accessibilityLabel(summary.title)
                     .accessibilityHint("Swipe left to delete")
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-        
+
                         Button(role: .destructive) {
                             scriptToDelete = summary
                             showDeleteAlert = true
@@ -142,19 +167,44 @@ public struct HomeView: View {
 
     private var emptyStateView: some View {
         let isSearching = !viewModel.searchQuery.isEmpty
-
-        return Text(isSearching ? "No results for \"\(viewModel.searchQuery)\"." : "No scripts yet. Start inputting a new script!")
-            .accessibilityLabel(isSearching ? "No results for \(viewModel.searchQuery)." : "No scripts yet. Start inputting a new script!")
+        
+        return VStack(spacing: ShuoSpacing.xSmall) {
+            if !isSearching {
+                        Image("SHUO SLEEP")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 160, height: 160)
+                    }
+            
+            Text(
+                isSearching
+                ? "No results for \"\(viewModel.searchQuery)\"."
+                : "No scripts yet."
+            )
             .font(ShuoTypography.body)
             .fontWeight(.light)
             .foregroundStyle(ShuoColor.secondaryTextCream)
-            .multilineTextAlignment(.center)
-            .padding(ShuoSpacing.large)
+            
+            Text("Start creating a new speaking script!")
+                .font(ShuoTypography.body)
+                .fontWeight(.light)
+                .foregroundStyle(ShuoColor.secondaryTextCream)
+                .multilineTextAlignment(.center)
+        }
+        .multilineTextAlignment(.center)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            isSearching
+            ? "No results for \(viewModel.searchQuery)."
+            : "No scripts yet.\nStart creating a new speaking script!"
+        )
+        .padding(ShuoSpacing.large)
     }
 
     private func formattedDuration(_ duration: TimeInterval) -> String {
         let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = duration >= 3600 ? [.hour, .minute, .second] : [.minute, .second]
+        formatter.allowedUnits =
+            duration >= 3600 ? [.hour, .minute, .second] : [.minute, .second]
         formatter.unitsStyle = .positional
         formatter.zeroFormattingBehavior = .pad
         return formatter.string(from: duration) ?? ""
@@ -167,10 +217,16 @@ public struct HomeView: View {
     NavigationStack {
         HomeView(
             viewModel: HomeViewModel(
-                fetchScriptSummaries: FetchScriptSummariesUseCase(repository: PreviewScriptRepository(hasScripts: true)),
-                searchScripts: SearchScriptsUseCase(repository: PreviewScriptRepository(hasScripts: true)),
+                fetchScriptSummaries: FetchScriptSummariesUseCase(
+                    repository: PreviewScriptRepository(hasScripts: true)
+                ),
+                searchScripts: SearchScriptsUseCase(
+                    repository: PreviewScriptRepository(hasScripts: true)
+                ),
                 // 👇 Inject DeleteScriptUseCase di Preview
-                deleteScript: DeleteScriptUseCase(repository: PreviewScriptRepository(hasScripts: true))
+                deleteScript: DeleteScriptUseCase(
+                    repository: PreviewScriptRepository(hasScripts: true)
+                )
             ),
             onSelectScript: { id in
                 print("Selected script ID: \(id)")
@@ -183,9 +239,15 @@ public struct HomeView: View {
     NavigationStack {
         HomeView(
             viewModel: HomeViewModel(
-                fetchScriptSummaries: FetchScriptSummariesUseCase(repository: PreviewScriptRepository(hasScripts: false)),
-                searchScripts: SearchScriptsUseCase(repository: PreviewScriptRepository(hasScripts: false)),
-                deleteScript: DeleteScriptUseCase(repository: PreviewScriptRepository(hasScripts: false))
+                fetchScriptSummaries: FetchScriptSummariesUseCase(
+                    repository: PreviewScriptRepository(hasScripts: false)
+                ),
+                searchScripts: SearchScriptsUseCase(
+                    repository: PreviewScriptRepository(hasScripts: false)
+                ),
+                deleteScript: DeleteScriptUseCase(
+                    repository: PreviewScriptRepository(hasScripts: false)
+                )
             )
         )
     }
@@ -196,7 +258,7 @@ private struct PreviewScriptRepository: ScriptRepository {
 
     func save(_ script: Script) async throws {}
     func fetch(id: UUID) async throws -> Script? { nil }
-    
+
     func delete(id: UUID) async throws {
         print("Preview: Script \(id) deleted")
     }
@@ -204,9 +266,27 @@ private struct PreviewScriptRepository: ScriptRepository {
     func fetchSummaries() async throws -> [ScriptSummary] {
         guard hasScripts else { return [] }
         return [
-            ScriptSummary(id: UUID(), title: "Why must join campus organization", purpose: .persuade, createdAt: .now, recordingDuration: 245),
-            ScriptSummary(id: UUID(), title: "How volunteering changed my life", purpose: .inspire, createdAt: .now, recordingDuration: 130),
-            ScriptSummary(id: UUID(), title: "Understanding climate policy", purpose: .inform, createdAt: .now, recordingDuration: nil),
+            ScriptSummary(
+                id: UUID(),
+                title: "Why must join campus organization",
+                purpose: .persuade,
+                createdAt: .now,
+                recordingDuration: 245
+            ),
+            ScriptSummary(
+                id: UUID(),
+                title: "How volunteering changed my life",
+                purpose: .inspire,
+                createdAt: .now,
+                recordingDuration: 130
+            ),
+            ScriptSummary(
+                id: UUID(),
+                title: "Understanding climate policy",
+                purpose: .inform,
+                createdAt: .now,
+                recordingDuration: nil
+            ),
         ]
     }
 
