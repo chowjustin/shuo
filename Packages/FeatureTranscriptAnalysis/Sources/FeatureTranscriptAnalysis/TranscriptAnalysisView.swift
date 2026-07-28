@@ -47,6 +47,7 @@ public struct TranscriptAnalysisView: View {
             .toolbar {
                 toolbarContent
                 ToolbarItem(placement: .principal) {
+                
                     Text("Script Analysis")
                         .font(.headline)
                         .foregroundStyle(ShuoColor.primaryTextCream)
