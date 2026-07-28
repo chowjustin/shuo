@@ -21,6 +21,9 @@ public final class LoadingRouteViewModel {
         case loading(LoadingContext)
         case finished(Transcript)
         case failed(ShuoError)
+        /// The user backgrounded the app while transcription was running. The
+        /// work was cancelled; the user must go back and submit again.
+        case interrupted
     }
 
     public private(set) var viewState: ViewState = .loading(.transcribing)
@@ -91,6 +94,15 @@ public final class LoadingRouteViewModel {
     public func cancel() {
         workTask?.cancel()
         workTask = nil
+    }
+
+    /// Called when the app moves to the background while transcription is active.
+    /// Cancels the work and marks the state so the UI can show a recovery prompt.
+    public func interrupt() {
+        guard case .loading = viewState else { return }
+        workTask?.cancel()
+        workTask = nil
+        viewState = .interrupted
     }
 
     // Video is the only source that pays the extraction step first, so it is the only one

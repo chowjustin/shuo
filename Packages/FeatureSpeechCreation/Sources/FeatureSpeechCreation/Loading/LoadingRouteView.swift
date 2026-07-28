@@ -37,6 +37,7 @@ public struct LoadingRouteView: View {
     /// the background, or SwiftUI re-inserting it — and a second hand-off would build a
     /// fresh draft and restart an analysis already in progress.
     @State private var didHandOff = false
+    @Environment(\.scenePhase) private var scenePhase
 
     /// - Parameters:
     ///   - onBack: returns to Input Script. The caller cancels any in-flight transcription
@@ -72,6 +73,11 @@ public struct LoadingRouteView: View {
         // Covers every way out — the ‹ button or the whole flow being torn down — so no
         // transcription outlives the screen that asked for it.
         .onDisappear { viewModel.cancel() }
+        // If the user backgrounds the app while transcribing, iOS will suspend the work.
+        // Cancel explicitly and show a prompt rather than leaving a stale spinner.
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background { viewModel.interrupt() }
+        }
         // Matches Input Script: the create flow is one sheet, so a swipe here would tear
         // the whole session down rather than step back. ‹ is the only exit.
         .interactiveDismissDisabled(true)
@@ -90,6 +96,21 @@ public struct LoadingRouteView: View {
         case .failed(let error):
             let copy = TranscriptionErrorCopy(error: error)
             ErrorSheet(mascotImageName: "SHUO ERROR", title: copy.title, message: copy.message)
+
+        case .interrupted:
+            VStack(spacing: 12) {
+                ShuoImage.mascotError
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 180, height: 180)
+                Text("Transcription was interrupted.")
+                    .font(.headline)
+                    .foregroundStyle(ShuoColor.primaryTextCream)
+                Text("You left while your speech was being transcribed. Go back and try again.")
+                    .foregroundStyle(ShuoColor.secondaryTextCream)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
 
         case .finished(let transcript):
             // No confirmation step: the user already chose to transcribe, so showing them

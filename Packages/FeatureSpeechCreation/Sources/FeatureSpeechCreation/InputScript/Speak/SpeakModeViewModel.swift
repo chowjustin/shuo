@@ -463,6 +463,10 @@ public final class SpeakModeViewModel {
         return switch error {
         case .microphonePermissionDenied:
             "Shuo needs microphone access to record your ideas."
+        case .audioNotDetected:
+            "We couldn't detect any audio. Try speaking closer to the mic."
+        case .storageFull:
+            "Your device storage is full. Free up some space and try again."
         default:
             "Something went wrong while recording. Please try again."
         }

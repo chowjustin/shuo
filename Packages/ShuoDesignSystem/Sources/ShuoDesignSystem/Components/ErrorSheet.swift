@@ -44,10 +44,10 @@ public struct ErrorSheet: View {
     public var body: some View {
         VStack(spacing: ShuoSpacing.large) {
             if let mascotImageName {
-                Image(mascotImageName)
+                Image(mascotImageName, bundle: .module)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 120, height: 120)
+                    .frame(width: 180, height: 180)
                     .accessibilityHidden(true)
             } else {
                 Image(systemName: systemImage)
@@ -59,11 +59,11 @@ public struct ErrorSheet: View {
             VStack(spacing: ShuoSpacing.small) {
                 Text(title)
                     .font(ShuoTypography.sheetTitle)
-                    .foregroundStyle(ShuoColor.primaryText)
+                    .foregroundStyle(ShuoColor.primaryTextCream)
 
                 Text(message)
                     .font(ShuoTypography.subtitle)
-                    .foregroundStyle(ShuoColor.secondaryText)
+                    .foregroundStyle(ShuoColor.secondaryTextCream)
             }
             .multilineTextAlignment(.center)
             .padding(.horizontal, ShuoSpacing.xLarge)

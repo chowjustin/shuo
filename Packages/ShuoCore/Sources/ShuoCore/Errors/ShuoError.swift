@@ -69,6 +69,11 @@ public enum ShuoError: Error, Sendable, Equatable {
     case microphonePermissionDenied
     /// Audio capture could not start, or produced nothing usable.
     case recordingFailed
+    /// Microphone was active and the session started, but no audio signal was
+    /// detected — the mic may be blocked or the user was too far from the device.
+    case audioNotDetected
+    /// The device has no storage space left to write the recording to disk.
+    case storageFull
 
     // MARK: - Playback
 

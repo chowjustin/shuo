@@ -159,7 +159,8 @@ struct AnalysisErrorCopy: Equatable {
         case .fileTooLarge, .mediaTooLong, .mediaTooShort, .unsupportedMediaType,
              .importFailed, .audioExtractionFailed, .speechPermissionDenied,
              .speechModelUnavailable, .noSpeechDetected, .transcriptionFailed,
-             .microphonePermissionDenied, .recordingFailed, .playbackFailed:
+             .microphonePermissionDenied, .recordingFailed,
+             .audioNotDetected, .storageFull, .playbackFailed:
             // Not reachable from this screen: these belong to import, recording, replay,
             // and transcription, which all happen on Input Script and own their own copy
             // there. Kept generic rather than duplicated.

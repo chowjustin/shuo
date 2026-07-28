@@ -185,7 +185,7 @@ public struct TranscriptAnalysisView: View {
 
     private func errorSheet(_ copy: AnalysisErrorCopy) -> some View {
         ErrorSheet(
-            systemImage: copy.systemImage,
+            mascotImageName: "SHUO ERROR",
             title: copy.title,
             message: copy.message
         )
