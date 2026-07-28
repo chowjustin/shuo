@@ -100,7 +100,7 @@ public struct TranscriptAnalysisView: View {
     /// the same gesture here, and the prompt behind ✓ is what separates them.
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        if controls.showsBack || viewModel.isForceRegenerating {
+        if controls.showsBack {
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: goBack) {
                     Image(systemName: "chevron.left")
