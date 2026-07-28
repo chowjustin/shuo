@@ -68,10 +68,15 @@ public struct InputScriptView: View {
                         .accessibilityLabel("Back")
                     }
                     ToolbarItem(placement: .topBarTrailing) {
+
                         Button(action: attemptConfirm) {
                             Image(systemName: "checkmark")
+                            .font(.title3.weight(.semibold))
                         }
-                        .disabled(!viewModel.hasValidContent)
+                        //.disabled(!viewModel.hasValidContent)
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.circle)
+                        .tint(ShuoColor.pink)
                         .accessibilityLabel("Confirm")
                     }
                 }

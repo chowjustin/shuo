@@ -45,6 +45,7 @@ public struct TranscriptAnalysisView: View {
             .toolbar {
                 toolbarContent
                 ToolbarItem(placement: .principal) {
+                
                     Text("Script Analysis")
                         .font(.headline)
                         .foregroundStyle(ShuoColor.primaryTextCream)
@@ -110,7 +111,11 @@ public struct TranscriptAnalysisView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: finish) {
                     Image(systemName: "checkmark")
+                        .font(.title3.weight(.semibold))
                 }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.circle)
+                .tint(ShuoColor.pink)
                 .accessibilityLabel("Done")
             }
         }
