@@ -37,11 +37,17 @@ public struct LoadingView: View {
 
     public var body: some View {
         VStack(spacing: ShuoSpacing.large) {
-            Image(systemName: systemImage)
-                .font(.system(size: 44))
-                .foregroundStyle(ShuoColor.pink)
-                .symbolEffect(.variableColor.iterative, options: .repeating)
-                .accessibilityHidden(true)
+            if systemImage == "SHUO LOAD" {
+                NativeGifView(gifName: "SHUO LOAD")
+                    .frame(width: 160, height: 160)
+                    .accessibilityHidden(true)
+            } else {
+                Image(systemName: systemImage)
+                    .font(.system(size: 44))
+                    .foregroundStyle(ShuoColor.pink)
+                    .symbolEffect(.variableColor.iterative, options: .repeating)
+                    .accessibilityHidden(true)
+            }
 
             VStack(spacing: ShuoSpacing.small) {
                 Text(message)
@@ -72,7 +78,7 @@ public struct LoadingView: View {
 
 #Preview("Transcribing") {
     LoadingView(
-        systemImage: "waveform",
+        systemImage: "SHUO LOAD",
         message: "Transcribing your speech…",
         detail: "campus-speech.m4a"
     )
