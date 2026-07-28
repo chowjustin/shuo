@@ -19,7 +19,6 @@ struct NativeGifView: UIViewRepresentable {
         imageView.contentMode = .scaleAspectFit
         imageView.clipsToBounds = true
         imageView.translatesAutoresizingMaskIntoConstraints = false
-        imageView.image = animatedImage()
 
         containerView.addSubview(imageView)
         containerView.imageView = imageView
@@ -30,36 +29,55 @@ struct NativeGifView: UIViewRepresentable {
             imageView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
         ])
 
+        configure(imageView)
         return containerView
     }
 
     func updateUIView(_ uiView: GifContainerView, context: Context) {
-        if uiView.imageView?.image == nil {
-            uiView.imageView?.image = animatedImage()
-        }
+        guard uiView.imageView?.image == nil else { return }
+        uiView.imageView.map(configure)
+    }
+
+    private func configure(_ imageView: UIImageView) {
+        guard let animatedImage = animatedImage() else { return }
+        imageView.image = animatedImage
+        imageView.startAnimating()
     }
 
     private func animatedImage() -> UIImage? {
-        guard let data = assetData() else { return nil }
-        return UIImage.animatedImage(with: frames(from: data), duration: duration(from: data))
+        guard
+            let data = NSDataAsset(name: gifName, bundle: .main)?.data,
+            let source = CGImageSourceCreateWithData(data as CFData, nil)
+        else {
+            return nil
+        }
+
+        let frames = frames(from: source)
+        guard !frames.isEmpty else { return nil }
+
+        return UIImage.animatedImage(
+            with: frames,
+            duration: duration(from: source)
+        )
     }
 
-    private func assetData() -> Data? {
-        NSDataAsset(name: gifName, bundle: .main)?.data
-    }
+    private func frames(from source: CGImageSource) -> [UIImage] {
+        (0..<CGImageSourceGetCount(source)).compactMap { index in
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceShouldCacheImmediately: true,
+                kCGImageSourceThumbnailMaxPixelSize: 480,
+            ]
 
-    private func frames(from data: Data) -> [UIImage] {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return [] }
+            guard let image = CGImageSourceCreateThumbnailAtIndex(source, index, options as CFDictionary) else {
+                return nil
+            }
 
-        return (0..<CGImageSourceGetCount(source)).compactMap { index in
-            guard let image = CGImageSourceCreateImageAtIndex(source, index, nil) else { return nil }
             return UIImage(cgImage: image)
         }
     }
 
-    private func duration(from data: Data) -> TimeInterval {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return 0 }
-
+    private func duration(from source: CGImageSource) -> TimeInterval {
         let frameCount = CGImageSourceGetCount(source)
         let totalDuration = (0..<frameCount).reduce(0) { partialResult, index in
             partialResult + frameDuration(at: index, source: source)
