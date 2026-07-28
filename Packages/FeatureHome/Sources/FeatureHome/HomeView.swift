@@ -18,7 +18,6 @@ public struct HomeView: View {
     @State private var selectedID: ScriptSummary.ID?
 
     @State private var scriptToDelete: ScriptSummary?
-    @State private var showDeleteAlert = false
 
     public init(
         viewModel: HomeViewModel,
@@ -28,80 +27,76 @@ public struct HomeView: View {
         self.viewModel = viewModel
         self.onTapCreate = onTapCreate
         self.onSelectScript = onSelectScript
-
-        let appearance = UINavigationBarAppearance()
-        appearance.configureWithTransparentBackground()
-        appearance.largeTitleTextAttributes = [
-            .foregroundColor: UIColor(ShuoColor.primaryTextCream)
-        ]
-        appearance.titleTextAttributes = [
-            .foregroundColor: UIColor(ShuoColor.primaryTextCream)
-        ]
-
-        UINavigationBar.appearance().standardAppearance = appearance
-        UINavigationBar.appearance().scrollEdgeAppearance = appearance
-        UINavigationBar.appearance().compactAppearance = appearance
     }
 
     public var body: some View {
+        content
+            .background(backdrop)
+            .navigationTitle("All Scripts")
+            .toolbarColorScheme(.light, for: .navigationBar)
+            .searchable(
+                text: $viewModel.searchQuery,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "Search"
+            )
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: onTapCreate) {
+                        Image(systemName: "plus")
+                            .font(.title3.weight(.semibold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.circle)
+                    .tint(ShuoColor.pink)
+                    .accessibilityLabel("New script")
+                    .accessibilityInputLabels([
+                        "New script",
+                        "Input new script",
+                        "Input script",
+                        "Create script",
+                        "Add script",
+                        "Create new script",
+                    ])
+                }
+            }
+            .onAppear {
+                viewModel.load()
+            }
+            .alert(
+                "Delete Script",
+                isPresented: isConfirmingDelete,
+                presenting: scriptToDelete
+            ) { script in
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) {
+                    viewModel.delete(id: script.id)
+                }
+            } message: { script in
+                Text(
+                    "Are you sure you want to delete \"\(script.title)\"? This action cannot be undone."
+                )
+            }
+    }
+
+    private var isConfirmingDelete: Binding<Bool> {
+        Binding(
+            get: { scriptToDelete != nil },
+            set: { isPresented in
+                if !isPresented { scriptToDelete = nil }
+            }
+        )
+    }
+
+    private var backdrop: some View {
         ZStack {
             ShuoColor.background
-                .ignoresSafeArea()
-            
-            Image("SHUO BACKGROUND HD")
-                        .resizable()
-                        .scaledToFill()
-                        .ignoresSafeArea()
-                        .opacity(0.8)
 
-            content
+            Image("SHUO BACKGROUND HD")
+                .resizable()
+                .scaledToFill()
+                .opacity(0.8)
         }
-        .navigationTitle("All Scripts")
-        .searchable(
-            text: $viewModel.searchQuery,
-            placement: .navigationBarDrawer(displayMode: .always),
-            prompt: "Search"
-        )
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(action: onTapCreate) {
-                    Image(systemName: "plus")
-                        .font(.title3.weight(.semibold))
-                }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.circle)
-                .tint(ShuoColor.pink)
-                .accessibilityLabel("New script")
-                .accessibilityInputLabels([
-                    "New script",
-                    "Input new script",
-                    "Input script",
-                    "Create script",
-                    "Add script",
-                    "Create new script",
-                ])
-            }
-        }
-        .onAppear {
-            viewModel.load()
-        }
-        .alert(
-            "Delete Script",
-            isPresented: $showDeleteAlert,
-            presenting: scriptToDelete
-        ) { script in
-            Button("Cancel", role: .cancel) {
-                scriptToDelete = nil
-            }
-            Button("Delete", role: .destructive) {
-                viewModel.delete(id: script.id)
-                scriptToDelete = nil
-            }
-        } message: { script in
-            Text(
-                "Are you sure you want to delete \"\(script.title)\"? This action cannot be undone."
-            )
-        }
+        .ignoresSafeArea()
     }
 
     @ViewBuilder
@@ -114,7 +109,6 @@ public struct HomeView: View {
         case .empty:
             emptyStateView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .offset(y: -60)
 
         case .loaded(let summaries):
             List {
@@ -148,13 +142,12 @@ public struct HomeView: View {
                     .accessibilityLabel(summary.title)
                     .accessibilityHint("Swipe left to delete")
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-
-                        Button(role: .destructive) {
+                        Button {
                             scriptToDelete = summary
-                            showDeleteAlert = true
                         } label: {
                             Image(systemName: "trash")
                         }
+                        .tint(ShuoColor.error)
                         .accessibilityLabel("Delete")
                         .accessibilityInputLabels(["Delete", "Trash", "Remove"])
                     }
@@ -162,6 +155,7 @@ public struct HomeView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .scrollEdgeEffectStyle(.soft, for: .top)
         }
     }
 
