@@ -70,7 +70,11 @@ public struct InputScriptView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(action: attemptConfirm) {
                             Image(systemName: "checkmark")
+                                .font(.title3.weight(.semibold))
                         }
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.circle)
+                        .tint(ShuoColor.pink)
                         .disabled(!viewModel.hasValidContent)
                         .accessibilityLabel("Confirm")
                     }

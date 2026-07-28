@@ -103,6 +103,13 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		C37925563018907900425CBB /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		D1835750300480AB00F31EA3 = {
 			isa = PBXGroup;
 			children = (
@@ -112,6 +119,7 @@
 				D183575B300480AB00F31EA3 /* Shuo */,
 				D183576B300480AC00F31EA3 /* ShuoTests */,
 				D1835775300480AC00F31EA3 /* ShuoUITests */,
+				C37925563018907900425CBB /* Frameworks */,
 				D183575A300480AB00F31EA3 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -447,7 +455,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7Z827VAMZB;
+				DEVELOPMENT_TEAM = 42695GJBV8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Shuo;
@@ -484,7 +492,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7Z827VAMZB;
+				DEVELOPMENT_TEAM = 42695GJBV8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Shuo;
