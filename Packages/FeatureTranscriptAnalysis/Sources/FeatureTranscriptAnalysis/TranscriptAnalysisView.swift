@@ -19,6 +19,9 @@ public struct TranscriptAnalysisView: View {
     @FocusState private var focusedField: AnalysisField?
     @State private var isRefinedExpanded = true
     @State private var isEditingRefined = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .caption) private var badgePaddingH: CGFloat = 8
+    @ScaledMetric(relativeTo: .caption) private var badgePaddingV: CGFloat = 3
     private let onClose: () -> Void
     private let onBack: ((ScriptDraft) -> Void)?
 
@@ -353,35 +356,49 @@ public struct TranscriptAnalysisView: View {
                 }
                 .accessibilityLabel("Script title")
 
-            HStack(spacing: 6) {
-                Text("Purpose:")
-                    .font(ShuoTypography.subtitle)
-                    .foregroundStyle(ShuoColor.secondaryTextCream)
-                Text(viewModel.draft.purpose.title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.black)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(
-                        Color(
-                            red: 222 / 255,
-                            green: 222 / 255,
-                            blue: 222 / 255
-                        ),
-                        in: Capsule()
-                    )
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityLabel(
-                "Speech purpose: \(viewModel.draft.purpose.title)"
-            )
+            purposeRow
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityLabel(
+                    "Speech purpose: \(viewModel.draft.purpose.title)"
+                )
 
             Button {
                 isShowingOriginalScript = true
             } label: {
                 Text("View Original Script")
-            } .underline()
+                    .underline()
+            }
         }
+    }
+
+    @ViewBuilder
+    private var purposeRow: some View {
+        if dynamicTypeSize >= .xxxLarge {
+            VStack(alignment: .leading, spacing: 4) {
+                purposeLabel
+                purposeBadge
+            }
+        } else {
+            HStack(spacing: 6) {
+                purposeLabel
+                purposeBadge
+            }
+        }
+    }
+
+    private var purposeLabel: some View {
+        Text("Purpose:")
+            .font(ShuoTypography.subtitle)
+            .foregroundStyle(ShuoColor.secondaryTextCream)
+    }
+
+    private var purposeBadge: some View {
+        Text(viewModel.draft.purpose.title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(ShuoColor.primaryTextCard)
+            .padding(.horizontal, badgePaddingH)
+            .padding(.vertical, badgePaddingV)
+            .background(ShuoColor.card, in: Capsule())
     }
 
     private var refinedTranscriptSection: some View {
@@ -545,6 +562,16 @@ public struct TranscriptAnalysisView: View {
 
     #Preview("Loaded") {
         _AnalysisPreviewHost(behavior: .instant)
+    }
+
+    #Preview("Loaded — xxxLarge") {
+        _AnalysisPreviewHost(behavior: .instant)
+            .environment(\.dynamicTypeSize, .xxxLarge)
+    }
+
+    #Preview("Loaded — AX5") {
+        _AnalysisPreviewHost(behavior: .instant)
+            .environment(\.dynamicTypeSize, .accessibility5)
     }
 
     #Preview("Analyzing") {
