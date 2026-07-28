@@ -146,13 +146,13 @@ public struct TranscriptAnalysisView: View {
             // changing the sentence halfway through one continuous wait reads as having
             // landed somewhere unrelated.
             LoadingView(
-                systemImage: "sparkles",
+                systemImage: "SHUO LOAD",
                 message: "Analyzing your \(scriptDescription)…"
             )
 
         case .waitingForModel:
             LoadingView(
-                systemImage: "sparkles",
+                systemImage: "SHUO LOAD",
                 message: "Setting up on-device AI…"
             )
 
@@ -168,7 +168,7 @@ public struct TranscriptAnalysisView: View {
         case .loaded:
             if viewModel.isForceRegenerating {
                 LoadingView(
-                    systemImage: "sparkles",
+                    systemImage: "SHUO LOAD",
                     message: "Refining script…"
                 )
             } else {

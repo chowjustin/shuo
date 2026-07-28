@@ -85,5 +85,5 @@ public struct LoadingView: View {
 }
 
 #Preview("Analyzing") {
-    LoadingView(systemImage: "sparkles", message: "Analyzing your speech…")
+    LoadingView(systemImage: "SHUO LOAD", message: "Analyzing your speech…")
 }
