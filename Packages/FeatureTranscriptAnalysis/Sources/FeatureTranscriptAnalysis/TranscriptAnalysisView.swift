@@ -330,7 +330,16 @@ public struct TranscriptAnalysisView: View {
                 .foregroundStyle(ShuoColor.primaryTextCream)
                 .focused($focusedField, equals: .title)
                 .submitLabel(.done)
-                .onSubmit { viewModel.commitTitle() }
+                .onSubmit {
+                    viewModel.commitTitle()
+                    focusedField = nil
+                }
+                .onChange(of: viewModel.title) { _, newValue in
+                    guard newValue.contains("\n") else { return }
+                    viewModel.title = newValue.replacingOccurrences(of: "\n", with: "")
+                    viewModel.commitTitle()
+                    focusedField = nil
+                }
                 .accessibilityLabel("Script title")
 
             HStack(spacing: 6) {
