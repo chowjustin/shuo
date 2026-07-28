@@ -224,6 +224,16 @@ public actor AudioRecordingService: AudioCapturing {
             throw ShuoError.recordingFailed
         }
 
+        // All samples near zero means the mic was active but captured no audio —
+        // the user may have been too far or the mic was physically blocked.
+        let averageAmplitude = waveformSamples.isEmpty
+            ? 0
+            : waveformSamples.reduce(0, +) / Float(waveformSamples.count)
+        if averageAmplitude < 0.005 {
+            await tearDown(deletingFiles: true)
+            throw ShuoError.audioNotDetected
+        }
+
         let url: URL
         do {
             url = try await consolidatedRecordingURL()
@@ -311,7 +321,13 @@ public actor AudioRecordingService: AudioCapturing {
         do {
             try file.write(from: buffer)
         } catch {
-            eventContinuation.yield(.failed(.recordingFailed))
+            let nsError = error as NSError
+            if nsError.code == NSFileWriteOutOfSpaceError {
+                eventContinuation.yield(.failed(.storageFull))
+            } else {
+                Self.log.error("Buffer write failed: \(error.localizedDescription, privacy: .public)")
+                eventContinuation.yield(.failed(.recordingFailed))
+            }
             return
         }
 

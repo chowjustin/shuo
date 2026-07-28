@@ -123,6 +123,7 @@ struct AnalysisErrorCopyTests {
         let errors: [ShuoError] = [
             .aiUnavailable, .contextWindowExceeded, .aiGenerationFailed, .persistenceFailed,
             .transcriptionFailed, .importFailed, .recordingFailed,
+            .audioNotDetected, .storageFull,
         ]
 
         for error in errors {

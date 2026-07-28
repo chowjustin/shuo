@@ -28,10 +28,12 @@ struct TranscriptionErrorCopyTests {
 
     /// Errors belonging to the analysis and saving steps, which own their own copy. They
     /// deliberately share one generic message here rather than duplicating wording for a
-    /// screen that never shows them.
+    /// screen that never shows them. Recording-specific errors (`audioNotDetected`,
+    /// `storageFull`) are also unreachable here — they surface inline in SpeakModeView.
     private static let unreachableErrors: [ShuoError] = [
         .aiUnavailable, .contextWindowExceeded, .persistenceFailed,
         .transcriptNotUsable(.notASpeech), .aiGenerationFailed,
+        .audioNotDetected, .storageFull,
     ]
 
     private static var allErrors: [ShuoError] { reachableErrors + unreachableErrors }

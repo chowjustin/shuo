@@ -22,39 +22,53 @@ import SwiftUI
 /// sheet previewable in isolation and reusable for any failure, not just transcription.
 public struct ErrorSheet: View {
     private let systemImage: String
+    private let mascotImageName: String?
     private let title: String
     private let message: String
 
-    /// - Parameter systemImage: SF Symbol shown above the title.
+    /// - Parameters:
+    ///   - systemImage: SF Symbol shown above the title (fallback when no mascot).
+    ///   - mascotImageName: Optional asset catalog image name; when provided, replaces the SF Symbol.
     public init(
         systemImage: String = "exclamationmark.triangle.fill",
+        mascotImageName: String? = nil,
         title: String,
         message: String
     ) {
         self.systemImage = systemImage
+        self.mascotImageName = mascotImageName
         self.title = title
         self.message = message
     }
 
     public var body: some View {
         VStack(spacing: ShuoSpacing.large) {
-            Image(systemName: systemImage)
-                .font(.system(size: 52))
-                .foregroundStyle(ShuoColor.error)
-                .accessibilityHidden(true)
+            if let mascotImageName {
+                Image(mascotImageName, bundle: .module)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 180, height: 180)
+                    .accessibilityHidden(true)
+            } else {
+                Image(systemName: systemImage)
+                    .font(.system(size: 52))
+                    .foregroundStyle(ShuoColor.error)
+                    .accessibilityHidden(true)
+            }
 
             VStack(spacing: ShuoSpacing.small) {
                 Text(title)
                     .font(ShuoTypography.sheetTitle)
-                    .foregroundStyle(ShuoColor.primaryText)
+                    .foregroundStyle(ShuoColor.primaryTextCream)
 
                 Text(message)
                     .font(ShuoTypography.subtitle)
-                    .foregroundStyle(ShuoColor.secondaryText)
+                    .foregroundStyle(ShuoColor.secondaryTextCream)
             }
             .multilineTextAlignment(.center)
             .padding(.horizontal, ShuoSpacing.xLarge)
         }
+        .padding(.bottom, 80)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(ShuoColor.background)
         // One announcement for the whole sheet, so VoiceOver reads the failure as a
