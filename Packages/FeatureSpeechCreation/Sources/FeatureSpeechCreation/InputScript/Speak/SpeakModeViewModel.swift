@@ -43,11 +43,7 @@ public final class SpeakModeViewModel {
     /// The in-flight playback transition, exposed so tests can await it.
     public private(set) var playbackTask: Task<Void, Never>?
 
-    // MARK: DEBUG_LIVE_TRANSCRIPT — temporary; delete this property, the `.transcript`
-    // case in `handle(_:)`, and the panel in SpeakModeView. The shipped design never
-    // shows the live transcript: it arrives once, on `AudioRecording.liveTranscript`.
-    public private(set) var debugLiveTranscript = ""
-    // MARK: END DEBUG_LIVE_TRANSCRIPT
+    public private(set) var liveTranscript = ""
 
     /// Builds a capture session.
     ///
@@ -326,7 +322,7 @@ public final class SpeakModeViewModel {
         isPlayingBack = false
         playbackPosition = 0
         playbackError = nil
-        debugLiveTranscript = "" // DEBUG_LIVE_TRANSCRIPT
+        liveTranscript = ""
     }
 
     // MARK: - Playback
@@ -439,10 +435,8 @@ public final class SpeakModeViewModel {
         case .failed(let error):
             viewState = .failed(Self.message(for: error))
 
-        // MARK: DEBUG_LIVE_TRANSCRIPT — temporary; delete this case.
         case .transcript(let text):
-            debugLiveTranscript = text
-        // MARK: END DEBUG_LIVE_TRANSCRIPT
+            liveTranscript = text
         }
     }
 

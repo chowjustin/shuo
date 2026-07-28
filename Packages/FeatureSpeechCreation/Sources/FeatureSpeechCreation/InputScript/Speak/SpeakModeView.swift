@@ -99,7 +99,7 @@ public struct SpeakModeView: View {
                     .multilineTextAlignment(.center)
             }
 
-            debugTranscriptPanel // DEBUG_LIVE_TRANSCRIPT
+            liveTranscriptPanel
         }
         .padding(.horizontal, ShuoSpacing.large)
     }
@@ -188,17 +188,15 @@ public struct SpeakModeView: View {
         UIApplication.shared.open(url)
     }
 
-    // MARK: DEBUG_LIVE_TRANSCRIPT — temporary; delete this property and its call site in
-    // `capturePanel` above. Nothing else in this view depends on it.
     @ViewBuilder
-    private var debugTranscriptPanel: some View {
+    private var liveTranscriptPanel: some View {
         VStack(alignment: .leading, spacing: ShuoSpacing.xSmall) {
-            Text("DEBUG · live transcript")
+            Text("Live Script")
                 .font(.caption2.bold())
                 .foregroundStyle(ShuoColor.secondaryText)
 
             ScrollView {
-                Text(viewModel.debugLiveTranscript.isEmpty ? "…" : viewModel.debugLiveTranscript)
+                Text(viewModel.liveTranscript.isEmpty ? "…" : viewModel.liveTranscript)
                     .font(.caption)
                     .foregroundStyle(ShuoColor.primaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -208,7 +206,6 @@ public struct SpeakModeView: View {
         .padding(ShuoSpacing.small)
         .background(ShuoColor.secondaryText.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
-    // MARK: END DEBUG_LIVE_TRANSCRIPT
 }
 
 #if DEBUG
