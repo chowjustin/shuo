@@ -98,7 +98,7 @@ public struct TranscriptAnalysisView: View {
     /// the same gesture here, and the prompt behind ✓ is what separates them.
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        if controls.showsBack {
+        if controls.showsBack || viewModel.isForceRegenerating {
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: goBack) {
                     Image(systemName: "chevron.left")
@@ -107,7 +107,7 @@ public struct TranscriptAnalysisView: View {
             }
         }
 
-        if controls.showsFinish {
+        if controls.showsFinish && !viewModel.isForceRegenerating {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: finish) {
                     Image(systemName: "checkmark")
