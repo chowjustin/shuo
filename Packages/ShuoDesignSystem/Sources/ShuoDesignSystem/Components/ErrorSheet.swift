@@ -68,6 +68,7 @@ public struct ErrorSheet: View {
             .multilineTextAlignment(.center)
             .padding(.horizontal, ShuoSpacing.xLarge)
         }
+        .padding(.bottom, 80)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(ShuoColor.background)
         // One announcement for the whole sheet, so VoiceOver reads the failure as a
