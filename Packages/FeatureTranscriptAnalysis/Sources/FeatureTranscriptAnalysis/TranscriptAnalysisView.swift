@@ -368,6 +368,7 @@ public struct TranscriptAnalysisView: View {
                 Text("View Original Script")
                     .underline()
             }
+            .accessibilityLabel("View original script")
         }
     }
 
@@ -401,41 +402,63 @@ public struct TranscriptAnalysisView: View {
             .background(ShuoColor.card, in: Capsule())
     }
 
+    private var expandCollapseButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                isRefinedExpanded.toggle()
+            }
+        } label: {
+            Image(systemName: "chevron.down")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(ShuoColor.primaryTextCream)
+                .rotationEffect(.degrees(isRefinedExpanded ? 180 : 0))
+                .animation(
+                    .spring(response: 0.3, dampingFraction: 0.8),
+                    value: isRefinedExpanded
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isRefinedExpanded ? "Collapse refined script" : "Expand refined script")
+    }
+
     private var refinedTranscriptSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Text("Refined Script")
-                    .font(.headline)
-                    .foregroundStyle(ShuoColor.primaryTextCream)
-
-                Button("Regenerate") { requestRegenerate() }
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        ShuoColor.pink,
-                        in: RoundedRectangle(cornerRadius: 8)
-                    )
-
-                Spacer()
-
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8))
-                    {
-                        isRefinedExpanded.toggle()
+            if dynamicTypeSize >= .xxxLarge {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Refined Script")
+                            .font(.headline)
+                            .foregroundStyle(ShuoColor.primaryTextCream)
+                        Spacer()
+                        expandCollapseButton
                     }
-                } label: {
-                    Image(systemName: "chevron.down")
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(ShuoColor.primaryTextCream)
-                        .rotationEffect(.degrees(isRefinedExpanded ? 180 : 0))
-                        .animation(
-                            .spring(response: 0.3, dampingFraction: 0.8),
-                            value: isRefinedExpanded
+                    Button("Regenerate") { requestRegenerate() }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            ShuoColor.pink,
+                            in: RoundedRectangle(cornerRadius: 8)
                         )
                 }
-                .buttonStyle(.plain)
+            } else {
+                HStack(spacing: 8) {
+                    Text("Refined Script")
+                        .font(.headline)
+                        .foregroundStyle(ShuoColor.primaryTextCream)
+                    Button("Regenerate") { requestRegenerate() }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            ShuoColor.pink,
+                            in: RoundedRectangle(cornerRadius: 8)
+                        )
+                    Spacer()
+                    expandCollapseButton
+                }
             }
 
             if isRefinedExpanded {

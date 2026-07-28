@@ -55,6 +55,7 @@ struct KeyPointRow: View {
                 let stored = newValue.isEmpty ? KeyPoint.absentText : newValue
                 if stored != keyPoint.text { onEdit(stored) }
             }
+            .accessibilityLabel(keyPoint.componentName)
 
             let isFocused = focusedField.wrappedValue == .keyPoint(keyPoint.componentID)
             if (text.isEmpty || isFocused), let suggestion = keyPoint.suggestion {
