@@ -175,10 +175,8 @@ public struct LoadingRouteView: View {
 
     private func systemImage(for context: LoadingContext) -> String {
         switch context {
-        case .extractingAudio: "film"
-        case .transcribing: "waveform"
-        case .analyzing: "sparkles"
-        case .waitingForModel: "arrow.down.circle.dotted"
+        case .extractingAudio, .transcribing, .analyzing, .waitingForModel:
+            "SHUO LOAD"
         }
     }
 }
