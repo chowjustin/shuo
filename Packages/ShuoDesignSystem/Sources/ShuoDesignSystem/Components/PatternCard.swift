@@ -5,10 +5,6 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-// Reusable card for one suggested structural pattern, shown in a horizontal
-// `LazyHStack` carousel. See ARCHITECTURE.md §3.2.3.
-
-
 import Foundation
 import SwiftUI
 
@@ -31,25 +27,37 @@ public struct PatternCard: View {
     }
 
     public var body: some View {
-        ZStack(alignment: .center) {
+        // HANYA 1 LAYER DINAMIS: Akan mengubah ukurannya secara cerdas
+        VStack(alignment: .center, spacing: 8) {
+            Text(name)
+                .font(isFocused ? .title3.bold() : ShuoTypography.headline)
+                .foregroundStyle(ShuoColor.primaryTextAqua)
+                .lineLimit(isFocused ? nil : 2)
+            
             if isFocused {
-                focusedContent
-                    .transition(.opacity)
-            } else {
-                collapsedContent
-                    .transition(.opacity)
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(ShuoColor.secondaryTextAqua)
             }
         }
+        .multilineTextAlignment(.center)
+        .padding(.vertical, 24)
+        .padding(.horizontal, 16)
         
-
-        .frame(width: 230, height: 100)
+        .frame(width: 230)
+        
+        // KUNCI UTAMA: Memaksa layout mengecil/membesar memeluk teks persis!
+        .fixedSize(horizontal: false, vertical: true)
+        
         .cardStyle(isSelected: true, showsBorder: false)
-
+        
         .scaleEffect(isFocused ? 1 : 0.85)
         .opacity(isFocused ? 1 : 0.3)
+        // Animasi ini akan membuat pergerakan tinggi container (HStack) membesar dan mengecil secara halus
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isFocused)
+        
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityText)
+        .accessibilityLabel(isFocused ? "\(name). \(summary)" : name)
         .accessibilityAddTraits(isFocused ? [.isSelected] : [])
     }
 
@@ -59,20 +67,21 @@ public struct PatternCard: View {
     }
 
     private var focusedContent: some View {
-        VStack(alignment: .center, spacing: ShuoSpacing.small) {
+        VStack(alignment: .center, spacing: 8) {
             Text(name)
                 .font(.title3.bold())
                 .foregroundStyle(ShuoColor.primaryTextAqua)
-                .fixedSize(horizontal: false, vertical: true)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
 
             Text(summary)
-                .font(ShuoTypography.caption)
+                .font(.caption)
                 .foregroundStyle(ShuoColor.secondaryTextAqua)
-                .fixedSize(horizontal: false, vertical: true)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, 20)
+        .padding(.horizontal, 16)
     }
 
     private var collapsedContent: some View {
@@ -81,6 +90,7 @@ public struct PatternCard: View {
             .foregroundStyle(ShuoColor.primaryTextAqua)
             .lineLimit(2)
             .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity, minHeight: 56)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 20) // Samakan padding agar rapi
     }
 }
