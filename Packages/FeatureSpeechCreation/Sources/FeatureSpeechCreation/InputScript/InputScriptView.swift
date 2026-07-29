@@ -38,6 +38,13 @@ public struct InputScriptView: View {
                         .font(.system(.largeTitle, weight: .bold))
                         .lineLimit(1...3)
                         .focused($isTitleFocused)
+                        .submitLabel(.done)
+                        .onSubmit { isTitleFocused = false }
+                        .onChange(of: viewModel.title) { _, newValue in
+                            guard newValue.contains("\n") else { return }
+                            viewModel.title = newValue.replacingOccurrences(of: "\n", with: "")
+                            isTitleFocused = false
+                        }
 
                     Picker("Input Mode", selection: $viewModel.mode) {
                         ForEach(InputMode.allCases) { mode in
@@ -70,7 +77,11 @@ public struct InputScriptView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(action: attemptConfirm) {
                             Image(systemName: "checkmark")
+                                .font(.title3.weight(.semibold))
                         }
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.circle)
+                        .tint(ShuoColor.pink)
                         .disabled(!viewModel.hasValidContent)
                         .accessibilityLabel("Confirm")
                     }

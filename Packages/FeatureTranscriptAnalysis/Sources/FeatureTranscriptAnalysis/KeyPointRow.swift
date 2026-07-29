@@ -55,8 +55,10 @@ struct KeyPointRow: View {
                 let stored = newValue.isEmpty ? KeyPoint.absentText : newValue
                 if stored != keyPoint.text { onEdit(stored) }
             }
+            .accessibilityLabel(keyPoint.componentName)
 
-            if text.isEmpty, let suggestion = keyPoint.suggestion {
+            let isFocused = focusedField.wrappedValue == .keyPoint(keyPoint.componentID)
+            if (text.isEmpty || isFocused), let suggestion = keyPoint.suggestion {
                 Text(recommendedAttributed(suggestion))
                     .font(.caption)
                     .foregroundStyle(ShuoColor.secondaryText)

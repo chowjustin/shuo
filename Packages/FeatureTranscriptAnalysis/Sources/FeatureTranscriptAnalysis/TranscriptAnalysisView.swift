@@ -19,6 +19,9 @@ public struct TranscriptAnalysisView: View {
     @FocusState private var focusedField: AnalysisField?
     @State private var isRefinedExpanded = true
     @State private var isEditingRefined = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .caption) private var badgePaddingH: CGFloat = 8
+    @ScaledMetric(relativeTo: .caption) private var badgePaddingV: CGFloat = 3
     private let onClose: () -> Void
     private let onBack: ((ScriptDraft) -> Void)?
 
@@ -45,6 +48,7 @@ public struct TranscriptAnalysisView: View {
             .toolbar {
                 toolbarContent
                 ToolbarItem(placement: .principal) {
+                
                     Text("Script Analysis")
                         .font(.headline)
                         .foregroundStyle(ShuoColor.primaryTextCream)
@@ -106,11 +110,26 @@ public struct TranscriptAnalysisView: View {
             }
         }
 
-        if controls.showsFinish {
+        if viewModel.isForceRegenerating {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: goBack) {
+                    Image(systemName: "chevron.left")
+                        .font(.title3.weight(.semibold))
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.circle)
+                .tint(ShuoColor.pink)
+                .accessibilityLabel("Back to input")
+            }
+        } else if controls.showsFinish {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: finish) {
                     Image(systemName: "checkmark")
+                        .font(.title3.weight(.semibold))
                 }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.circle)
+                .tint(ShuoColor.pink)
                 .accessibilityLabel("Done")
             }
         }
@@ -325,75 +344,121 @@ public struct TranscriptAnalysisView: View {
                 .foregroundStyle(ShuoColor.primaryTextCream)
                 .focused($focusedField, equals: .title)
                 .submitLabel(.done)
-                .onSubmit { viewModel.commitTitle() }
+                .onSubmit {
+                    viewModel.commitTitle()
+                    focusedField = nil
+                }
+                .onChange(of: viewModel.title) { _, newValue in
+                    guard newValue.contains("\n") else { return }
+                    viewModel.title = newValue.replacingOccurrences(of: "\n", with: "")
+                    viewModel.commitTitle()
+                    focusedField = nil
+                }
                 .accessibilityLabel("Script title")
 
-            HStack(spacing: 6) {
-                Text("Purpose:")
-                    .font(ShuoTypography.subtitle)
-                    .foregroundStyle(ShuoColor.secondaryTextCream)
-                Text(viewModel.draft.purpose.title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.black)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(
-                        Color(
-                            red: 222 / 255,
-                            green: 222 / 255,
-                            blue: 222 / 255
-                        ),
-                        in: Capsule()
-                    )
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityLabel(
-                "Speech purpose: \(viewModel.draft.purpose.title)"
-            )
+            purposeRow
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityLabel(
+                    "Speech purpose: \(viewModel.draft.purpose.title)"
+                )
 
             Button {
                 isShowingOriginalScript = true
             } label: {
                 Text("View Original Script")
-            } .underline()
+                    .underline()
+            }
+            .accessibilityLabel("View original script")
         }
+    }
+
+    @ViewBuilder
+    private var purposeRow: some View {
+        if dynamicTypeSize >= .xxxLarge {
+            VStack(alignment: .leading, spacing: 4) {
+                purposeLabel
+                purposeBadge
+            }
+        } else {
+            HStack(spacing: 6) {
+                purposeLabel
+                purposeBadge
+            }
+        }
+    }
+
+    private var purposeLabel: some View {
+        Text("Purpose:")
+            .font(ShuoTypography.subtitle)
+            .foregroundStyle(ShuoColor.secondaryTextCream)
+    }
+
+    private var purposeBadge: some View {
+        Text(viewModel.draft.purpose.title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(ShuoColor.primaryTextCard)
+            .padding(.horizontal, badgePaddingH)
+            .padding(.vertical, badgePaddingV)
+            .background(ShuoColor.card, in: Capsule())
+    }
+
+    private var expandCollapseButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                isRefinedExpanded.toggle()
+            }
+        } label: {
+            Image(systemName: "chevron.down")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(ShuoColor.primaryTextCream)
+                .rotationEffect(.degrees(isRefinedExpanded ? 180 : 0))
+                .animation(
+                    .spring(response: 0.3, dampingFraction: 0.8),
+                    value: isRefinedExpanded
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isRefinedExpanded ? "Collapse refined script" : "Expand refined script")
     }
 
     private var refinedTranscriptSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Text("Refined Script")
-                    .font(.headline)
-                    .foregroundStyle(ShuoColor.primaryTextCream)
-
-                Button("Regenerate") { requestRegenerate() }
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        ShuoColor.pink,
-                        in: RoundedRectangle(cornerRadius: 8)
-                    )
-
-                Spacer()
-
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8))
-                    {
-                        isRefinedExpanded.toggle()
+            if dynamicTypeSize >= .xxxLarge {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Refined Script")
+                            .font(.headline)
+                            .foregroundStyle(ShuoColor.primaryTextCream)
+                        Spacer()
+                        expandCollapseButton
                     }
-                } label: {
-                    Image(systemName: "chevron.down")
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(ShuoColor.primaryTextCream)
-                        .rotationEffect(.degrees(isRefinedExpanded ? 180 : 0))
-                        .animation(
-                            .spring(response: 0.3, dampingFraction: 0.8),
-                            value: isRefinedExpanded
+                    Button("Regenerate") { requestRegenerate() }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            ShuoColor.pink,
+                            in: RoundedRectangle(cornerRadius: 8)
                         )
                 }
-                .buttonStyle(.plain)
+            } else {
+                HStack(spacing: 8) {
+                    Text("Refined Script")
+                        .font(.headline)
+                        .foregroundStyle(ShuoColor.primaryTextCream)
+                    Button("Regenerate") { requestRegenerate() }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            ShuoColor.pink,
+                            in: RoundedRectangle(cornerRadius: 8)
+                        )
+                    Spacer()
+                    expandCollapseButton
+                }
             }
 
             if isRefinedExpanded {
@@ -520,6 +585,16 @@ public struct TranscriptAnalysisView: View {
 
     #Preview("Loaded") {
         _AnalysisPreviewHost(behavior: .instant)
+    }
+
+    #Preview("Loaded — xxxLarge") {
+        _AnalysisPreviewHost(behavior: .instant)
+            .environment(\.dynamicTypeSize, .xxxLarge)
+    }
+
+    #Preview("Loaded — AX5") {
+        _AnalysisPreviewHost(behavior: .instant)
+            .environment(\.dynamicTypeSize, .accessibility5)
     }
 
     #Preview("Analyzing") {
