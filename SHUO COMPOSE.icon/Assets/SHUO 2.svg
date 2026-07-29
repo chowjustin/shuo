@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="APP_ICON" data-name="APP ICON" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1024.88 1024.88">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: url(#linear-gradient);
+      }
+
+      .cls-2 {
+        fill: #bf1645;
+        opacity: .64;
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="517.44" y1="45.04" x2="513.51" y2="930.51" gradientUnits="userSpaceOnUse">
+      <stop offset=".07" stop-color="#4a4a4a"/>
+      <stop offset=".47" stop-color="#242424"/>
+      <stop offset=".64" stop-color="#1f1f1f"/>
+      <stop offset=".83" stop-color="#111"/>
+      <stop offset="1" stop-color="#000"/>
+    </linearGradient>
+  </defs>
+  <path class="cls-2" d="M960.57,465.82c41.13,312.01-188.25,340.47-434.86,340.47S21.14,761.36,67.52,465.82c31.77-202.44,199.92-348.3,446.52-348.3s421.62,159.34,446.52,348.3Z"/>
+  <path class="cls-1" d="M948.73,507.9c39.92,308.64-181.01,326.44-420.35,326.44S36.99,800.24,82.01,507.9c30.84-200.25,195-361.71,434.34-361.71s408.22,174.8,432.39,361.71Z"/>
+  <path class="cls-1" d="M948.73,507.9c39.92,308.64-181.01,326.44-420.35,326.44S36.99,800.24,82.01,507.9c30.84-200.25,195-361.71,434.34-361.71s408.22,174.8,432.39,361.71Z"/>
+</svg>

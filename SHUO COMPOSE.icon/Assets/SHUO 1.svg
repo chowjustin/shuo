@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1024.88 1024.88">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: url(#linear-gradient);
+      }
+
+      .cls-2 {
+        isolation: isolate;
+      }
+
+      .cls-3 {
+        fill: url(#linear-gradient-2);
+        mix-blend-mode: screen;
+        opacity: .7;
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="512.44" y1="-192.6" x2="512.44" y2="1034.4" gradientUnits="userSpaceOnUse">
+      <stop offset=".08" stop-color="#fba7bb"/>
+      <stop offset=".27" stop-color="#f87594"/>
+      <stop offset=".39" stop-color="#f7567c"/>
+      <stop offset=".83" stop-color="#d73260"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-2" x1="512.44" y1="1210.08" x2="512.44" y2="849.09" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4853d9"/>
+      <stop offset="1" stop-color="#83a4dd" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <g class="cls-2">
+    <g id="APP_ICON" data-name="APP ICON">
+      <g>
+        <rect class="cls-1" width="1024.88" height="1024.88"/>
+        <rect class="cls-3" width="1024.88" height="1024.88"/>
+      </g>
+    </g>
+  </g>
+</svg>
