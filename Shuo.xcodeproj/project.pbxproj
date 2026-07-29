@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		115C18BA11A0707CC582080B /* ShuoPersistence in Frameworks */ = {isa = PBXBuildFile; productRef = 65BD879E51E13C70DE65F5D7 /* ShuoPersistence */; };
+		1FD9436E3019905A000D1E0B /* SHUO COMPOSE.icon in Resources */ = {isa = PBXBuildFile; fileRef = 1FD9436D3019905A000D1E0B /* SHUO COMPOSE.icon */; };
 		3756A4ABC55CEA549247B07A /* ShuoCore in Frameworks */ = {isa = PBXBuildFile; productRef = CCF8C374B84778DA2D582A18 /* ShuoCore */; };
 		3BBA622967D72BFAB00AA8F6 /* FeatureHome in Frameworks */ = {isa = PBXBuildFile; productRef = 7FCB03B9DB0C0038940223A7 /* FeatureHome */; };
 		5CB8A7A5074BE6D0E6A3E03A /* ShuoAudio in Frameworks */ = {isa = PBXBuildFile; productRef = 779F718613323A09E59D2A2E /* ShuoAudio */; };
@@ -36,6 +37,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		1FD9436D3019905A000D1E0B /* SHUO COMPOSE.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "SHUO COMPOSE.icon"; sourceTree = "<group>"; };
 		D1835759300480AB00F31EA3 /* Shuo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Shuo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D1835768300480AC00F31EA3 /* ShuoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ShuoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D1835772300480AC00F31EA3 /* ShuoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ShuoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -114,6 +116,7 @@
 			isa = PBXGroup;
 			children = (
 				D183578C3004819100F31EA3 /* .gitignore */,
+				1FD9436D3019905A000D1E0B /* SHUO COMPOSE.icon */,
 				D1835787300480D500F31EA3 /* Docs */,
 				D1835786300480C500F31EA3 /* Packages */,
 				D183575B300480AB00F31EA3 /* Shuo */,
@@ -269,6 +272,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1FD9436E3019905A000D1E0B /* SHUO COMPOSE.icon in Resources */,
 				D183578D3004819500F31EA3 /* .gitignore in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -451,8 +455,9 @@
 		D183577D300480AC00F31EA3 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "SHUO COMPOSE";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7Z827VAMZB;
@@ -488,8 +493,9 @@
 		D183577E300480AC00F31EA3 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "SHUO COMPOSE";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7Z827VAMZB;
