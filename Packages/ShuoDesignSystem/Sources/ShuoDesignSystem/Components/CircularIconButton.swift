@@ -25,9 +25,13 @@ public struct CircularIconButton: View {
         case filled
         case outlined
     }
-
-    private static let diameter: CGFloat = 72
-
+    // Base sizes at the default (non-scaled) content size category.
+    // Both are tied to the same Dynamic Type curve so the icon and its
+    // circle always grow together — this is the actual fix (see note below).
+    @ScaledMetric(relativeTo: .largeTitle) private var diameter: CGFloat = 72
+    @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 28
+    
+   
     private let systemImage: String
     private let emphasis: Emphasis
     private let accessibilityTitle: String
@@ -56,10 +60,10 @@ public struct CircularIconButton: View {
                 }
 
                 Image(systemName: systemImage)
-                    .font(.largeTitle.bold())
+                    .font(.system(size: iconSize, weight: .bold))
                     .foregroundStyle(emphasis == .filled ? Color.white : ShuoColor.pink)
             }
-            .frame(width: Self.diameter, height: Self.diameter)
+            .frame(width: diameter, height: diameter)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityTitle)
