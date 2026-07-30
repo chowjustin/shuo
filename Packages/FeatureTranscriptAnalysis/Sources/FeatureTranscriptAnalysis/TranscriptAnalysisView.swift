@@ -99,7 +99,7 @@ public struct TranscriptAnalysisView: View {
     /// the same gesture here, and the prompt behind ✓ is what separates them.
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        if controls.showsBack {
+        if controls.showsBack || viewModel.isForceRegenerating {
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: goBack) {
                     Image(systemName: "chevron.left")
@@ -108,14 +108,7 @@ public struct TranscriptAnalysisView: View {
             }
         }
 
-        if viewModel.isForceRegenerating {
-            ToolbarItem(placement: .topBarLeading) {
-                Button(action: goBack) {
-                    Image(systemName: "chevron.left")
-                }
-                .accessibilityLabel("Back to input")
-            }
-        } else if controls.showsFinish {
+        if !viewModel.isForceRegenerating, controls.showsFinish {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: finish) {
                     Image(systemName: "checkmark")
@@ -363,7 +356,9 @@ public struct TranscriptAnalysisView: View {
             } label: {
                 Text("View Original Script")
                     .underline()
+                    .multilineTextAlignment(.leading)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityLabel("View original script")
         }
     }
