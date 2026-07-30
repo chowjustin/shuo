@@ -11,6 +11,7 @@ import ShuoDesignSystem
 import SwiftUI
 
 public struct HomeView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @Bindable private var viewModel: HomeViewModel
     private let onTapCreate: () -> Void
     private let onSelectScript: (ScriptSummary.ID) -> Void
@@ -27,13 +28,28 @@ public struct HomeView: View {
         self.viewModel = viewModel
         self.onTapCreate = onTapCreate
         self.onSelectScript = onSelectScript
+        
+        let titleColor = UIColor { traits in
+                traits.userInterfaceStyle == .dark
+                    ? UIColor(ShuoColor.navigationTitleDark)
+                    : UIColor(ShuoColor.primaryTextCream)
+            }
+        let appearance = UINavigationBarAppearance()
+            appearance.configureWithTransparentBackground()
+            appearance.largeTitleTextAttributes = [.foregroundColor: titleColor]
+            appearance.titleTextAttributes = [.foregroundColor: titleColor]
+
+            UINavigationBar.appearance().standardAppearance = appearance
+            UINavigationBar.appearance().scrollEdgeAppearance = appearance
+            UINavigationBar.appearance().compactAppearance = appearance
     }
 
     public var body: some View {
         content
             .background(backdrop)
             .navigationTitle("All Scripts")
-            .toolbarColorScheme(.light, for: .navigationBar)
+//            .toolbarColorScheme(colorScheme, for: .navigationBar)
+//            .toolbarColorScheme(.light, for: .navigationBar)
             .searchable(
                 text: $viewModel.searchQuery,
                 placement: .navigationBarDrawer(displayMode: .always),
@@ -93,10 +109,10 @@ public struct HomeView: View {
         ZStack {
             ShuoColor.background
 
-            Image("SHUO BACKGROUND HD")
+            Image(colorScheme == .dark ? "SHUO BACKGROUND HD DARK" : "SHUO BACKGROUND HD")
                 .resizable()
                 .scaledToFill()
-                .opacity(0.8)
+//                .opacity(0.8)
         }
         .ignoresSafeArea()
     }
@@ -187,6 +203,7 @@ public struct HomeView: View {
                 .foregroundStyle(ShuoColor.secondaryTextCream)
                 .multilineTextAlignment(.center)
         }
+        .padding(.bottom, 93)
         .multilineTextAlignment(.center)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
@@ -247,6 +264,44 @@ public struct HomeView: View {
             )
         )
     }
+}
+
+#Preview("Light mode") {
+    NavigationStack {
+        HomeView(
+            viewModel: HomeViewModel(
+                fetchScriptSummaries: FetchScriptSummariesUseCase(
+                    repository: PreviewScriptRepository(hasScripts: true)
+                ),
+                searchScripts: SearchScriptsUseCase(
+                    repository: PreviewScriptRepository(hasScripts: true)
+                ),
+                deleteScript: DeleteScriptUseCase(
+                    repository: PreviewScriptRepository(hasScripts: true)
+                )
+            )
+        )
+    }
+    .preferredColorScheme(.light)
+}
+
+#Preview("Dark mode") {
+    NavigationStack {
+        HomeView(
+            viewModel: HomeViewModel(
+                fetchScriptSummaries: FetchScriptSummariesUseCase(
+                    repository: PreviewScriptRepository(hasScripts: true)
+                ),
+                searchScripts: SearchScriptsUseCase(
+                    repository: PreviewScriptRepository(hasScripts: true)
+                ),
+                deleteScript: DeleteScriptUseCase(
+                    repository: PreviewScriptRepository(hasScripts: true)
+                )
+            )
+        )
+    }
+    .preferredColorScheme(.dark)
 }
 
 private struct PreviewScriptRepository: ScriptRepository {
