@@ -75,6 +75,7 @@ public enum ShuoColor {
     public static let error = Color(uiColor: .systemRed)
     /// Surface for content presented above the app, e.g. a sheet background.
     public static let elevatedSurface = Color(uiColor: .systemBackground)
+    public static let navigationTitleDark = Color(hex: 0xF0ECD9)
 
     // MARK: - Resolution
 
@@ -85,5 +86,14 @@ public enum ShuoColor {
     /// Resolves against this package's bundle, so previews find the catalog too.
     private static func named(_ name: String) -> Color {
         Color(name, bundle: .module)
+    }
+}
+private extension Color {
+    init(hex: UInt32) {
+        self.init(
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255
+        )
     }
 }
