@@ -52,7 +52,7 @@ public struct LoadingView: View {
             VStack(spacing: ShuoSpacing.small) {
                 Text(message)
                     .font(ShuoTypography.headline)
-                    .foregroundStyle(ShuoColor.primaryText)
+                    .foregroundStyle(ShuoColor.primaryTextCream)
 
                 if let detail {
                     Text(detail)
