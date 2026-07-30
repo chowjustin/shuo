@@ -5,14 +5,12 @@
 //  Created by Justin Chow on 21/07/26.
 //
 
+@testable import FeatureTranscriptAnalysis
 import ShuoCore
 import Testing
 
-@testable import FeatureTranscriptAnalysis
-
 @Suite("AnalysisErrorCopy")
 struct AnalysisErrorCopyTests {
-
     @Test("every rejection reason gets its own wording, never a shared fallback")
     func rejectionReasonsAreDistinct() {
         let titles = TranscriptRejectionReason.allCases.map { AnalysisErrorCopy(reason: $0).title }
@@ -134,6 +132,7 @@ struct AnalysisErrorCopyTests {
             #expect(!copy.message.isEmpty)
         }
     }
+
     // MARK: - Copy is the only channel now
 
     @Test("errors reachable on this screen each read differently")
@@ -156,10 +155,10 @@ struct AnalysisErrorCopyTests {
         let phrases = ["tap try again", "press try again", "tap retry", "use the button below"]
         let allCopy: [AnalysisErrorCopy] =
             [.tooFewWords, .tooShort, .mostlySilence, .unintelligible, .notASpeech]
-            .map(AnalysisErrorCopy.init(reason:))
-            + [.appleIntelligenceNotEnabled, .deviceNotEligible, .modelNotReady, .available]
+                .map(AnalysisErrorCopy.init(reason:))
+                + [.appleIntelligenceNotEnabled, .deviceNotEligible, .modelNotReady, .available]
                 .map(AnalysisErrorCopy.init(availability:))
-            + [ShuoError.aiUnavailable, .contextWindowExceeded, .aiGenerationFailed, .persistenceFailed]
+                + [ShuoError.aiUnavailable, .contextWindowExceeded, .aiGenerationFailed, .persistenceFailed]
                 .map(AnalysisErrorCopy.init(error:))
 
         for copy in allCopy {
@@ -179,5 +178,4 @@ struct AnalysisErrorCopyTests {
 
         #expect(messages.count == reasons.count, "two rejection reasons share a message")
     }
-
 }

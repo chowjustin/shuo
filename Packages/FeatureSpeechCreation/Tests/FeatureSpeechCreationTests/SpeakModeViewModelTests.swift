@@ -8,12 +8,12 @@
 // `@MainActor` Swift Testing suite for `SpeakModeViewModel`'s recording state machine,
 // injecting `FakeAudioCapturing` from ShuoTestSupport.
 
+@testable import FeatureSpeechCreation
 import Foundation
-import Synchronization
-import Testing
 import ShuoCore
 import ShuoTestSupport
-@testable import FeatureSpeechCreation
+import Synchronization
+import Testing
 
 /// Vends capture sessions in order, so a test can hold on to both the session a take was
 /// recorded in *and* the one Retake replaces it with. Mirrors the real composition root,
@@ -40,7 +40,6 @@ private final class CapturerSequence: Sendable {
 @MainActor
 @Suite("SpeakModeViewModel")
 struct SpeakModeViewModelTests {
-
     private func makeViewModel(
         capturer: FakeAudioCapturing = FakeAudioCapturing(),
         nextCapturer: FakeAudioCapturing = FakeAudioCapturing(),
@@ -355,7 +354,7 @@ struct SpeakModeViewModelTests {
         let viewModel = await makeRecordingViewModel()
         let size = SpeakModeViewModel.waveformWindowSize
 
-        for index in 0..<(size * 2) {
+        for index in 0 ..< (size * 2) {
             viewModel.handle(.tick(amplitudes: [Float(index) / Float(size * 2)], duration: 1))
         }
 
@@ -432,7 +431,7 @@ struct SpeakModeViewModelTests {
     @Test("the waveform window trims from the front, keeping newest samples")
     func windowTrimsFromTheFront() {
         let size = SpeakModeViewModel.waveformWindowSize
-        let full = (0..<size).map { Float($0) }
+        let full = (0 ..< size).map { Float($0) }
 
         let result = SpeakModeViewModel.window(appending: [99, 100], to: full)
 
@@ -444,7 +443,7 @@ struct SpeakModeViewModelTests {
     @Test("the waveform window trims a burst larger than the window itself")
     func windowTrimsOversizedBurst() {
         let size = SpeakModeViewModel.waveformWindowSize
-        let burst = (0..<(size * 3)).map { Float($0) }
+        let burst = (0 ..< (size * 3)).map { Float($0) }
 
         let result = SpeakModeViewModel.window(appending: burst, to: [])
 
@@ -711,7 +710,9 @@ struct SpeakModeViewModelTests {
     ) async -> Bool {
         let deadline = ContinuousClock.now + timeout
         while ContinuousClock.now < deadline {
-            if condition() { return true }
+            if condition() {
+                return true
+            }
             await Task.yield()
         }
         return condition()

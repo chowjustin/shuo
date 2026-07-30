@@ -5,10 +5,10 @@
 //  Created by rasyel on 17/07/26.
 //
 
-import Foundation
-import Testing
 @testable import FeatureTranscriptAnalysis
+import Foundation
 import ShuoCore
+import Testing
 
 @MainActor
 @Suite("PatternCarouselViewModel")
@@ -30,7 +30,7 @@ struct PatternCarouselViewModelTests {
 
     @Test("Clamps to at most 3 patterns, preserving order")
     func clampsToThreePatterns() {
-        let patterns = (1...5).map { Self.makePattern("Pattern \($0)") }
+        let patterns = (1 ... 5).map { Self.makePattern("Pattern \($0)") }
         let viewModel = PatternCarouselViewModel(patterns: patterns)
 
         #expect(viewModel.patterns.count == 3)

@@ -20,7 +20,6 @@ import Foundation
 /// what the user has already been shown. Re-deriving them here would let the refined text
 /// silently disagree with the key points displayed above it — a subtle, confusing bug.
 public struct RegenerateTranscriptUseCase: Sendable {
-
     private let analyzer: any SpeechAnalyzing
 
     public init(analyzer: any SpeechAnalyzing) {

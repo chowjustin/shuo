@@ -21,7 +21,6 @@ import ShuoCore
 /// the prefetch tests: they need pattern #1 to succeed while pattern #3 fails, and to
 /// assert which patterns were actually asked for.
 public actor FakeSpeechAnalyzing: SpeechAnalyzing {
-
     // MARK: - Scripted outcomes
 
     public enum ClassificationOutcome: Sendable {
@@ -66,7 +65,9 @@ public actor FakeSpeechAnalyzing: SpeechAnalyzing {
     public private(set) var refineCalls: [SpeechPattern.ID] = []
     public private(set) var grammarCallCount = 0
 
-    public var classifyCallCount: Int { classifyCalls.count }
+    public var classifyCallCount: Int {
+        classifyCalls.count
+    }
 
     // MARK: - Configuration
 
@@ -125,25 +126,25 @@ public actor FakeSpeechAnalyzing: SpeechAnalyzing {
         )
         try await waitIfNeeded()
         switch classification {
-        case .success(let value): return value
-        case .failure(let error): throw error
+        case let .success(value): return value
+        case let .failure(error): throw error
         }
     }
 
     public func generateKeyPoints(
-        transcript: String,
+        transcript _: String,
         pattern: SpeechPattern
     ) async throws -> [KeyPoint] {
         keyPointCalls.append(pattern.id)
         try await waitIfNeeded()
         switch keyPointOverrides[pattern.id] ?? keyPoints {
-        case .success(let value):
+        case let .success(value):
             return value
         case .fillAllComponents:
             return Self.filled(pattern.components, in: pattern)
-        case .fillComponents(let ids):
+        case let .fillComponents(ids):
             return Self.filled(pattern.components.filter { ids.contains($0.id) }, in: pattern)
-        case .failure(let error):
+        case let .failure(error):
             throw error
         }
     }
@@ -151,18 +152,18 @@ public actor FakeSpeechAnalyzing: SpeechAnalyzing {
     public func refineTranscript(
         _ transcript: String,
         pattern: SpeechPattern,
-        keyPoints: [KeyPoint]
+        keyPoints _: [KeyPoint]
     ) async throws -> String {
         refineCalls.append(pattern.id)
         try await waitIfNeeded()
         switch refined {
-        case .success(let value): return value
+        case let .success(value): return value
         case .echoWithPatternName: return "[\(pattern.name)] \(transcript)"
-        case .failure(let error): throw error
+        case let .failure(error): throw error
         }
     }
 
-    public func analyzeGrammar(_ transcript: String) async throws -> [GrammarSuggestion] {
+    public func analyzeGrammar(_: String) async throws -> [GrammarSuggestion] {
         grammarCallCount += 1
         try await waitIfNeeded()
         return []

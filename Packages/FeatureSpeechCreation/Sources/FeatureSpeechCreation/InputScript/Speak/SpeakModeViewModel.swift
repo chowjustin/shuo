@@ -16,7 +16,6 @@ import ShuoCore
 @Observable
 @MainActor
 public final class SpeakModeViewModel {
-
     /// How many bars the waveform shows. The window is pre-filled with silence so the
     /// waveform spans its full width from the first frame rather than growing into it.
     static let waveformWindowSize = 25
@@ -66,7 +65,7 @@ public final class SpeakModeViewModel {
         recordingDeleter: any AudioRecordingDeleting
     ) {
         self.makeCapturer = makeCapturer
-        self.capturer = makeCapturer()
+        capturer = makeCapturer()
         self.permissions = permissions
         self.player = player
         self.recordingDeleter = recordingDeleter
@@ -78,7 +77,9 @@ public final class SpeakModeViewModel {
     // MARK: - Derived state
 
     public var recording: AudioRecording? {
-        if case .finished(let recording) = viewState { return recording }
+        if case let .finished(recording) = viewState {
+            return recording
+        }
         return nil
     }
 
@@ -174,7 +175,9 @@ public final class SpeakModeViewModel {
     /// next step. Returns nil if there was nothing to finish.
     public func finish() async -> AudioRecording? {
         stopPlayback()
-        if case .finished(let recording) = viewState { return recording }
+        if case let .finished(recording) = viewState {
+            return recording
+        }
         guard canProceed else { return nil }
 
         transitionTask?.cancel()
@@ -215,7 +218,9 @@ public final class SpeakModeViewModel {
         transitionTask = Task { [player, recordingDeleter] in
             await player.stop()
             await outgoingCapturer.discard()
-            if let discarded { await recordingDeleter.delete(discarded) }
+            if let discarded {
+                await recordingDeleter.delete(discarded)
+            }
             await incomingCapturer.prepare()
         }
     }
@@ -252,7 +257,9 @@ public final class SpeakModeViewModel {
             // `discard()` is a no-op once the session has ended, so a take that was
             // finished — and then carried through transcription and back — is only
             // actually removed by this.
-            if let discarded { await recordingDeleter.delete(discarded) }
+            if let discarded {
+                await recordingDeleter.delete(discarded)
+            }
         }
         reset()
     }
@@ -353,7 +360,9 @@ public final class SpeakModeViewModel {
     /// A finished take is a file of its own; a paused one is still mid-session, so the
     /// capturer has to assemble a playable copy first (`AudioCapturing.previewURL()`).
     private func playbackURL() async throws -> URL {
-        if case .finished(let recording) = viewState { return recording.fileURL }
+        if case let .finished(recording) = viewState {
+            return recording.fileURL
+        }
         return try await capturer.previewURL()
     }
 
@@ -389,7 +398,7 @@ public final class SpeakModeViewModel {
     /// `handle(.failed(...))` would be ambiguous at every call site.
     func handle(playback event: AudioPlaybackEvent) {
         switch event {
-        case .progress(let position):
+        case let .progress(position):
             guard isPlayingBack else { return }
             playbackPosition = position
 
@@ -422,7 +431,7 @@ public final class SpeakModeViewModel {
     /// an `AsyncStream`.
     func handle(_ event: AudioCaptureEvent) {
         switch event {
-        case .tick(let amplitudes, let duration):
+        case let .tick(amplitudes, duration):
             // A tick that arrives after the user paused would rewind the timer.
             guard viewState == .recording else { return }
             self.duration = duration
@@ -432,10 +441,10 @@ public final class SpeakModeViewModel {
             guard viewState == .recording else { return }
             viewState = .paused
 
-        case .failed(let error):
+        case let .failed(error):
             viewState = .failed(Self.message(for: error))
 
-        case .transcript(let text):
+        case let .transcript(text):
             liveTranscript = text
         }
     }

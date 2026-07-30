@@ -7,12 +7,11 @@
 // transcript said nothing". Everything downstream renders positionally on that basis, so
 // each way a small on-device model can misbehave gets its own test.
 
-import Testing
 @testable import ShuoCore
+import Testing
 
 @Suite("Key point normalizer")
 struct KeyPointNormalizerTests {
-
     private let normalizer = KeyPointNormalizer()
 
     /// Five components: topicOverview, category1, category2, category3, closingSummary.
@@ -33,7 +32,7 @@ struct KeyPointNormalizerTests {
 
         #expect(result.count == topical.components.count)
         #expect(result.map(\.componentID) == topical.components.map(\.id))
-        #expect(result.map(\.orderIndex) == Array(0..<topical.components.count))
+        #expect(result.map(\.orderIndex) == Array(0 ..< topical.components.count))
     }
 
     @Test("An empty input yields an all-absent set rather than an error")
@@ -202,6 +201,7 @@ struct KeyPointNormalizerTests {
     }
 
     // MARK: - Absence prose
+
     //
     // The model is told to omit an uncovered component, and usually does. When it instead
     // narrates the gap, that sentence must not reach the UI as if the speaker said it.

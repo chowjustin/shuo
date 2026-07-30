@@ -22,7 +22,7 @@ public struct PatternCarouselView: View {
     private var loopedIndices: [Int] {
         let patternCount = viewModel.patterns.count
         guard patternCount > 0 else { return [] }
-        return Array(0..<(patternCount * Self.loopMultiplier))
+        return Array(0 ..< (patternCount * Self.loopMultiplier))
     }
 
     /// The pattern shown at a looped index, or nil when there are no patterns.
@@ -59,7 +59,6 @@ public struct PatternCarouselView: View {
             .safeAreaPadding(.horizontal, 60)
             .scrollTargetBehavior(.viewAligned)
             .scrollPosition(id: $focusedIndex, anchor: .center)
-        
             .onAppear {
                 setupInitialFocus()
             }
@@ -78,7 +77,6 @@ public struct PatternCarouselView: View {
                     focusedIndex = middleRepeat * viewModel.patterns.count + patternIdx
                 }
             }
-
         }
     }
 

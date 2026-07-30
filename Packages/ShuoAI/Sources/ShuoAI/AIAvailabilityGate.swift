@@ -22,7 +22,6 @@ import ShuoCore
 /// while the app is running. A cached "unavailable" would strand the user on an error
 /// screen after they had already fixed the problem.
 public struct AIAvailabilityGate: AIAvailabilityChecking {
-
     private let model: SystemLanguageModel
 
     public init(model: SystemLanguageModel = .default) {

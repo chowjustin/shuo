@@ -42,15 +42,13 @@ public struct PurposeCard: View {
         Button(action: action) {
             HStack(alignment: .bottom, spacing: ShuoSpacing.medium) {
                 VStack(alignment: .leading, spacing: ShuoSpacing.small) {
-                    
                     Text(title)
                         .font(.title2.bold())
                         .foregroundStyle(isSelected ? ShuoColor.primaryTextAqua : ShuoColor.primaryTextCream)
-                    
+
                     Text(description)
                         .font(ShuoTypography.caption)
                         .foregroundStyle(isSelected ? ShuoColor.secondaryTextAqua : ShuoColor.secondaryTextCream)
-                    
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }

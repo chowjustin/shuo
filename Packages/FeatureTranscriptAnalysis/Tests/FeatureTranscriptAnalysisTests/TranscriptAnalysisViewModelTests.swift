@@ -5,26 +5,25 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
+@testable import FeatureTranscriptAnalysis
 import Foundation
-import Testing
 import ShuoCore
 import ShuoTestSupport
-@testable import FeatureTranscriptAnalysis
+import Testing
 
 @MainActor
 @Suite("Transcript analysis view model")
 struct TranscriptAnalysisViewModelTests {
-
     // MARK: - Fixtures
 
     /// Comfortably past the usability precheck, so tests exercise the model path.
     private static let transcript = """
-        Good morning everyone. Today I want to talk about why remote work has reshaped \
-        how our team collaborates. When we moved to a distributed model two years ago, \
-        we assumed productivity would fall. It didn't. What actually changed was the \
-        shape of our communication, and that turned out to matter far more than the \
-        number of hours anyone logged at a desk each week.
-        """
+    Good morning everyone. Today I want to talk about why remote work has reshaped \
+    how our team collaborates. When we moved to a distributed model two years ago, \
+    we assumed productivity would fall. It didn't. What actually changed was the \
+    shape of our communication, and that turned out to matter far more than the \
+    number of hours anyone logged at a desk each week.
+    """
 
     /// The three inform patterns these tests rank, in prefetch order.
     private static let rankedIDs = ["inform.topical", "inform.causeEffect", "inform.spatial"]
@@ -109,7 +108,9 @@ struct TranscriptAnalysisViewModelTests {
     ) async throws {
         let deadline = ContinuousClock.now + timeout
         while ContinuousClock.now < deadline {
-            if await condition() { return }
+            if await condition() {
+                return
+            }
             try await Task.sleep(for: .milliseconds(5))
         }
         Issue.record("Timed out waiting for the expected state")
@@ -1059,7 +1060,6 @@ struct TranscriptAnalysisViewModelTests {
         viewModel.updateKeyPoint(id: first.id, text: KeyPoint.absentText)
         #expect(viewModel.hasUnfulfilledKeyPoints)
     }
-
 
     // MARK: - Re-entering a loaded screen
 

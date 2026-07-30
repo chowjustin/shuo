@@ -11,7 +11,6 @@ import ShuoCore
 /// Stateless, so one instance is shared for the app's lifetime — unlike
 /// `AudioRecordingService`, which is single-use by contract.
 public struct AudioRecordingFileStore: AudioRecordingDeleting {
-
     public init() {}
 
     public func delete(_ recording: AudioRecording) async {

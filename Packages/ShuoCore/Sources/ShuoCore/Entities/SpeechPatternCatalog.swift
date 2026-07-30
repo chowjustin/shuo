@@ -26,7 +26,6 @@ import Foundation
 /// their guidance text genuinely differs, and separate ids keep every classification
 /// prompt scoped to a single purpose with no conditional wording.
 public enum SpeechPatternCatalog {
-
     /// Every pattern, in purpose order. Order within a purpose is the authoring order in
     /// `Docs/SPEECH_PATTERNS.md` and carries no ranking meaning — ranking is the model's
     /// job, per transcript.

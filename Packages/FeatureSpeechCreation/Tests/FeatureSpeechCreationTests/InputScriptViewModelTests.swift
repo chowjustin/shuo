@@ -5,16 +5,15 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-import Testing
+@testable import FeatureSpeechCreation
 import Foundation
 import ShuoCore
 import ShuoTestSupport
-@testable import FeatureSpeechCreation
+import Testing
 
 @MainActor
 @Suite("InputScriptViewModel")
 struct InputScriptViewModelTests {
-
     private func makeMedia() -> ImportedMedia {
         ImportedMedia(
             fileURL: URL(filePath: "/tmp/speech.m4a"),
@@ -218,7 +217,7 @@ struct InputScriptViewModelTests {
     }
 
     @Test("discard is safe when nothing has been started")
-    func discardIsSafeWhenIdle() async {
+    func discardIsSafeWhenIdle() {
         let capturer = FakeAudioCapturing()
         let viewModel = makeViewModel(capturer: capturer)
 
@@ -289,6 +288,7 @@ struct InputScriptViewModelTests {
         #expect(source == nil)
         #expect(await capturer.finishCount == 0)
     }
+
     // MARK: - Committing to one mode
 
     @Test("confirming keeps every mode, because transcription can still fail")
@@ -458,5 +458,4 @@ struct InputScriptViewModelTests {
         #expect(message.contains(InputMode.attachFile.title))
         #expect(message.contains(InputMode.write.title))
     }
-
 }

@@ -10,14 +10,13 @@
 // (CLAUDE.md §7).
 
 import Foundation
-import Testing
 import ShuoCore
-import SwiftData
 @testable import ShuoPersistence
+import SwiftData
+import Testing
 
 @Suite("SwiftData script repository")
 struct SwiftDataScriptRepositoryTests {
-
     /// A fresh in-memory store per test, built from the same factory the app uses so the
     /// schema under test can never drift from the shipped one (CLAUDE.md §7).
     private func makeRepository() throws -> SwiftDataScriptRepository {
@@ -131,13 +130,13 @@ struct SwiftDataScriptRepositoryTests {
     func summariesAreNewestFirst() async throws {
         let repository = try makeRepository()
         try await repository.save(
-            script(title: "Oldest", createdAt: Date(timeIntervalSince1970: 1_000))
+            script(title: "Oldest", createdAt: Date(timeIntervalSince1970: 1000))
         )
         try await repository.save(
-            script(title: "Newest", createdAt: Date(timeIntervalSince1970: 3_000))
+            script(title: "Newest", createdAt: Date(timeIntervalSince1970: 3000))
         )
         try await repository.save(
-            script(title: "Middle", createdAt: Date(timeIntervalSince1970: 2_000))
+            script(title: "Middle", createdAt: Date(timeIntervalSince1970: 2000))
         )
 
         let summaries = try await repository.fetchSummaries()
@@ -202,10 +201,10 @@ struct SwiftDataScriptRepositoryTests {
     func searchResultsAreNewestFirst() async throws {
         let repository = try makeRepository()
         try await repository.save(
-            script(title: "Work: part one", createdAt: Date(timeIntervalSince1970: 1_000))
+            script(title: "Work: part one", createdAt: Date(timeIntervalSince1970: 1000))
         )
         try await repository.save(
-            script(title: "Work: part two", createdAt: Date(timeIntervalSince1970: 2_000))
+            script(title: "Work: part two", createdAt: Date(timeIntervalSince1970: 2000))
         )
 
         let results = try await repository.search(query: "work")

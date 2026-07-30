@@ -90,13 +90,13 @@ public struct WaveformView: View {
 }
 
 #Preview("Speech") {
-    WaveformView(samples: (0..<25).map { _ in Float.random(in: 0.15...1) })
+    WaveformView(samples: (0 ..< 25).map { _ in Float.random(in: 0.15 ... 1) })
 }
 
 #Preview("Filling up") {
-    WaveformView(samples: (0..<25).map { index in index < 12 ? Float.random(in: 0.2...1) : 0 })
+    WaveformView(samples: (0 ..< 25).map { index in index < 12 ? Float.random(in: 0.2 ... 1) : 0 })
 }
 
 #Preview("Playing back") {
-    WaveformView(samples: (0..<25).map { _ in Float.random(in: 0.15...1) }, progress: 0.4)
+    WaveformView(samples: (0 ..< 25).map { _ in Float.random(in: 0.15 ... 1) }, progress: 0.4)
 }

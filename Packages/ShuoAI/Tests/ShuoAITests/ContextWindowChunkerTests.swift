@@ -11,14 +11,13 @@
 // manual test.
 
 import Foundation
-import Testing
 @testable import ShuoAI
+import Testing
 
 @Suite("Context window chunker")
 struct ContextWindowChunkerTests {
-
     /// 100 distinct words, so a dropped or reordered chunk is detectable.
-    private static let longTranscript = (0..<100)
+    private static let longTranscript = (0 ..< 100)
         .map { "sentence\($0)" }
         .joined(separator: " ")
 
@@ -26,7 +25,7 @@ struct ContextWindowChunkerTests {
 
     @Test("A short transcript needs no treatment at all")
     func shortTranscriptFits() {
-        let chunker = ContextWindowChunker(budget: 1_000)
+        let chunker = ContextWindowChunker(budget: 1000)
 
         #expect(!chunker.exceedsBudget("A brief speech."))
         #expect(chunker.condensed("A brief speech.") == "A brief speech.")
@@ -35,10 +34,10 @@ struct ContextWindowChunkerTests {
 
     @Test("The budget is derived from context size, minus room for instructions and output")
     func budgetDerivedFromContextSize() {
-        let chunker = ContextWindowChunker(contextSize: 8_000)
+        let chunker = ContextWindowChunker(contextSize: 8000)
 
         // (8000 - 1500 reserved) * 3.5 characters per token.
-        #expect(chunker.budget == 22_750)
+        #expect(chunker.budget == 22750)
     }
 
     @Test("An implausibly small context size still yields a usable budget")
@@ -82,7 +81,7 @@ struct ContextWindowChunkerTests {
 
     @Test("Chunking a transcript that fits returns it as a single chunk")
     func chunkingShortTranscript() {
-        let chunker = ContextWindowChunker(budget: 10_000)
+        let chunker = ContextWindowChunker(budget: 10000)
 
         #expect(chunker.chunks(Self.longTranscript).count == 1)
     }

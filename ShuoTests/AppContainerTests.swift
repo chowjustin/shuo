@@ -10,9 +10,9 @@
 // at the app-target level — every other behavior is tested inside its own package.
 // See CLAUDE.md §13, ARCHITECTURE.md §12.1.
 
-import Testing
 import FeatureSpeechCreation
 @testable import Shuo
+import Testing
 
 @MainActor
 @Suite("AppContainer")

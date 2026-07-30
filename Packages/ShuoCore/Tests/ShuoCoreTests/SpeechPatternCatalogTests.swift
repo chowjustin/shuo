@@ -9,12 +9,11 @@
 // classification or normalization.
 
 import Foundation
-import Testing
 @testable import ShuoCore
+import Testing
 
 @Suite("Speech pattern catalog")
 struct SpeechPatternCatalogTests {
-
     @Test("Catalog holds every pattern documented in Docs/SPEECH_PATTERNS.md")
     func catalogCount() {
         #expect(SpeechPatternCatalog.all.count == 23)
@@ -63,7 +62,7 @@ struct SpeechPatternCatalogTests {
         for pattern in SpeechPatternCatalog.all {
             let orders = pattern.components.map(\.order)
             #expect(
-                orders == Array(0..<pattern.components.count),
+                orders == Array(0 ..< pattern.components.count),
                 "\(pattern.id) has non-contiguous component orders: \(orders)"
             )
         }
@@ -174,7 +173,9 @@ struct SpeechPatternCatalogTests {
         let summary: String?
         let components: [SpecComponent]
 
-        var componentNames: [String] { components.map(\.name) }
+        var componentNames: [String] {
+            components.map(\.name)
+        }
     }
 
     /// Splits a document **Contains** cell into the array shape the catalog stores:
@@ -307,19 +308,23 @@ struct SpeechPatternCatalogTests {
                 SpecComponent(
                     "Point",
                     "One clear claim or recommendation; the speaker's stance; the central persuasive message",
-                    "Extract the main opinion or recommendation as one concise sentence."),
+                    "Extract the main opinion or recommendation as one concise sentence."
+                ),
                 SpecComponent(
                     "Reason",
                     "Logical justification; benefits/rationale; why the audience should believe the claim",
-                    "Identify the strongest supporting reason directly connected to the point."),
+                    "Identify the strongest supporting reason directly connected to the point."
+                ),
                 SpecComponent(
                     "Example",
                     "Personal experience; real-world example; statistics; research findings; case study",
-                    "Extract the most convincing evidence that supports the reason."),
+                    "Extract the most convincing evidence that supports the reason."
+                ),
                 SpecComponent(
                     "Reinforced Point",
                     "Restated claim; strong call-to-action or memorable closing",
-                    "Rewrite the original point as a stronger concluding statement that reinforces the desired action."),
+                    "Rewrite the original point as a stronger concluding statement that reinforces the desired action."
+                ),
             ]
         ),
         SpecEntry(
@@ -406,13 +411,16 @@ struct SpeechPatternCatalogTests {
             components: [
                 SpecComponent(
                     "Challenge",
-                    "The obstacle, setback, or defining moment that created tension or required action"),
+                    "The obstacle, setback, or defining moment that created tension or required action"
+                ),
                 SpecComponent(
                     "Choice",
-                    "The decision, mindset, or action taken to address the challenge"),
+                    "The decision, mindset, or action taken to address the challenge"
+                ),
                 SpecComponent(
                     "Outcome",
-                    "The result, lesson learned, or positive transformation that inspires the audience"),
+                    "The result, lesson learned, or positive transformation that inspires the audience"
+                ),
             ]
         ),
         SpecEntry(

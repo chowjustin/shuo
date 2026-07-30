@@ -8,7 +8,6 @@
 // Reusable card for one suggested structural pattern, shown in a horizontal
 // `LazyHStack` carousel. See ARCHITECTURE.md §3.2.3.
 
-
 import Foundation
 import SwiftUI
 
@@ -40,11 +39,9 @@ public struct PatternCard: View {
                     .transition(.opacity)
             }
         }
-        
 
         .frame(width: 230, height: 100)
         .cardStyle(isSelected: true, showsBorder: false)
-
         .scaleEffect(isFocused ? 1 : 0.85)
         .opacity(isFocused ? 1 : 0.3)
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isFocused)
@@ -54,8 +51,7 @@ public struct PatternCard: View {
     }
 
     private var accessibilityText: String {
-        let mainText = isFocused ? "\(name). \(summary)" : name
-        return mainText
+        return isFocused ? "\(name). \(summary)" : name
     }
 
     private var focusedContent: some View {

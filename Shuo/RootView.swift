@@ -98,7 +98,6 @@ struct RootView: View {
 /// A real `View` rather than an inline `if` in the sheet closure, so reading
 /// `coordinator.analysisDraft` registers an observation dependency and the swap fires.
 private struct CreateFlowSheet: View {
-
     let container: AppContainer
 
     @Bindable var coordinator: CreateScriptCoordinator
@@ -109,7 +108,6 @@ private struct CreateFlowSheet: View {
         CreateFlowView(
             coordinator: coordinator
         ) { draft, onClose, onBack in
-
             TranscriptAnalysisView(
                 viewModel: analysisCache.viewModel(
                     for: draft,

@@ -16,185 +16,196 @@
 // load-bearing: deleting this file breaks previews and nothing else.
 
 #if DEBUG
-import Foundation
-import ShuoCore
+    import Foundation
+    import ShuoCore
 
-extension InputScriptViewModel {
-    static func preview(
-        purpose: SpeechPurpose = .persuade,
-        permissionStatus: MicrophonePermissionStatus = .granted,
-        initialText: String? = nil
-    ) -> InputScriptViewModel {
-        InputScriptViewModel(
-            purpose: purpose,
-            fileImporter: PreviewFileImporting(),
-            makeAudioCapturer: { PreviewAudioCapturing() },
-            microphonePermissions: PreviewMicrophonePermissionProviding(status: permissionStatus),
-            audioPlayer: PreviewAudioPlaying(),
-            recordingDeleter: PreviewAudioRecordingDeleting(),
-            generateTranscript: GenerateTranscriptUseCase(transcriber: PreviewSpeechTranscribing()),
-            initialText: initialText
-        )
-    }
-}
-
-extension SpeakModeViewModel {
-    static func preview(
-        permissionStatus: MicrophonePermissionStatus = .granted
-    ) -> SpeakModeViewModel {
-        SpeakModeViewModel(
-            makeCapturer: { PreviewAudioCapturing() },
-            permissions: PreviewMicrophonePermissionProviding(status: permissionStatus),
-            player: PreviewAudioPlaying(),
-            recordingDeleter: PreviewAudioRecordingDeleting()
-        )
-    }
-}
-
-struct PreviewFileImporting: FileImporting {
-    func importFile(from url: URL) async throws -> ImportedMedia {
-        ImportedMedia(
-            fileURL: url,
-            kind: .audio,
-            originalFileName: url.lastPathComponent,
-            duration: 83.7
-        )
-    }
-}
-
-/// Pauses before returning, so previews show the loading screen rather than snapping
-/// straight to the finished transcript.
-struct PreviewSpeechTranscribing: SpeechTranscribing {
-    var delay: Duration = .seconds(2)
-    var result: Result<String, ShuoError> = .success(
-        "Joining a campus organization is the fastest way to find people who care about "
-        + "the same things you do, and the skills you build there follow you long after "
-        + "you graduate."
-    )
-
-    func transcribe(_ input: TranscriptionInput) async throws -> String {
-        try? await Task.sleep(for: delay)
-        return try result.get()
-    }
-}
-
-struct PreviewMicrophonePermissionProviding: MicrophonePermissionProviding {
-    let status: MicrophonePermissionStatus
-
-    func currentStatus() async -> MicrophonePermissionStatus { status }
-    func request() async -> MicrophonePermissionStatus { status }
-}
-
-/// Advances a playhead on a timer, so previews show the replay control counting up rather
-/// than sitting inert.
-actor PreviewAudioPlaying: AudioPlaying {
-    nonisolated let events: AsyncStream<AudioPlaybackEvent>
-    private let continuation: AsyncStream<AudioPlaybackEvent>.Continuation
-    private var tickTask: Task<Void, Never>?
-    private var position: TimeInterval = 0
-
-    private static let tickInterval: Duration = .milliseconds(100)
-    private static let tickSeconds: TimeInterval = 0.1
-    private static let previewLength: TimeInterval = 6
-
-    init() {
-        let (events, continuation) = AsyncStream.makeStream(of: AudioPlaybackEvent.self)
-        self.events = events
-        self.continuation = continuation
-    }
-
-    func play(url: URL) async throws {
-        tickTask?.cancel()
-        tickTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: PreviewAudioPlaying.tickInterval)
-                guard !Task.isCancelled else { return }
-                await self?.tick()
-            }
+    extension InputScriptViewModel {
+        static func preview(
+            purpose: SpeechPurpose = .persuade,
+            permissionStatus: MicrophonePermissionStatus = .granted,
+            initialText: String? = nil
+        ) -> InputScriptViewModel {
+            InputScriptViewModel(
+                purpose: purpose,
+                fileImporter: PreviewFileImporting(),
+                makeAudioCapturer: { PreviewAudioCapturing() },
+                microphonePermissions: PreviewMicrophonePermissionProviding(status: permissionStatus),
+                audioPlayer: PreviewAudioPlaying(),
+                recordingDeleter: PreviewAudioRecordingDeleting(),
+                generateTranscript: GenerateTranscriptUseCase(transcriber: PreviewSpeechTranscribing()),
+                initialText: initialText
+            )
         }
     }
 
-    func pause() async { tickTask?.cancel() }
-
-    func stop() async {
-        tickTask?.cancel()
-        position = 0
+    extension SpeakModeViewModel {
+        static func preview(
+            permissionStatus: MicrophonePermissionStatus = .granted
+        ) -> SpeakModeViewModel {
+            SpeakModeViewModel(
+                makeCapturer: { PreviewAudioCapturing() },
+                permissions: PreviewMicrophonePermissionProviding(status: permissionStatus),
+                player: PreviewAudioPlaying(),
+                recordingDeleter: PreviewAudioRecordingDeleting()
+            )
+        }
     }
 
-    private func tick() {
-        position += Self.tickSeconds
-        guard position < Self.previewLength else {
+    struct PreviewFileImporting: FileImporting {
+        func importFile(from url: URL) async throws -> ImportedMedia {
+            ImportedMedia(
+                fileURL: url,
+                kind: .audio,
+                originalFileName: url.lastPathComponent,
+                duration: 83.7
+            )
+        }
+    }
+
+    /// Pauses before returning, so previews show the loading screen rather than snapping
+    /// straight to the finished transcript.
+    struct PreviewSpeechTranscribing: SpeechTranscribing {
+        var delay: Duration = .seconds(2)
+        var result: Result<String, ShuoError> = .success(
+            "Joining a campus organization is the fastest way to find people who care about "
+                + "the same things you do, and the skills you build there follow you long after "
+                + "you graduate."
+        )
+
+        func transcribe(_: TranscriptionInput) async throws -> String {
+            try? await Task.sleep(for: delay)
+            return try result.get()
+        }
+    }
+
+    struct PreviewMicrophonePermissionProviding: MicrophonePermissionProviding {
+        let status: MicrophonePermissionStatus
+
+        func currentStatus() async -> MicrophonePermissionStatus {
+            status
+        }
+
+        func request() async -> MicrophonePermissionStatus {
+            status
+        }
+    }
+
+    /// Advances a playhead on a timer, so previews show the replay control counting up rather
+    /// than sitting inert.
+    actor PreviewAudioPlaying: AudioPlaying {
+        nonisolated let events: AsyncStream<AudioPlaybackEvent>
+        private let continuation: AsyncStream<AudioPlaybackEvent>.Continuation
+        private var tickTask: Task<Void, Never>?
+        private var position: TimeInterval = 0
+
+        private static let tickInterval: Duration = .milliseconds(100)
+        private static let tickSeconds: TimeInterval = 0.1
+        private static let previewLength: TimeInterval = 6
+
+        init() {
+            let (events, continuation) = AsyncStream.makeStream(of: AudioPlaybackEvent.self)
+            self.events = events
+            self.continuation = continuation
+        }
+
+        func play(url _: URL) async throws {
+            tickTask?.cancel()
+            tickTask = Task { [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: PreviewAudioPlaying.tickInterval)
+                    guard !Task.isCancelled else { return }
+                    await self?.tick()
+                }
+            }
+        }
+
+        func pause() async {
+            tickTask?.cancel()
+        }
+
+        func stop() async {
             tickTask?.cancel()
             position = 0
-            continuation.yield(.finished)
-            return
         }
-        continuation.yield(.progress(position))
-    }
-}
 
-struct PreviewAudioRecordingDeleting: AudioRecordingDeleting {
-    func delete(_ recording: AudioRecording) async {}
-}
-
-/// Emits synthetic ticks on a timer, so previews show a moving waveform and a running
-/// clock instead of a frozen one.
-actor PreviewAudioCapturing: AudioCapturing {
-    nonisolated let events: AsyncStream<AudioCaptureEvent>
-    private let continuation: AsyncStream<AudioCaptureEvent>.Continuation
-    private var tickTask: Task<Void, Never>?
-    private var elapsed: TimeInterval = 0
-
-    private static let tickInterval: Duration = .milliseconds(80)
-    private static let tickSeconds: TimeInterval = 0.08
-
-    init() {
-        let (events, continuation) = AsyncStream.makeStream(of: AudioCaptureEvent.self)
-        self.events = events
-        self.continuation = continuation
+        private func tick() {
+            position += Self.tickSeconds
+            guard position < Self.previewLength else {
+                tickTask?.cancel()
+                position = 0
+                continuation.yield(.finished)
+                return
+            }
+            continuation.yield(.progress(position))
+        }
     }
 
-    func prepare() async {}
+    struct PreviewAudioRecordingDeleting: AudioRecordingDeleting {
+        func delete(_: AudioRecording) async {}
+    }
 
-    func start() async throws {
-        tickTask?.cancel()
-        tickTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: PreviewAudioCapturing.tickInterval)
-                guard !Task.isCancelled else { return }
-                await self?.tick()
+    /// Emits synthetic ticks on a timer, so previews show a moving waveform and a running
+    /// clock instead of a frozen one.
+    actor PreviewAudioCapturing: AudioCapturing {
+        nonisolated let events: AsyncStream<AudioCaptureEvent>
+        private let continuation: AsyncStream<AudioCaptureEvent>.Continuation
+        private var tickTask: Task<Void, Never>?
+        private var elapsed: TimeInterval = 0
+
+        private static let tickInterval: Duration = .milliseconds(80)
+        private static let tickSeconds: TimeInterval = 0.08
+
+        init() {
+            let (events, continuation) = AsyncStream.makeStream(of: AudioCaptureEvent.self)
+            self.events = events
+            self.continuation = continuation
+        }
+
+        func prepare() async {}
+
+        func start() async throws {
+            tickTask?.cancel()
+            tickTask = Task { [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: PreviewAudioCapturing.tickInterval)
+                    guard !Task.isCancelled else { return }
+                    await self?.tick()
+                }
             }
         }
+
+        func pause() async throws {
+            tickTask?.cancel()
+        }
+
+        func resume() async throws {
+            try await start()
+        }
+
+        func finish() async throws -> AudioRecording {
+            tickTask?.cancel()
+            let recording = AudioRecording(
+                fileURL: URL(filePath: "/tmp/preview.m4a"),
+                duration: elapsed,
+                liveTranscript: "Why we must join campus organizations."
+            )
+            continuation.finish()
+            return recording
+        }
+
+        func previewURL() async throws -> URL {
+            URL(filePath: "/tmp/preview-take.m4a")
+        }
+
+        func discard() async {
+            tickTask?.cancel()
+            continuation.finish()
+        }
+
+        private func tick() {
+            elapsed += Self.tickSeconds
+            continuation.yield(.tick(amplitudes: [Float.random(in: 0.1 ... 1)], duration: elapsed))
+            continuation.yield(.transcript("Why we must join campus organizations")) // DEBUG_LIVE_TRANSCRIPT
+        }
     }
-
-    func pause() async throws { tickTask?.cancel() }
-
-    func resume() async throws { try await start() }
-
-    func finish() async throws -> AudioRecording {
-        tickTask?.cancel()
-        let recording = AudioRecording(
-            fileURL: URL(filePath: "/tmp/preview.m4a"),
-            duration: elapsed,
-            liveTranscript: "Why we must join campus organizations."
-        )
-        continuation.finish()
-        return recording
-    }
-
-    func previewURL() async throws -> URL {
-        URL(filePath: "/tmp/preview-take.m4a")
-    }
-
-    func discard() async {
-        tickTask?.cancel()
-        continuation.finish()
-    }
-
-    private func tick() {
-        elapsed += Self.tickSeconds
-        continuation.yield(.tick(amplitudes: [Float.random(in: 0.1...1)], duration: elapsed))
-        continuation.yield(.transcript("Why we must join campus organizations")) // DEBUG_LIVE_TRANSCRIPT
-    }
-}
 #endif

@@ -11,7 +11,6 @@ import ShuoCore
 import UniformTypeIdentifiers
 
 public struct FileImportService: FileImporting {
-
     public init() {}
 
     public func importFile(from url: URL) async throws -> ImportedMedia {
@@ -60,7 +59,7 @@ public struct FileImportService: FileImporting {
         }
     }
 
-    // Creates a security-scoped bookmark so the file can be accessed in future sessions.
+    /// Creates a security-scoped bookmark so the file can be accessed in future sessions.
     private func createBookmark(_ url: URL) throws -> Data {
         do {
             return try url.bookmarkData(
@@ -73,16 +72,20 @@ public struct FileImportService: FileImporting {
         }
     }
 
-    // The picker already filters to audio and video, so reaching the throwing branch
-    // means the file arrived another way or carries a misleading extension. Unlike the
-    // previous version this no longer defaults unknown types to `.audio` — that turned
-    // "this file is not media" into an opaque transcription failure much later on.
+    /// The picker already filters to audio and video, so reaching the throwing branch
+    /// means the file arrived another way or carries a misleading extension. Unlike the
+    /// previous version this no longer defaults unknown types to `.audio` — that turned
+    /// "this file is not media" into an opaque transcription failure much later on.
     private func mediaKind(for url: URL) throws -> ImportedMedia.Kind {
         guard let type = UTType(filenameExtension: url.pathExtension) else {
             throw ShuoError.unsupportedMediaType
         }
-        if type.conforms(to: .movie) || type.conforms(to: .video) { return .video }
-        if type.conforms(to: .audio) { return .audio }
+        if type.conforms(to: .movie) || type.conforms(to: .video) {
+            return .video
+        }
+        if type.conforms(to: .audio) {
+            return .audio
+        }
         throw ShuoError.unsupportedMediaType
     }
 

@@ -35,7 +35,7 @@ public struct InputScriptView: View {
         VStack(alignment: .leading, spacing: 20) {
             TextField("Title", text: $viewModel.title, axis: .vertical)
                 .font(.system(.largeTitle, weight: .bold))
-                .lineLimit(1...3)
+                .lineLimit(1 ... 3)
                 .focused($isTitleFocused)
                 .submitLabel(.done)
                 .onSubmit { isTitleFocused = false }
@@ -96,7 +96,11 @@ public struct InputScriptView: View {
         }
         .sheet(isPresented: Binding(
             get: { viewModel.attachVM.isFileTooLarge },
-            set: { if !$0 { viewModel.attachVM.cancel() } }
+            set: {
+                if !$0 {
+                    viewModel.attachVM.cancel()
+                }
+            }
         )) {
             NavigationStack {
                 ErrorSheet(
@@ -138,16 +142,16 @@ public struct InputScriptView: View {
         }
     }
 
-    // Leaving without confirming has to tear the Speak session down explicitly, or the
-    // microphone keeps running behind a screen the user has left.
+    /// Leaving without confirming has to tear the Speak session down explicitly, or the
+    /// microphone keeps running behind a screen the user has left.
     private func goBack() {
         viewModel.discard()
         onBack()
     }
 
-    // ✓. Only one mode is ever processed, so before committing, warn when another mode
-    // still holds content that confirming would silently drop. With nothing to lose,
-    // proceed straight through rather than nagging on the common single-mode path.
+    /// ✓. Only one mode is ever processed, so before committing, warn when another mode
+    /// still holds content that confirming would silently drop. With nothing to lose,
+    /// proceed straight through rather than nagging on the common single-mode path.
     private func attemptConfirm() {
         if viewModel.unconfirmedModesWithContent.isEmpty {
             confirm()
@@ -165,63 +169,63 @@ public struct InputScriptView: View {
 }
 
 #if DEBUG
-#Preview {
-    InputScriptPreviewHost()
-}
-
-#Preview("File Too Large") {
-    FileTooLargePreviewHost()
-}
-
-private struct InputScriptPreviewHost: View {
-    @State private var isPresented = true
-
-    var body: some View {
-        Color(.systemGroupedBackground)
-            .ignoresSafeArea()
-            .sheet(isPresented: $isPresented) {
-                InputScriptView(
-                    viewModel: .preview(purpose: .persuade),
-                    onBack: { isPresented = false },
-                    onConfirm: {}
-                )
-            }
+    #Preview {
+        InputScriptPreviewHost()
     }
-}
 
-private struct FileTooLargePreviewHost: View {
-    @State private var isPresented = true
-    @State private var vm = InputScriptViewModel(
-        purpose: .persuade,
-        fileImporter: TooLargePreviewFileImporting(),
-        makeAudioCapturer: { PreviewAudioCapturing() },
-        microphonePermissions: PreviewMicrophonePermissionProviding(status: .granted),
-        audioPlayer: PreviewAudioPlaying(),
-        recordingDeleter: PreviewAudioRecordingDeleting(),
-        generateTranscript: GenerateTranscriptUseCase(transcriber: PreviewSpeechTranscribing())
-    )
-
-    var body: some View {
-        Color(.systemGroupedBackground)
-            .ignoresSafeArea()
-            .sheet(isPresented: $isPresented) {
-                InputScriptView(
-                    viewModel: vm,
-                    onBack: { isPresented = false },
-                    onConfirm: {}
-                )
-            }
-            .task {
-                vm.mode = .attachFile
-                vm.attachVM.fileSelected(url: URL(filePath: "/tmp/huge.mp4"))
-                await vm.attachVM.importTask?.value
-            }
+    #Preview("File Too Large") {
+        FileTooLargePreviewHost()
     }
-}
 
-private struct TooLargePreviewFileImporting: FileImporting {
-    func importFile(from url: URL) async throws -> ImportedMedia {
-        throw ShuoError.fileTooLarge
+    private struct InputScriptPreviewHost: View {
+        @State private var isPresented = true
+
+        var body: some View {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
+                .sheet(isPresented: $isPresented) {
+                    InputScriptView(
+                        viewModel: .preview(purpose: .persuade),
+                        onBack: { isPresented = false },
+                        onConfirm: {}
+                    )
+                }
+        }
     }
-}
+
+    private struct FileTooLargePreviewHost: View {
+        @State private var isPresented = true
+        @State private var vm = InputScriptViewModel(
+            purpose: .persuade,
+            fileImporter: TooLargePreviewFileImporting(),
+            makeAudioCapturer: { PreviewAudioCapturing() },
+            microphonePermissions: PreviewMicrophonePermissionProviding(status: .granted),
+            audioPlayer: PreviewAudioPlaying(),
+            recordingDeleter: PreviewAudioRecordingDeleting(),
+            generateTranscript: GenerateTranscriptUseCase(transcriber: PreviewSpeechTranscribing())
+        )
+
+        var body: some View {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
+                .sheet(isPresented: $isPresented) {
+                    InputScriptView(
+                        viewModel: vm,
+                        onBack: { isPresented = false },
+                        onConfirm: {}
+                    )
+                }
+                .task {
+                    vm.mode = .attachFile
+                    vm.attachVM.fileSelected(url: URL(filePath: "/tmp/huge.mp4"))
+                    await vm.attachVM.importTask?.value
+                }
+        }
+    }
+
+    private struct TooLargePreviewFileImporting: FileImporting {
+        func importFile(from _: URL) async throws -> ImportedMedia {
+            throw ShuoError.fileTooLarge
+        }
+    }
 #endif

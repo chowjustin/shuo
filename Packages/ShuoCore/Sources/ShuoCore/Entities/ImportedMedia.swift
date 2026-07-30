@@ -58,7 +58,11 @@ public struct ImportedMedia: Sendable, Identifiable, Equatable {
             bookmarkDataIsStale: &isStale
         )
         let didStart = resolved.startAccessingSecurityScopedResource()
-        return (resolved, { if didStart { resolved.stopAccessingSecurityScopedResource() } })
+        return (resolved, {
+            if didStart {
+                resolved.stopAccessingSecurityScopedResource()
+            }
+        })
     }
 
     /// "m:ss.d" formatted string, e.g. "1:23.7". Nil when duration is unavailable or zero.

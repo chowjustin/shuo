@@ -32,11 +32,11 @@ public actor SpeechTranscribingRouter: SpeechTranscribing {
 
     public func transcribe(_ input: TranscriptionInput) async throws -> String {
         switch input {
-        case .recordedAudio(let recording):
+        case let .recordedAudio(recording):
             // The app wrote this file into its own sandbox — no bookmark, no extraction.
             return try await analyzerService.transcribe(fileAt: recording.fileURL)
 
-        case .importedMedia(let media):
+        case let .importedMedia(media):
             return try await transcribeImported(media)
         }
     }

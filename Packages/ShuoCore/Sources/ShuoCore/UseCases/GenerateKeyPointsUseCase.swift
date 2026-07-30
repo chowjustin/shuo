@@ -20,7 +20,6 @@ import Foundation
 /// all-absent set is a valid, informative result that tells the speaker their draft is
 /// missing the entire structure. Only an outright generation failure propagates.
 public struct GenerateKeyPointsUseCase: Sendable {
-
     private let analyzer: any SpeechAnalyzing
     private let normalizer: KeyPointNormalizer
 

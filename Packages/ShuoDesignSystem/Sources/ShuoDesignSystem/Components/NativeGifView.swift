@@ -1,18 +1,18 @@
 //
-//  File.swift
+//  NativeGifView.swift
 //  ShuoDesignSystem
 //
 //  Created by Matthew Sebastian Lesmana on 28/07/26.
 //
 
-import SwiftUI
 import ImageIO
+import SwiftUI
 import UIKit
 
 struct NativeGifView: UIViewRepresentable {
     let gifName: String
 
-    func makeUIView(context: Context) -> GifContainerView {
+    func makeUIView(context _: Context) -> GifContainerView {
         let containerView = GifContainerView()
         let imageView = UIImageView()
         imageView.backgroundColor = .clear
@@ -33,7 +33,7 @@ struct NativeGifView: UIViewRepresentable {
         return containerView
     }
 
-    func updateUIView(_ uiView: GifContainerView, context: Context) {
+    func updateUIView(_ uiView: GifContainerView, context _: Context) {
         guard uiView.imageView?.image == nil else { return }
         uiView.imageView.map(configure)
     }
@@ -62,7 +62,7 @@ struct NativeGifView: UIViewRepresentable {
     }
 
     private func frames(from source: CGImageSource) -> [UIImage] {
-        (0..<CGImageSourceGetCount(source)).compactMap { index in
+        (0 ..< CGImageSourceGetCount(source)).compactMap { index in
             let options: [CFString: Any] = [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
                 kCGImageSourceShouldCacheImmediately: true,
@@ -79,7 +79,7 @@ struct NativeGifView: UIViewRepresentable {
 
     private func duration(from source: CGImageSource) -> TimeInterval {
         let frameCount = CGImageSourceGetCount(source)
-        let totalDuration = (0..<frameCount).reduce(0) { partialResult, index in
+        let totalDuration = (0 ..< frameCount).reduce(0) { partialResult, index in
             partialResult + frameDuration(at: index, source: source)
         }
 

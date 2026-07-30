@@ -12,7 +12,6 @@ import ShuoCore
 @Observable
 @MainActor
 public final class TranscriptAnalysisViewModel {
-
     // MARK: - Observable state
 
     public private(set) var viewState: TranscriptAnalysisViewState = .analyzing
@@ -94,7 +93,7 @@ public final class TranscriptAnalysisViewModel {
         self.generateKeyPoints = generateKeyPoints
         self.regenerateTranscript = regenerateTranscript
         self.saveScript = saveScript
-        self.carousel = PatternCarouselViewModel()
+        carousel = PatternCarouselViewModel()
     }
 
     // MARK: - Derived
@@ -129,12 +128,24 @@ public final class TranscriptAnalysisViewModel {
     public func commitTitle() {
         let trimmed = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         title = trimmed.isEmpty ? Self.untitledTitle : trimmed
-        if hasUnsavedChanges { scheduleSave() }
+        if hasUnsavedChanges {
+            scheduleSave()
+        }
     }
-    public var originalTranscript: String { draft.transcript.original }
+
+    public var originalTranscript: String {
+        draft.transcript.original
+    }
+
     /// The refined transcript for the selected pattern, or nil if it has not been generated yet.
-    public var refinedTranscript: String? { draft.transcript.refined }
-    public var selectedPattern: SpeechPattern? { draft.selectedPattern }
+    public var refinedTranscript: String? {
+        draft.transcript.refined
+    }
+
+    public var selectedPattern: SpeechPattern? {
+        draft.selectedPattern
+    }
+
     /// True when the user has something to regenerate against.
     public var canRegenerateTranscript: Bool {
         selectedPattern != nil && !isRegeneratingTranscript
@@ -215,7 +226,8 @@ public final class TranscriptAnalysisViewModel {
         let patterns = draft.suggestedPatterns
         guard let selectedPatternID = draft.selectedPatternID,
               let selectedPattern = draft.selectedPattern,
-              !patterns.isEmpty else {
+              !patterns.isEmpty
+        else {
             await runInitialAnalysis()
             return
         }
@@ -226,7 +238,8 @@ public final class TranscriptAnalysisViewModel {
             keyPointCache[selectedPatternID] = draft.keyPoints
         }
         if refinedCache[selectedPatternID] == nil,
-           let refined = draft.transcript.refined, !refined.isEmpty {
+           let refined = draft.transcript.refined, !refined.isEmpty
+        {
             refinedCache[selectedPatternID] = refined
         }
 
@@ -290,7 +303,7 @@ public final class TranscriptAnalysisViewModel {
             viewState = .failed(.aiGenerationFailed)
         }
     }
-    
+
     /// Waits until on-device generation is possible, returning false if it never will be.
     private func waitForModel() async -> Bool {
         while true {
@@ -299,7 +312,9 @@ public final class TranscriptAnalysisViewModel {
 
             switch status {
             case .available:
-                if viewState == .waitingForModel { viewState = .analyzing }
+                if viewState == .waitingForModel {
+                    viewState = .analyzing
+                }
                 return true
 
             case .modelNotReady:
@@ -318,7 +333,7 @@ public final class TranscriptAnalysisViewModel {
     }
 
     private static func viewState(for error: ShuoError) -> TranscriptAnalysisViewState {
-        if case .transcriptNotUsable(let reason) = error {
+        if case let .transcriptNotUsable(reason) = error {
             return .rejected(reason)
         }
         return .failed(error)
@@ -370,7 +385,11 @@ public final class TranscriptAnalysisViewModel {
         keyPointsGeneration &+= 1
         let generation = keyPointsGeneration
         isGeneratingKeyPoints = true
-        defer { if generation == keyPointsGeneration { isGeneratingKeyPoints = false } }
+        defer {
+            if generation == keyPointsGeneration {
+                isGeneratingKeyPoints = false
+            }
+        }
 
         let generated = try await generateKeyPoints(
             transcript: draft.transcript,
@@ -536,8 +555,6 @@ public final class TranscriptAnalysisViewModel {
         hasUnsavedChanges = true
         scheduleSave()
     }
-
-
 
     /// Clears an inline error after the user dismisses it.
     public func dismissActionError() {

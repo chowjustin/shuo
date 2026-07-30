@@ -13,14 +13,13 @@
 // coverage even though the surrounding adapter does not.
 
 import Foundation
-import Testing
 import FoundationModels
-import ShuoCore
 @testable import ShuoAI
+import ShuoCore
+import Testing
 
 @Suite("Generated content mapper")
 struct GeneratedContentMapperTests {
-
     private func content(_ json: String) throws -> GeneratedContent {
         try GeneratedContent(json: json)
     }
@@ -36,12 +35,12 @@ struct GeneratedContentMapperTests {
 
     @Test("A usable classification decodes with its ranked ids in order")
     func decodesUsableClassification() throws {
-        let result = try GeneratedContentMapper.classification(from: try content("""
-            {
-              "isUsable": true,
-              "rankedPatternIDs": ["inform.topical", "inform.causeEffect"]
-            }
-            """))
+        let result = try GeneratedContentMapper.classification(from: content("""
+        {
+          "isUsable": true,
+          "rankedPatternIDs": ["inform.topical", "inform.causeEffect"]
+        }
+        """))
 
         #expect(result.isUsable)
         #expect(result.rejectionReason == nil)
@@ -50,9 +49,9 @@ struct GeneratedContentMapperTests {
 
     @Test("A rejection decodes with its reason")
     func decodesRejection() throws {
-        let result = try GeneratedContentMapper.classification(from: try content("""
-            { "isUsable": false, "rejectionReason": "notASpeech", "rankedPatternIDs": [] }
-            """))
+        let result = try GeneratedContentMapper.classification(from: content("""
+        { "isUsable": false, "rejectionReason": "notASpeech", "rankedPatternIDs": [] }
+        """))
 
         #expect(!result.isUsable)
         #expect(result.rejectionReason == .notASpeech)
@@ -63,9 +62,9 @@ struct GeneratedContentMapperTests {
     func rejectionWithoutReason() throws {
         // An unusable verdict is still an unusable verdict; falling back to "usable"
         // because the reason was unreadable would push junk into the rest of the flow.
-        let result = try GeneratedContentMapper.classification(from: try content("""
-            { "isUsable": false, "rankedPatternIDs": [] }
-            """))
+        let result = try GeneratedContentMapper.classification(from: content("""
+        { "isUsable": false, "rankedPatternIDs": [] }
+        """))
 
         #expect(!result.isUsable)
         #expect(result.rejectionReason == .notASpeech)
@@ -73,9 +72,9 @@ struct GeneratedContentMapperTests {
 
     @Test("A rejection with an unrecognized reason falls back to notASpeech")
     func rejectionWithUnknownReason() throws {
-        let result = try GeneratedContentMapper.classification(from: try content("""
-            { "isUsable": false, "rejectionReason": "vibes", "rankedPatternIDs": [] }
-            """))
+        let result = try GeneratedContentMapper.classification(from: content("""
+        { "isUsable": false, "rejectionReason": "vibes", "rankedPatternIDs": [] }
+        """))
 
         #expect(!result.isUsable)
         #expect(result.rejectionReason == .notASpeech)
@@ -89,9 +88,9 @@ struct GeneratedContentMapperTests {
         // measured. The schema does not offer it as a candidate; this is the check on the
         // way back in, since constrained decoding is a strong guarantee, not an absolute
         // one (CLAUDE.md §8).
-        let result = try GeneratedContentMapper.classification(from: try content("""
-            { "isUsable": false, "rejectionReason": "tooFewWords", "rankedPatternIDs": [] }
-            """))
+        let result = try GeneratedContentMapper.classification(from: content("""
+        { "isUsable": false, "rejectionReason": "tooFewWords", "rankedPatternIDs": [] }
+        """))
 
         #expect(!result.isUsable)
         #expect(result.rejectionReason == .notASpeech)
@@ -101,9 +100,9 @@ struct GeneratedContentMapperTests {
     func usableWithMissingIDs() throws {
         // Left for `ClassifyTranscriptUseCase` to treat as a generation failure — the
         // mapper reports what came back rather than deciding what it means.
-        let result = try GeneratedContentMapper.classification(from: try content("""
-            { "isUsable": true }
-            """))
+        let result = try GeneratedContentMapper.classification(from: content("""
+        { "isUsable": true }
+        """))
 
         #expect(result.isUsable)
         #expect(result.rankedPatternIDs.isEmpty)
@@ -123,15 +122,15 @@ struct GeneratedContentMapperTests {
 
     @Test("Key points decode against their pattern's components")
     func decodesKeyPoints() throws {
-        let result = GeneratedContentMapper.keyPoints(
-            from: try content("""
-                {
-                  "keyPoints": [
-                    { "component": "Topic Overview", "content": "Remote work since 2020." },
-                    { "component": "Category 1", "content": "Cost savings." }
-                  ]
-                }
-                """),
+        let result = try GeneratedContentMapper.keyPoints(
+            from: content("""
+            {
+              "keyPoints": [
+                { "component": "Topic Overview", "content": "Remote work since 2020." },
+                { "component": "Category 1", "content": "Cost savings." }
+              ]
+            }
+            """),
             pattern: topical
         )
 
@@ -143,10 +142,10 @@ struct GeneratedContentMapperTests {
 
     @Test("Component matching tolerates case and punctuation drift")
     func keyPointMatchingIsLenient() throws {
-        let result = GeneratedContentMapper.keyPoints(
-            from: try content("""
-                { "keyPoints": [ { "component": "closing summary:", "content": "Wrap up." } ] }
-                """),
+        let result = try GeneratedContentMapper.keyPoints(
+            from: content("""
+            { "keyPoints": [ { "component": "closing summary:", "content": "Wrap up." } ] }
+            """),
             pattern: topical
         )
 
@@ -156,15 +155,15 @@ struct GeneratedContentMapperTests {
     @Test("Entries labelled with a component the pattern does not have are dropped")
     func dropsUnknownComponents() throws {
         // A `KeyPoint` carrying an unknown componentID would be meaningless downstream.
-        let result = GeneratedContentMapper.keyPoints(
-            from: try content("""
-                {
-                  "keyPoints": [
-                    { "component": "Epilogue", "content": "Invented." },
-                    { "component": "Category 2", "content": "Real." }
-                  ]
-                }
-                """),
+        let result = try GeneratedContentMapper.keyPoints(
+            from: content("""
+            {
+              "keyPoints": [
+                { "component": "Epilogue", "content": "Invented." },
+                { "component": "Category 2", "content": "Real." }
+              ]
+            }
+            """),
             pattern: topical
         )
 
@@ -173,10 +172,10 @@ struct GeneratedContentMapperTests {
 
     @Test("Decoded key points carry their component's order index")
     func keyPointsCarryOrder() throws {
-        let result = GeneratedContentMapper.keyPoints(
-            from: try content("""
-                { "keyPoints": [ { "component": "Category 3", "content": "Third." } ] }
-                """),
+        let result = try GeneratedContentMapper.keyPoints(
+            from: content("""
+            { "keyPoints": [ { "component": "Category 3", "content": "Third." } ] }
+            """),
             pattern: topical
         )
 
@@ -188,8 +187,8 @@ struct GeneratedContentMapperTests {
     func emptyKeyPointsIsNotAnError() throws {
         // The transcript covering nothing this pattern asks for is a real, informative
         // outcome — the normalizer turns it into an all-absent set.
-        let result = GeneratedContentMapper.keyPoints(
-            from: try content(#"{ "keyPoints": [] }"#),
+        let result = try GeneratedContentMapper.keyPoints(
+            from: content(#"{ "keyPoints": [] }"#),
             pattern: topical
         )
 
@@ -198,8 +197,8 @@ struct GeneratedContentMapperTests {
 
     @Test("A response with no keyPoints field decodes as no key points")
     func missingKeyPointsFieldIsNotAnError() throws {
-        let result = GeneratedContentMapper.keyPoints(
-            from: try content("{}"),
+        let result = try GeneratedContentMapper.keyPoints(
+            from: content("{}"),
             pattern: topical
         )
 
@@ -209,8 +208,8 @@ struct GeneratedContentMapperTests {
     @Test("An entry with no content decodes as empty text for the normalizer to absorb")
     func missingContentBecomesEmptyText() throws {
         // `KeyPointNormalizer` treats empty text as absent, so this surfaces as "-".
-        let result = GeneratedContentMapper.keyPoints(
-            from: try content(#"{ "keyPoints": [ { "component": "Category 1" } ] }"#),
+        let result = try GeneratedContentMapper.keyPoints(
+            from: content(#"{ "keyPoints": [ { "component": "Category 1" } ] }"#),
             pattern: topical
         )
 

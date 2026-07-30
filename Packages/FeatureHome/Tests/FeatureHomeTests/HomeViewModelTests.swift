@@ -16,16 +16,15 @@
 // comment described the coverage in the present tense, which made a file listing report
 // the Home feature as tested when neither it nor its tests exist.
 
+@testable import FeatureHome
 import Foundation
-import Testing
 import ShuoCore
 import ShuoTestSupport
-@testable import FeatureHome
+import Testing
 
 @MainActor
 @Suite("Home view model")
 struct HomeViewModelTests {
-
     private func script(title: String, createdAt: Date) -> Script {
         Script(
             title: title,
@@ -54,7 +53,9 @@ struct HomeViewModelTests {
     ) async throws {
         let deadline = ContinuousClock.now + timeout
         while ContinuousClock.now < deadline {
-            if condition() { return }
+            if condition() {
+                return
+            }
             try await Task.sleep(for: .milliseconds(5))
         }
         Issue.record("Timed out waiting for the expected state")
@@ -86,7 +87,7 @@ struct HomeViewModelTests {
         viewModel.load()
         try await waitUntil { viewModel.state != .loading }
 
-        guard case .loaded(let summaries) = viewModel.state else {
+        guard case let .loaded(summaries) = viewModel.state else {
             Issue.record("expected .loaded, got \(viewModel.state)")
             return
         }
@@ -104,11 +105,13 @@ struct HomeViewModelTests {
 
         viewModel.searchQuery = "grad"
         try await waitUntil {
-            if case .loaded(let summaries) = viewModel.state { return summaries.count == 1 }
+            if case let .loaded(summaries) = viewModel.state {
+                return summaries.count == 1
+            }
             return false
         }
 
-        guard case .loaded(let summaries) = viewModel.state else {
+        guard case let .loaded(summaries) = viewModel.state else {
             Issue.record("expected .loaded, got \(viewModel.state)")
             return
         }
@@ -140,17 +143,21 @@ struct HomeViewModelTests {
 
         viewModel.searchQuery = "grad"
         try await waitUntil {
-            if case .loaded(let summaries) = viewModel.state { return summaries.count == 1 }
+            if case let .loaded(summaries) = viewModel.state {
+                return summaries.count == 1
+            }
             return false
         }
 
         viewModel.searchQuery = ""
         try await waitUntil {
-            if case .loaded(let summaries) = viewModel.state { return summaries.count == 2 }
+            if case let .loaded(summaries) = viewModel.state {
+                return summaries.count == 2
+            }
             return false
         }
 
-        guard case .loaded(let summaries) = viewModel.state else {
+        guard case let .loaded(summaries) = viewModel.state else {
             Issue.record("expected .loaded, got \(viewModel.state)")
             return
         }
@@ -197,11 +204,13 @@ struct HomeViewModelTests {
         viewModel.searchQuery = "wedding"
 
         try await waitUntil(timeout: .seconds(1)) {
-            if case .loaded(let summaries) = viewModel.state { return summaries.count == 1 }
+            if case let .loaded(summaries) = viewModel.state {
+                return summaries.count == 1
+            }
             return false
         }
 
-        guard case .loaded(let summaries) = viewModel.state else {
+        guard case let .loaded(summaries) = viewModel.state else {
             Issue.record("expected .loaded, got \(viewModel.state)")
             return
         }

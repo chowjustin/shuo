@@ -13,7 +13,6 @@ import Foundation
 /// to a spinner and next to error sheets — a disabled button is still a button, and it
 /// invites a tap that answers with nothing.
 public struct AnalysisToolbarControls: Equatable, Sendable {
-
     /// ‹ — back to Input Script, with the recording and every mode as the user left them.
     public let showsBack: Bool
 

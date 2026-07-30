@@ -21,7 +21,6 @@ import ShuoCore
 /// keeping a second copy of the user's media around afterwards would be both wasteful
 /// and surprising.
 struct VideoAudioExtractor {
-
     /// An extracted audio file plus the closure that removes it.
     struct ExtractedAudio {
         let url: URL

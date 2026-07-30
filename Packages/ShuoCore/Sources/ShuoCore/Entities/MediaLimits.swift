@@ -33,11 +33,11 @@ public enum MediaLimits {
     /// A sanity guard against pathological files, not the real constraint — bytes vary
     /// by orders of magnitude across codecs at identical durations, which is why
     /// `maxDurationSeconds` carries the actual policy.
-    public static let maxFileSizeBytes: Int = 500 * 1_024 * 1_024
+    public static let maxFileSizeBytes: Int = 500 * 1024 * 1024
 
     /// "500 MB" — for UI copy, so the number is never hardcoded in a view.
     public static var formattedMaxFileSize: String {
-        let megabytes = maxFileSizeBytes / (1_024 * 1_024)
+        let megabytes = maxFileSizeBytes / (1024 * 1024)
         return "\(megabytes)MB"
     }
 

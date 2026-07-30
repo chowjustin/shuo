@@ -119,11 +119,11 @@ struct AnalysisErrorCopy: Equatable {
         }
     }
 
-    // Every case is spelled out rather than defaulted, so adding a `ShuoError` case fails
-    // the build here instead of silently shipping generic copy.
+    /// Every case is spelled out rather than defaulted, so adding a `ShuoError` case fails
+    /// the build here instead of silently shipping generic copy.
     init(error: ShuoError) {
         switch error {
-        case .transcriptNotUsable(let reason):
+        case let .transcriptNotUsable(reason):
             // Reachable if a rejection escapes as a plain failure rather than through
             // `.rejected`. Deferring keeps one wording per reason either way.
             self.init(reason: reason)

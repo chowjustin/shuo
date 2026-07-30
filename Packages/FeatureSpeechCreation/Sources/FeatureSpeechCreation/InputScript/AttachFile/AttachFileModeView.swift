@@ -8,10 +8,10 @@
 // Attach File-mode UI: `.fileImporter`/`PhotosPicker` entry point for audio/video
 // attachments. See ARCHITECTURE.md §3.1.5.
 
-import SwiftUI
-import UniformTypeIdentifiers
 import ShuoCore
 import ShuoDesignSystem
+import SwiftUI
+import UniformTypeIdentifiers
 
 public struct AttachFileModeView: View {
     @Bindable var viewModel: AttachFileModeViewModel
@@ -37,7 +37,7 @@ public struct AttachFileModeView: View {
             allowsMultipleSelection: false
         ) { result in
             switch result {
-            case .success(let urls):
+            case let .success(urls):
                 if let url = urls.first {
                     viewModel.fileSelected(url: url)
                 }
@@ -66,19 +66,19 @@ public struct AttachFileModeView: View {
                     .multilineTextAlignment(.center)
                     .foregroundStyle(ShuoColor.secondaryTextCream)
             }
-            
+
         case .processing:
             ProgressView("Importing…")
                 .foregroundStyle(.secondary)
 
-        case .ready(let media):
+        case let .ready(media):
             fileCard(
                 name: media.originalFileName,
                 systemIcon: iconName(for: media.kind),
                 durationLabel: media.formattedDuration
             )
 
-        case .failed(let error):
+        case let .failed(error):
             // Inline rather than a sheet: the import failed before any long-running work
             // started, so the user is still on this screen and the attach button below
             // is already the way to retry.
@@ -175,13 +175,13 @@ private struct PreviewFileImporter: FileImporting {
 }
 
 private struct FailingPreviewFileImporter: FileImporting {
-    func importFile(from url: URL) async throws -> ImportedMedia {
+    func importFile(from _: URL) async throws -> ImportedMedia {
         throw ShuoError.importFailed
     }
 }
 
 private struct TooLargePreviewFileImporter: FileImporting {
-    func importFile(from url: URL) async throws -> ImportedMedia {
+    func importFile(from _: URL) async throws -> ImportedMedia {
         throw ShuoError.fileTooLarge
     }
 }

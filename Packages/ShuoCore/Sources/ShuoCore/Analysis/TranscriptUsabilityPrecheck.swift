@@ -22,7 +22,6 @@ import Foundation
 /// from a shopping list needs comprehension. That case only ever comes back from
 /// classification.
 public struct TranscriptUsabilityPrecheck: Sendable {
-
     /// Tuning knobs, exposed so tests can drive edge cases without depending on the
     /// shipped values — and so the values themselves stay reviewable in one place rather
     /// than scattered as magic numbers through the checks.

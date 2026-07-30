@@ -62,10 +62,14 @@ public final class InputScriptViewModel {
     private var confirmedDuration: TimeInterval? {
         switch mode {
         case .speak:
-            if case .recordedAudio(let recording) = speakVM.speechSource { return recording.duration }
+            if case let .recordedAudio(recording) = speakVM.speechSource {
+                return recording.duration
+            }
             return nil
         case .attachFile:
-            if case .importedMedia(let media) = attachVM.speechSource { return media.duration }
+            if case let .importedMedia(media) = attachVM.speechSource {
+                return media.duration
+            }
             return nil
         case .write:
             return nil
@@ -144,14 +148,14 @@ public final class InputScriptViewModel {
     ) {
         self.purpose = purpose
         self.generateTranscript = generateTranscript
-        self.speakVM = SpeakModeViewModel(
+        speakVM = SpeakModeViewModel(
             makeCapturer: makeAudioCapturer,
             permissions: microphonePermissions,
             player: audioPlayer,
             recordingDeleter: recordingDeleter
         )
-        self.writeVM = WriteModeViewModel()
-        self.attachVM = AttachFileModeViewModel(fileImporter: fileImporter)
+        writeVM = WriteModeViewModel()
+        attachVM = AttachFileModeViewModel(fileImporter: fileImporter)
 
         if let initialText, !initialText.isEmpty {
             writeVM.content = initialText

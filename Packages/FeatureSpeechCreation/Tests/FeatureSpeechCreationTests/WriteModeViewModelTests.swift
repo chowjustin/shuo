@@ -7,15 +7,14 @@
 
 // `@MainActor` Swift Testing suite for `WriteModeViewModel`'s content validity checks.
 
-import Foundation
-import Testing
-import ShuoCore
 @testable import FeatureSpeechCreation
+import Foundation
+import ShuoCore
+import Testing
 
 @MainActor
 @Suite("WriteModeViewModel")
 struct WriteModeViewModelTests {
-
     @Test("starts with no content")
     func startsEmpty() {
         let viewModel = WriteModeViewModel()

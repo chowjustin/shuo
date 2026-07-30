@@ -7,7 +7,6 @@ import Foundation
 
 /// Finds the parts of a refined transcript that convey each key point, so the UI can highlight them.
 public struct TranscriptHighlighter: Sendable {
-
     /// How much a sentence and a key point must overlap to match, scored as the overlap coefficient.
     private let minimumScore: Double
 
@@ -44,7 +43,9 @@ public struct TranscriptHighlighter: Sendable {
                 let score = Double(overlap) / Double(min(keywords.count, sentenceWords.count))
                 return score >= minimumScore
             }
-            if matches { ranges.append(sentence.range) }
+            if matches {
+                ranges.append(sentence.range)
+            }
         }
         return ranges
     }
@@ -65,17 +66,23 @@ public struct TranscriptHighlighter: Sendable {
         var i = 0
 
         while i < count {
-            while i < count, characters[i].isWhitespace { i += 1 }
+            while i < count, characters[i].isWhitespace {
+                i += 1
+            }
             guard i < count else { break }
 
             let start = i
-            while i < count, !Self.isTerminator(characters[i]) { i += 1 }
-            while i < count, Self.isTerminator(characters[i]) { i += 1 }
+            while i < count, !Self.isTerminator(characters[i]) {
+                i += 1
+            }
+            while i < count, Self.isTerminator(characters[i]) {
+                i += 1
+            }
             let end = i
 
-            let slice = String(characters[start..<end])
+            let slice = String(characters[start ..< end])
             if !slice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                sentences.append(Sentence(text: slice, range: start..<end))
+                sentences.append(Sentence(text: slice, range: start ..< end))
             }
         }
         return sentences

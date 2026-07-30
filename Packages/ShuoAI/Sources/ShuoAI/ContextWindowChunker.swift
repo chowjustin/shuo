@@ -25,7 +25,6 @@ import Foundation
 ///
 /// Pure and deterministic: no model calls, so it is cheap to test exhaustively.
 struct ContextWindowChunker {
-
     /// Characters per token, used to convert the model's token-denominated context size
     /// into a character budget. English prose runs roughly 4 characters per token; 3.5 is
     /// deliberately pessimistic, since underestimating costs a little wasted window and
@@ -34,7 +33,7 @@ struct ContextWindowChunker {
 
     /// Tokens held back for instructions, the schema, and the response itself. The prompt
     /// is only one part of what has to fit.
-    static let reservedTokens = 1_500
+    static let reservedTokens = 1500
 
     /// Maximum characters of transcript that may go into a single prompt.
     let budget: Int
@@ -42,7 +41,7 @@ struct ContextWindowChunker {
     /// - Parameter contextSize: `SystemLanguageModel.default.contextSize`, in tokens.
     init(contextSize: Int) {
         let usableTokens = max(contextSize - Self.reservedTokens, Self.minimumUsableTokens)
-        self.budget = Int(Double(usableTokens) * Self.charactersPerToken)
+        budget = Int(Double(usableTokens) * Self.charactersPerToken)
     }
 
     /// Direct budget, for tests.

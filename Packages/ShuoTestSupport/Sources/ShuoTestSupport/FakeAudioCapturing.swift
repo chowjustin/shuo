@@ -69,7 +69,9 @@ public actor FakeAudioCapturing: AudioCapturing {
 
     public func start() async throws {
         startCount += 1
-        if let startError { throw startError }
+        if let startError {
+            throw startError
+        }
     }
 
     public func pause() async throws {
@@ -82,7 +84,9 @@ public actor FakeAudioCapturing: AudioCapturing {
 
     public func previewURL() async throws -> URL {
         previewCount += 1
-        if let previewError { throw previewError }
+        if let previewError {
+            throw previewError
+        }
         return Self.previewURL
     }
 
@@ -92,7 +96,9 @@ public actor FakeAudioCapturing: AudioCapturing {
 
     public func finish() async throws -> AudioRecording {
         finishCount += 1
-        if let finishError { throw finishError }
+        if let finishError {
+            throw finishError
+        }
         continuation.finish()
         return recording
     }

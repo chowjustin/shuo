@@ -12,7 +12,9 @@ public enum InputMode: String, Codable, CaseIterable, Sendable, Identifiable {
     case speak
     case write
 
-    public var id: String { rawValue }
+    public var id: String {
+        rawValue
+    }
 
     public var title: String {
         switch self {

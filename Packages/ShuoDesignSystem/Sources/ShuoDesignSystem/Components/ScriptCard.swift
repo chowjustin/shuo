@@ -17,7 +17,7 @@ public struct ScriptCard: View {
     private let purposeLabel: String
     private let isSelected: Bool
     private let onTap: () -> Void
-    
+
     public init(
         title: String,
         dateText: String,
@@ -41,7 +41,7 @@ public struct ScriptCard: View {
                     Text(title)
                         .font(ShuoTypography.headline)
                         .foregroundStyle(isSelected ? ShuoColor.primaryTextPinkTint : ShuoColor.primaryTextCream)
-                    
+
                     metaAndPurposeRow
                 }
 
@@ -50,7 +50,7 @@ public struct ScriptCard: View {
                 Image(systemName: "chevron.right")
                     .foregroundStyle(ShuoColor.pink)
             }
-            .padding(20) //buat atur besar cardnya
+            .padding(20) // buat atur besar cardnya
             .background(
                 isSelected ? ShuoColor.pinkTint : ShuoColor.background,
                 in: RoundedRectangle(cornerRadius: 18)
@@ -62,150 +62,151 @@ public struct ScriptCard: View {
         }
         .buttonStyle(.plain)
     }
+
     private var contentAlignment: VerticalAlignment {
         .bottom
     }
 
     private var isLargeTextLayout: Bool {
-            dynamicTypeSize >= .xxxLarge
-            
+        dynamicTypeSize >= .xxxLarge
     }
-        
-        @ViewBuilder
-            private var metaAndPurposeRow: some View {
-                if isLargeTextLayout {
-                    VStack(alignment: .leading, spacing: ShuoSpacing.small) {
-                        dateAndDuration
-                        purposeBadge
+
+    @ViewBuilder
+    private var metaAndPurposeRow: some View {
+        if isLargeTextLayout {
+            VStack(alignment: .leading, spacing: ShuoSpacing.small) {
+                dateAndDuration
+                purposeBadge
+            }
+        } else {
+            HStack(spacing: 6) {
+                dateAndDuration
+                purposeBadge
+            }
+        }
+    }
+
+    // xxxLarge–AX5: date and duration each get their own line, so they never
+    // have to compete for horizontal space and can't wrap into each other.
+    // Below that: single line with a dot separator, same as before.
+    private var dateAndDuration: some View {
+        Group {
+            if isLargeTextLayout {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(dateText)
+                    HStack(spacing: 4) {
+                        Text("•")
+                        Text(durationText)
                     }
-                } else {
-                    HStack(spacing: 6) {
-                        dateAndDuration
-                        purposeBadge
+                }
+            } else {
+                HStack(spacing: 6) {
+                    Text(dateText)
+                    Text("•")
+                    Text(durationText)
+                }
+                .lineLimit(1)
+            }
+        }
+        .font(ShuoTypography.caption)
+        .foregroundStyle(isSelected ? ShuoColor.secondaryTextPinkTint : ShuoColor.secondaryTextCream)
+    }
+
+    private var purposeBadge: some View {
+        Text(purposeLabel)
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, badgeHorizontalPadding)
+            .padding(.vertical, badgeVerticalPadding)
+            .background(ShuoColor.aqua, in: .capsule)
+            .foregroundStyle(ShuoColor.primaryTextAqua)
+    }
+}
+
+#Preview {
+    struct PreviewWrapper: View {
+        @State private var isSelected = false
+
+        var body: some View {
+            List {
+                ScriptCard(
+                    title: "Why must join campus organization",
+                    dateText: "3 July 2026",
+                    durationText: "15:10:40",
+                    purposeLabel: "To Persuade",
+                    isSelected: isSelected,
+                    onTap: { isSelected.toggle() }
+                )
+                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 12, trailing: 16))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(role: .destructive) {
+                        print("delete tapped — not wired to real data yet")
+                    } label: {
+                        Image(systemName: "trash")
                     }
                 }
             }
-
-            // xxxLarge–AX5: date and duration each get their own line, so they never
-            // have to compete for horizontal space and can't wrap into each other.
-            // Below that: single line with a dot separator, same as before.
-            private var dateAndDuration: some View {
-                Group {
-                    if isLargeTextLayout {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(dateText)
-                            HStack(spacing: 4) {
-                                Text("•")
-                                Text(durationText)
-                            }
-                        }
-                    } else {
-                        HStack(spacing: 6) {
-                            Text(dateText)
-                            Text("•")
-                            Text(durationText)
-                        }
-                        .lineLimit(1)
-                    }
-                }
-                .font(ShuoTypography.caption)
-                .foregroundStyle(isSelected ? ShuoColor.secondaryTextPinkTint : ShuoColor.secondaryTextCream)
-            }
-
-            private var purposeBadge: some View {
-                Text(purposeLabel)
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, badgeHorizontalPadding)
-                    .padding(.vertical, badgeVerticalPadding)
-                    .background(ShuoColor.aqua, in: .capsule)
-                    .foregroundStyle(ShuoColor.primaryTextAqua)
-            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
         }
-    
-    #Preview {
-        struct PreviewWrapper: View {
-            @State private var isSelected = false
-
-            var body: some View {
-                List {
-                    ScriptCard(
-                        title: "Why must join campus organization",
-                        dateText: "3 July 2026",
-                        durationText: "15:10:40",
-                        purposeLabel: "To Persuade",
-                        isSelected: isSelected,
-                        onTap: { isSelected.toggle() }
-                    )
-                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 12, trailing: 16))
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            print("delete tapped — not wired to real data yet")
-                        } label: {
-                            Image(systemName: "trash")
-                        }
-                    }
-                }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-            }
-        }
-        return PreviewWrapper()
     }
-    
-    #Preview("xxxLarge") {
-        List {
-            ScriptCard(
-                title: "Why must join campus organization",
-                dateText: "3 July 2026",
-                durationText: "15:10:40",
-                purposeLabel: "To Persuade",
-                isSelected: true,
-                onTap: {}
-            )
-            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 12, trailing: 16))
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .environment(\.dynamicTypeSize, .xxxLarge)
-    }
-    #Preview("AX4") {
-        List {
-            ScriptCard(
-                title: "Why must join campus organization",
-                dateText: "3 July 2026",
-                durationText: "15:10:40",
-                purposeLabel: "To Persuade",
-                isSelected: true,
-                onTap: {}
-            )
-            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 12, trailing: 16))
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .environment(\.dynamicTypeSize, .accessibility4)
-    }
+    return PreviewWrapper()
+}
 
-    #Preview("AX5") {
-        List {
-            ScriptCard(
-                title: "Why must join campus organization",
-                dateText: "3 July 2026",
-                durationText: "15:10:40",
-                purposeLabel: "To Persuade",
-                isSelected: true,
-                onTap: {}
-            )
-            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 12, trailing: 16))
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .environment(\.dynamicTypeSize, .accessibility5)
+#Preview("xxxLarge") {
+    List {
+        ScriptCard(
+            title: "Why must join campus organization",
+            dateText: "3 July 2026",
+            durationText: "15:10:40",
+            purposeLabel: "To Persuade",
+            isSelected: true,
+            onTap: {}
+        )
+        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 12, trailing: 16))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
     }
+    .listStyle(.plain)
+    .scrollContentBackground(.hidden)
+    .environment(\.dynamicTypeSize, .xxxLarge)
+}
+
+#Preview("AX4") {
+    List {
+        ScriptCard(
+            title: "Why must join campus organization",
+            dateText: "3 July 2026",
+            durationText: "15:10:40",
+            purposeLabel: "To Persuade",
+            isSelected: true,
+            onTap: {}
+        )
+        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 12, trailing: 16))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+    }
+    .listStyle(.plain)
+    .scrollContentBackground(.hidden)
+    .environment(\.dynamicTypeSize, .accessibility4)
+}
+
+#Preview("AX5") {
+    List {
+        ScriptCard(
+            title: "Why must join campus organization",
+            dateText: "3 July 2026",
+            durationText: "15:10:40",
+            purposeLabel: "To Persuade",
+            isSelected: true,
+            onTap: {}
+        )
+        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 12, trailing: 16))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+    }
+    .listStyle(.plain)
+    .scrollContentBackground(.hidden)
+    .environment(\.dynamicTypeSize, .accessibility5)
+}

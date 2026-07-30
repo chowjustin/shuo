@@ -13,12 +13,12 @@
 import FeatureHome
 import FeatureSpeechCreation
 import FeatureTranscriptAnalysis
+import Foundation
 import ShuoAI
 import ShuoAudio
 import ShuoCore
 import ShuoPersistence
 import SwiftData
-import Foundation
 
 final class AppContainer {
     // MARK: - Services
@@ -137,5 +137,4 @@ final class AppContainer {
         // schema itself is invalid — a build-time mistake, not a runtime condition.
         preconditionFailure("Could not create a ModelContainer for the Shuo schema")
     }
-    
 }

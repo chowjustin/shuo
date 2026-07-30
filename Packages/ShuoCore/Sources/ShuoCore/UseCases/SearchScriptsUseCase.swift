@@ -26,4 +26,3 @@ public struct SearchScriptsUseCase: Sendable {
         try await repository.search(query: query)
     }
 }
-

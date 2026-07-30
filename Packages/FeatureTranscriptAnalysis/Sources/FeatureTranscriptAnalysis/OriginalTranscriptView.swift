@@ -22,7 +22,6 @@ import SwiftUI
 /// scroll and no sense of how much is left. The bordered card is kept, now as a frame
 /// around the whole thing.
 public struct OriginalTranscriptView: View {
-
     private let originalText: String
     private let onBack: () -> Void
 
@@ -95,10 +94,10 @@ public struct OriginalTranscriptView: View {
     NavigationStack {
         OriginalTranscriptView(
             originalText: """
-                Um, okay, so hi everyone. Today I kind of wanted to talk about clubs and \
-                organizations on campus, and why I think joining one is the single best \
-                thing you can do in your first year.
-                """,
+            Um, okay, so hi everyone. Today I kind of wanted to talk about clubs and \
+            organizations on campus, and why I think joining one is the single best \
+            thing you can do in your first year.
+            """,
             onBack: {}
         )
     }

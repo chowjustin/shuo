@@ -5,17 +5,15 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
+@testable import FeatureSpeechCreation
 import Foundation
 import ShuoCore
 import ShuoTestSupport
 import Testing
 
-@testable import FeatureSpeechCreation
-
 @MainActor
 @Suite("CreateScriptCoordinator")
 struct CreateScriptCoordinatorTests {
-
     // MARK: - Fixtures
 
     private static let transcript = "A short speech about something."
