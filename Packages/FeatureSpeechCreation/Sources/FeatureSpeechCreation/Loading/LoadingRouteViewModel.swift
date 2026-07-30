@@ -30,18 +30,24 @@ public final class LoadingRouteViewModel {
 
     /// The transcript, once there is one.
     public var transcript: Transcript? {
-        if case .finished(let transcript) = viewState { return transcript }
+        if case let .finished(transcript) = viewState {
+            return transcript
+        }
         return nil
     }
 
     public var failure: ShuoError? {
-        if case .failed(let error) = viewState { return error }
+        if case let .failed(error) = viewState {
+            return error
+        }
         return nil
     }
 
     /// Filename of the attachment being processed, for the loading screen's detail line.
     public var sourceDescription: String? {
-        if case .importedMedia(let media) = source { return media.originalFileName }
+        if case let .importedMedia(media) = source {
+            return media.originalFileName
+        }
         return nil
     }
 
@@ -105,10 +111,10 @@ public final class LoadingRouteViewModel {
         viewState = .interrupted
     }
 
-    // Video is the only source that pays the extraction step first, so it is the only one
-    // whose first message mentions it.
+    /// Video is the only source that pays the extraction step first, so it is the only one
+    /// whose first message mentions it.
     private var initialContext: LoadingContext {
-        if case .importedMedia(let media) = source, media.kind.requiresAudioExtraction {
+        if case let .importedMedia(media) = source, media.kind.requiresAudioExtraction {
             return .extractingAudio
         }
         return .transcribing

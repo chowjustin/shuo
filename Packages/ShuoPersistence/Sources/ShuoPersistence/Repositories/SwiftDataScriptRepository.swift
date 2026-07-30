@@ -24,7 +24,6 @@ import SwiftData
 /// nothing above this package needs to import SwiftData to handle a failure (CLAUDE.md §5).
 @ModelActor
 public actor SwiftDataScriptRepository: ScriptRepository {
-
     public func save(_ script: Script) async throws {
         do {
             if let existing = try existingEntity(id: script.id) {
@@ -61,7 +60,7 @@ public actor SwiftDataScriptRepository: ScriptRepository {
         return try summaries(matching: trimmed)
     }
 
-    // 👇 Tambahkan implementasi fungsi delete(id:) di sini
+    /// 👇 Tambahkan implementasi fungsi delete(id:) di sini
     public func delete(id: UUID) async throws {
         do {
             if let entity = try existingEntity(id: id) {

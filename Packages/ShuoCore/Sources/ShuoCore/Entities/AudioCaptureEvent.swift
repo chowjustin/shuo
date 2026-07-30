@@ -26,14 +26,16 @@ public enum AudioCaptureEvent: Sendable, Equatable {
     case failed(ShuoError)
 
     // MARK: DEBUG_LIVE_TRANSCRIPT — temporary; delete this case. See PR notes.
-    //
-    // The shipped design never displays the live transcript (ARCHITECTURE.md §3.1.3):
-    // it is accumulated inside ShuoAudio and handed over once, via
-    // `AudioRecording.liveTranscript`. This case exists only so a debug panel can
-    // observe transcription working in real time. Removing it does not affect
-    // `liveTranscript`, which is accumulated independently of this forwarding path.
+
+    ///
+    /// The shipped design never displays the live transcript (ARCHITECTURE.md §3.1.3):
+    /// it is accumulated inside ShuoAudio and handed over once, via
+    /// `AudioRecording.liveTranscript`. This case exists only so a debug panel can
+    /// observe transcription working in real time. Removing it does not affect
+    /// `liveTranscript`, which is accumulated independently of this forwarding path.
     /// Best-effort live transcript so far. May revise previously reported text, since
     /// the speech model refines volatile results as more audio arrives.
     case transcript(String)
+
     // MARK: END DEBUG_LIVE_TRANSCRIPT
 }

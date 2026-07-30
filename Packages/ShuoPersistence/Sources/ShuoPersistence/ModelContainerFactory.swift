@@ -19,7 +19,6 @@ import SwiftData
 /// `Schema` would keep passing after a production model change it no longer matches —
 /// exactly the drift this indirection exists to prevent (CLAUDE.md §7).
 public enum ModelContainerFactory {
-
     /// Every `@Model` type the app persists.
     public static var schema: Schema {
         Schema([ScriptEntity.self])

@@ -45,12 +45,54 @@ public final class InputScriptViewModel {
         )
     }
 
-    /// The title as it would be saved: what the user typed, or the placeholder if they
+    /// The title as it would be saved: what the user typed, or the numbered fallback if they
     /// typed nothing. Read by the coordinator when it carries a rename forward into an
     /// analysis the user is returning to rather than starting over.
     public var resolvedTitle: String {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? Self.untitledTitle : trimmed
+        return trimmed.isEmpty ? untitledPlaceholder : trimmed
+    }
+
+    /// The name a blank title falls back to — `Untitled Script 1`, `Untitled Script 2`, …
+    ///
+    /// Held as state rather than computed because numbering requires reading what is
+    /// already stored, which is async, while `resolvedTitle` is read synchronously by
+    /// `makeDraft` and by the coordinator on the way forward. `prepareUntitledPlaceholder()`
+    /// settles it while the user is still recording or typing, so neither of those has to
+    /// become async and neither can block on I/O at the moment the user taps ✓.
+    public private(set) var untitledPlaceholder: String = UntitledScriptTitle.first
+
+    /// True once `untitledPlaceholder` is settled — resolved from the store, or adopted from
+    /// a draft coming back from analysis.
+    ///
+    /// Adoption has to win over resolution. By the time the user steps back, analysis has
+    /// already saved this script under its generated name (`ARCHITECTURE.md` §16), so
+    /// re-resolving would find that record and number *past* it — silently renaming the
+    /// user's script from `Untitled Script 1` to `Untitled Script 2` for the crime of
+    /// stepping back and confirming again.
+    private var isPlaceholderSettled = false
+
+    /// Internal rather than private so tests can await the resolve, matching
+    /// `SpeakModeViewModel.transitionTask` and `AttachFileModeViewModel.importTask`.
+    var placeholderTask: Task<Void, Never>?
+
+    /// Resolves the fallback name, before the user can reach the step that saves it.
+    ///
+    /// Idempotent, because the input step is re-entered rather than rebuilt and its `.task`
+    /// runs again each time. A failed read deliberately leaves this unsettled so a later
+    /// attempt can retry: `UntitledScriptTitle.first` stands in meanwhile, since a store
+    /// that cannot be read is about to fail at save time with a real error, and blocking the
+    /// whole input step over the *name* of an untitled script would be a poor trade.
+    public func prepareUntitledPlaceholder() {
+        guard !isPlaceholderSettled else { return }
+        placeholderTask?.cancel()
+        placeholderTask = Task { [weak self] in
+            guard let self else { return }
+            guard let next = try? await nextUntitledTitle() else { return }
+            guard !Task.isCancelled, !isPlaceholderSettled else { return }
+            untitledPlaceholder = next
+            isPlaceholderSettled = true
+        }
     }
 
     /// How long the confirmed source runs, when that is knowable.
@@ -62,27 +104,38 @@ public final class InputScriptViewModel {
     private var confirmedDuration: TimeInterval? {
         switch mode {
         case .speak:
-            if case .recordedAudio(let recording) = speakVM.speechSource { return recording.duration }
+            if case let .recordedAudio(recording) = speakVM.speechSource {
+                return recording.duration
+            }
             return nil
         case .attachFile:
-            if case .importedMedia(let media) = attachVM.speechSource { return media.duration }
+            if case let .importedMedia(media) = attachVM.speechSource {
+                return media.duration
+            }
             return nil
         case .write:
             return nil
         }
     }
 
-    static let untitledTitle = "Untitled Script"
-
     /// Restores a title carried back from a later step, so returning after a failure does
     /// not cost the user the name they typed.
     ///
-    /// `makeDraft` substitutes `untitledTitle` when the field was blank, so that exact value
-    /// means "never named" rather than "named Untitled Script". Writing it back verbatim
-    /// would put words in the field the user did not type — and, worse, turn a placeholder
-    /// into real content they would then have to delete.
+    /// `makeDraft` substitutes a generated `Untitled Script N` when the field was blank, so
+    /// any generated name means "never named" rather than "named that". Writing it back
+    /// verbatim would put words in the field the user did not type — and, worse, turn a
+    /// placeholder into real content they would then have to delete. Recognised by pattern
+    /// rather than by equality now that the name carries a number.
     func restoreTitle(from draftTitle: String) {
-        title = draftTitle == Self.untitledTitle ? "" : draftTitle
+        guard UntitledScriptTitle.isGenerated(draftTitle) else {
+            title = draftTitle
+            return
+        }
+        // Adopt the number this script already has instead of leaving the field to be
+        // renumbered — see `isPlaceholderSettled`.
+        untitledPlaceholder = draftTitle
+        isPlaceholderSettled = true
+        title = ""
     }
 
     /// `true` when the currently active mode has enough content to proceed.
@@ -124,10 +177,14 @@ public final class InputScriptViewModel {
     }
 
     private let generateTranscript: GenerateTranscriptUseCase
+    private let nextUntitledTitle: NextUntitledScriptTitleUseCase
 
     /// - Parameters:
     ///   - makeAudioCapturer: builds a capture session. A factory rather than an instance
     ///     because `AudioCapturing` is single-use — see `SpeakModeViewModel`.
+    ///   - nextUntitledTitle: names a script the user never titled. Needed here rather than
+    ///     only at save time because the number has to be settled before `makeDraft` mints
+    ///     the draft, so the name the analysis screen shows is the name that gets saved.
     ///   - initialText: text to open in Write mode, used when this step is rebuilt rather
     ///     than resumed. Opening in Write mode rather than the default Speak mode is the
     ///     point: the user already has the words, and what they need now is to change
@@ -140,18 +197,20 @@ public final class InputScriptViewModel {
         audioPlayer: any AudioPlaying,
         recordingDeleter: any AudioRecordingDeleting,
         generateTranscript: GenerateTranscriptUseCase,
+        nextUntitledTitle: NextUntitledScriptTitleUseCase,
         initialText: String? = nil
     ) {
         self.purpose = purpose
         self.generateTranscript = generateTranscript
-        self.speakVM = SpeakModeViewModel(
+        self.nextUntitledTitle = nextUntitledTitle
+        speakVM = SpeakModeViewModel(
             makeCapturer: makeAudioCapturer,
             permissions: microphonePermissions,
             player: audioPlayer,
             recordingDeleter: recordingDeleter
         )
-        self.writeVM = WriteModeViewModel()
-        self.attachVM = AttachFileModeViewModel(fileImporter: fileImporter)
+        writeVM = WriteModeViewModel()
+        attachVM = AttachFileModeViewModel(fileImporter: fileImporter)
 
         if let initialText, !initialText.isEmpty {
             writeVM.content = initialText
@@ -167,6 +226,8 @@ public final class InputScriptViewModel {
     public func discard() {
         speakVM.cancel()
         attachVM.cancel()
+        placeholderTask?.cancel()
+        placeholderTask = nil
         dismissLoading()
     }
 

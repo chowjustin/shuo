@@ -7,21 +7,20 @@
 // tests are about what happens when the model misbehaves — wrong purpose, unknown ids,
 // duplicates, too many results, a usable verdict with nothing usable in it.
 
-import Testing
-import ShuoTestSupport
 @testable import ShuoCore
+import ShuoTestSupport
+import Testing
 
 @Suite("Classify transcript use case")
 struct ClassifyTranscriptUseCaseTests {
-
     /// Comfortably past the precheck's floors, so these tests exercise the model path.
     private static let validTranscript = Transcript(original: """
-        Good morning everyone. Today I want to talk about why remote work has reshaped \
-        how our team collaborates. When we moved to a distributed model two years ago, \
-        we assumed productivity would fall. It didn't. What actually changed was the \
-        shape of our communication, and that turned out to matter far more than the \
-        number of hours anyone logged at a desk each week.
-        """)
+    Good morning everyone. Today I want to talk about why remote work has reshaped \
+    how our team collaborates. When we moved to a distributed model two years ago, \
+    we assumed productivity would fall. It didn't. What actually changed was the \
+    shape of our communication, and that turned out to matter far more than the \
+    number of hours anyone logged at a desk each week.
+    """)
 
     // MARK: - Happy path
 

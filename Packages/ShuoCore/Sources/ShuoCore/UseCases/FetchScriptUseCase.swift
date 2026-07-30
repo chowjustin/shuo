@@ -17,7 +17,6 @@ import Foundation
 /// (CLAUDE.md §12). Doing the conversion here means no caller has to remember to set that
 /// field — forgetting it would silently duplicate the script on the next save.
 public struct FetchScriptUseCase: Sendable {
-
     private let repository: any ScriptRepository
 
     public init(repository: any ScriptRepository) {

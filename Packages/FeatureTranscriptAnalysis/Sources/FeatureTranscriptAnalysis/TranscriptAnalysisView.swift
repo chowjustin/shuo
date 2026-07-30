@@ -11,7 +11,6 @@ import SwiftUI
 
 /// The analysis screen.
 public struct TranscriptAnalysisView: View {
-
     @State private var viewModel: TranscriptAnalysisViewModel
     @State private var isConfirmingLeave = false
     @State private var isConfirmingRegenerate = false
@@ -48,7 +47,6 @@ public struct TranscriptAnalysisView: View {
             .toolbar {
                 toolbarContent
                 ToolbarItem(placement: .principal) {
-                
                     Text("Script Analysis")
                         .font(.headline)
                         .foregroundStyle(ShuoColor.primaryTextCream)
@@ -175,13 +173,13 @@ public struct TranscriptAnalysisView: View {
                 message: "Setting up on-device AI…"
             )
 
-        case .unavailable(let status):
+        case let .unavailable(status):
             errorSheet(AnalysisErrorCopy(availability: status))
 
-        case .rejected(let reason):
+        case let .rejected(reason):
             errorSheet(AnalysisErrorCopy(reason: reason))
 
-        case .failed(let error):
+        case let .failed(error):
             errorSheet(AnalysisErrorCopy(error: error))
 
         case .loaded:
@@ -332,7 +330,9 @@ public struct TranscriptAnalysisView: View {
 
     /// Resigns whichever field is focused — title, refined transcript, or any key-point card.
     private func dismissKeyboard() {
-        if focusedField == .title { viewModel.commitTitle() }
+        if focusedField == .title {
+            viewModel.commitTitle()
+        }
         focusedField = nil
     }
 
@@ -464,8 +464,7 @@ public struct TranscriptAnalysisView: View {
             if isRefinedExpanded {
                 refinedTranscriptBody
 
-                if !isEditingRefined, !viewModel.refinedHighlightRanges.isEmpty
-                {
+                if !isEditingRefined, !viewModel.refinedHighlightRanges.isEmpty {
                     Label(
                         "Highlighted text matches your key points.",
                         systemImage: "highlighter"
@@ -478,7 +477,9 @@ public struct TranscriptAnalysisView: View {
         // Editing ends when focus leaves the field — via the keyboard bar or a tap elsewhere —
         // so the highlighted view returns without a dedicated Done control.
         .onChange(of: focusedField) { _, newValue in
-            if newValue != .refined { isEditingRefined = false }
+            if newValue != .refined {
+                isEditingRefined = false
+            }
         }
     }
 
@@ -576,7 +577,6 @@ public struct TranscriptAnalysisView: View {
             in: RoundedRectangle(cornerRadius: 12)
         )
     }
-
 }
 
 #if DEBUG

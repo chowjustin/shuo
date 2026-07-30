@@ -27,15 +27,17 @@ public actor FakeSpeechTranscribing: SpeechTranscribing {
     /// short-circuited and never transcribed anything.
     public private(set) var receivedInputs: [TranscriptionInput] = []
 
-    public var callCount: Int { receivedInputs.count }
+    public var callCount: Int {
+        receivedInputs.count
+    }
 
     public init(returning transcript: String, after delay: Duration = .zero) {
-        self.outcome = .success(transcript)
+        outcome = .success(transcript)
         self.delay = delay
     }
 
     public init(throwing error: ShuoError, after delay: Duration = .zero) {
-        self.outcome = .failure(error)
+        outcome = .failure(error)
         self.delay = delay
     }
 
@@ -47,8 +49,8 @@ public actor FakeSpeechTranscribing: SpeechTranscribing {
             try await Task.sleep(for: delay)
         }
         switch outcome {
-        case .success(let transcript): return transcript
-        case .failure(let error): throw error
+        case let .success(transcript): return transcript
+        case let .failure(error): throw error
         }
     }
 }

@@ -27,45 +27,44 @@ public struct PurposeSelectionView: View {
 
     public var body: some View {
         ScrollView {
-                VStack(alignment: .center, spacing: ShuoSpacing.large) {
-                    
-                    Text("Tell us your purpose")
-                        .font(ShuoTypography.title)
-                        .foregroundStyle(ShuoColor.primaryTextCream)
-                        .accessibilityAddTraits(.isHeader)
-                        .padding(.top, ShuoSpacing.medium)
-                    
-                    ForEach(SpeechPurpose.allCases) { purpose in
-                        PurposeCard(
-                            title: purpose.title,
-                            description: purpose.description,
-                            isSelected: selectedPurpose == purpose,
-                            action: { selectPurpose(purpose) }
-                        )
-                        .accessibilityElement(children: .combine)
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityValue(selectedPurpose == purpose ? "Selected" : "")
-                        .accessibilityAction {
-                            selectPurpose(purpose)
-                        }
+            VStack(alignment: .center, spacing: ShuoSpacing.large) {
+                Text("Tell us your purpose")
+                    .font(ShuoTypography.title)
+                    .foregroundStyle(ShuoColor.primaryTextCream)
+                    .accessibilityAddTraits(.isHeader)
+                    .padding(.top, ShuoSpacing.medium)
+
+                ForEach(SpeechPurpose.allCases) { purpose in
+                    PurposeCard(
+                        title: purpose.title,
+                        description: purpose.description,
+                        isSelected: selectedPurpose == purpose,
+                        action: { selectPurpose(purpose) }
+                    )
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityValue(selectedPurpose == purpose ? "Selected" : "")
+                    .accessibilityAction {
+                        selectPurpose(purpose)
                     }
                 }
-                .padding(ShuoSpacing.large)
             }
-            .background(ShuoColor.background)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        coordinator.close()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.title3)
-                            .foregroundStyle(ShuoColor.primaryText)
-                    }
-                    .accessibilityLabel("Close")
+            .padding(ShuoSpacing.large)
+        }
+        .background(ShuoColor.background)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    coordinator.close()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.title3)
+                        .foregroundStyle(ShuoColor.primaryText)
                 }
+                .accessibilityLabel("Close")
             }
-        
+        }
+
         .presentationDragIndicator(.visible)
         .onDisappear {
             navigationTask?.cancel()
@@ -85,34 +84,32 @@ public struct PurposeSelectionView: View {
 }
 
 #if DEBUG
-#Preview {
-    PurposeSelectionPreviewHost()
-}
-
-private struct PurposeSelectionPreviewHost: View {
-    @State private var isPresented = true
-
-    var body: some View {
-        Color(uiColor: .systemGroupedBackground)
-            .ignoresSafeArea()
-            .sheet(isPresented: $isPresented) {
-
-                CreateFlowView(
-                    coordinator: CreateScriptCoordinator(
-                        onFinish: { isPresented = false },
-                        makeInputScriptViewModel: { purpose, text in
-                            .preview(
-                                purpose: purpose,
-                                initialText: text
-                            )
-                        }
-                    )
-
-                ) { _, _, _ in
-                    EmptyView()
-                }
-
-            }
+    #Preview {
+        PurposeSelectionPreviewHost()
     }
-}
+
+    private struct PurposeSelectionPreviewHost: View {
+        @State private var isPresented = true
+
+        var body: some View {
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea()
+                .sheet(isPresented: $isPresented) {
+                    CreateFlowView(
+                        coordinator: CreateScriptCoordinator(
+                            onFinish: { isPresented = false },
+                            makeInputScriptViewModel: { purpose, text in
+                                .preview(
+                                    purpose: purpose,
+                                    initialText: text
+                                )
+                            }
+                        )
+
+                    ) { _, _, _ in
+                        EmptyView()
+                    }
+                }
+        }
+    }
 #endif

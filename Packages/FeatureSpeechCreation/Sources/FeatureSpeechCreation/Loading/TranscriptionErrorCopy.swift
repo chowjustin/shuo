@@ -26,8 +26,8 @@ struct TranscriptionErrorCopy: Equatable {
     let title: String
     let message: String
 
-    // Every case is spelled out rather than defaulted, so adding a `ShuoError` case
-    // fails the build here instead of silently shipping generic copy.
+    /// Every case is spelled out rather than defaulted, so adding a `ShuoError` case
+    /// fails the build here instead of silently shipping generic copy.
     init(error: ShuoError) {
         switch error {
         case .fileTooLarge:

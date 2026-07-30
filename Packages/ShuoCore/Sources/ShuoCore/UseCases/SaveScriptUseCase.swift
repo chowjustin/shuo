@@ -9,7 +9,6 @@ import Foundation
 
 /// Persists a draft, inserting a new script or updating the one it was reopened from.
 public struct SaveScriptUseCase: Sendable {
-
     private let repository: any ScriptRepository
     private let now: @Sendable () -> Date
 
@@ -62,7 +61,8 @@ public struct SaveScriptUseCase: Sendable {
     private func perPatternRefinements(from draft: ScriptDraft) -> [SpeechPattern.ID: String] {
         var map = draft.refinedByPattern
         if let selected = draft.selectedPatternID, let refined = draft.transcript.refined,
-           !refined.isEmpty {
+           !refined.isEmpty
+        {
             map[selected] = refined
         }
         return map

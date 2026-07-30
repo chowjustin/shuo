@@ -19,7 +19,6 @@ import ShuoCore
 /// receive callbacks, and the screen needs a moving playhead anyway, so the ticker that
 /// draws it can detect the end of the item for free.
 public actor AudioPlaybackService: AudioPlaying {
-
     /// 10Hz — a playhead that advances visibly without redrawing SwiftUI for nothing.
     private static let tickInterval: Duration = .milliseconds(100)
 
@@ -41,7 +40,9 @@ public actor AudioPlaybackService: AudioPlaying {
     // MARK: - AudioPlaying
 
     public func play(url: URL) async throws {
-        if loadedURL != url { unload() }
+        if loadedURL != url {
+            unload()
+        }
 
         if player == nil {
             do {
@@ -49,7 +50,7 @@ public actor AudioPlaybackService: AudioPlaying {
                 let player = try AVAudioPlayer(contentsOf: url)
                 player.prepareToPlay()
                 self.player = player
-                self.loadedURL = url
+                loadedURL = url
             } catch {
                 // The one place the real AVFoundation error exists before it is flattened
                 // into a domain error. Filter Console by subsystem `com.seven.shuo`.

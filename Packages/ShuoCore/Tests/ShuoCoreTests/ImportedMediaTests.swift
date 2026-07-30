@@ -3,13 +3,12 @@
 //  ShuoCoreTests
 //
 
-import Testing
 import Foundation
 @testable import ShuoCore
+import Testing
 
 @Suite("ImportedMedia")
 struct ImportedMediaTests {
-
     private let url = URL(filePath: "/tmp/test.m4a")
 
     @Test("formattedDuration is nil when duration is nil")

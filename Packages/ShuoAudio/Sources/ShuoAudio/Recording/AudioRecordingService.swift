@@ -32,7 +32,6 @@ import ShuoCore
 /// Kept as thin as it can be: the only real logic lives in `WaveformSampler`, which is
 /// pure and tested. This type is verified by hand on a device (CLAUDE.md §7).
 public actor AudioRecordingService: AudioCapturing {
-
     /// ~85ms of audio at 48kHz, so ticks arrive at roughly 12Hz — inside the 10–20Hz
     /// the waveform wants, without a separate throttle.
     private static let tapBufferSize: AVAudioFrameCount = 4096
@@ -84,7 +83,7 @@ public actor AudioRecordingService: AudioCapturing {
         // delete this closure. It forwards live text to the event stream purely so a
         // debug panel can watch transcription work; the shipped design reads the
         // transcript once, from `finish()`.
-        self.transcription = LiveTranscriptionSession { text in
+        transcription = LiveTranscriptionSession { text in
             eventContinuation.yield(.transcript(text))
         }
         // END DEBUG_LIVE_TRANSCRIPT
@@ -192,8 +191,12 @@ public actor AudioRecordingService: AudioCapturing {
         guard state == .paused else { throw ShuoError.recordingFailed }
         guard !segmentURLs.isEmpty else { throw ShuoError.recordingFailed }
 
-        if segmentURLs.count == 1, let only = segmentURLs.first { return only }
-        if let previewFileURL, previewSegmentCount == segmentURLs.count { return previewFileURL }
+        if segmentURLs.count == 1, let only = segmentURLs.first {
+            return only
+        }
+        if let previewFileURL, previewSegmentCount == segmentURLs.count {
+            return previewFileURL
+        }
 
         let merged = try Self.makeRecordingURL()
         do {
@@ -203,7 +206,9 @@ public actor AudioRecordingService: AudioCapturing {
             throw ShuoError.recordingFailed
         }
 
-        if let stale = previewFileURL { try? FileManager.default.removeItem(at: stale) }
+        if let stale = previewFileURL {
+            try? FileManager.default.removeItem(at: stale)
+        }
         previewFileURL = merged
         previewSegmentCount = segmentURLs.count
         return merged
@@ -286,7 +291,9 @@ public actor AudioRecordingService: AudioCapturing {
     /// assignment doing more than an assignment.
     private func sealCurrentSegment() {
         file = nil
-        if let fileURL { segmentURLs.append(fileURL) }
+        if let fileURL {
+            segmentURLs.append(fileURL)
+        }
         fileURL = nil
     }
 
@@ -296,10 +303,14 @@ public actor AudioRecordingService: AudioCapturing {
     /// twice — the ordinary path here is a user who paused, replayed their take, and then
     /// confirmed it.
     private func consolidatedRecordingURL() async throws -> URL {
-        if segmentURLs.count == 1, let only = segmentURLs.first { return only }
+        if segmentURLs.count == 1, let only = segmentURLs.first {
+            return only
+        }
 
         if let previewFileURL, previewSegmentCount == segmentURLs.count {
-            for segment in segmentURLs { try? FileManager.default.removeItem(at: segment) }
+            for segment in segmentURLs {
+                try? FileManager.default.removeItem(at: segment)
+            }
             segmentURLs = [previewFileURL]
             self.previewFileURL = nil
             return previewFileURL
@@ -307,7 +318,9 @@ public actor AudioRecordingService: AudioCapturing {
 
         let merged = try Self.makeRecordingURL()
         try await AudioSegmentMerger.merge(segmentURLs, into: merged)
-        for segment in segmentURLs { try? FileManager.default.removeItem(at: segment) }
+        for segment in segmentURLs {
+            try? FileManager.default.removeItem(at: segment)
+        }
         segmentURLs = [merged]
         return merged
     }
@@ -350,12 +363,12 @@ public actor AudioRecordingService: AudioCapturing {
 
     // MARK: - Interruptions
 
-    // An incoming call or an unplugged headset stops the engine underneath us. Without
-    // this the UI would sit in `.recording` capturing silence.
-    //
-    // The observer tokens are held on the actor rather than captured by the stream's
-    // termination handler: they are not `Sendable`, and keeping them isolated here means
-    // teardown can remove them without an unsafe opt-out.
+    /// An incoming call or an unplugged headset stops the engine underneath us. Without
+    /// this the UI would sit in `.recording` capturing silence.
+    ///
+    /// The observer tokens are held on the actor rather than captured by the stream's
+    /// termination handler: they are not `Sendable`, and keeping them isolated here means
+    /// teardown can remove them without an unsafe opt-out.
     private func observeDisruptions() {
         guard observerTokens.isEmpty else { return }
 
@@ -410,7 +423,9 @@ public actor AudioRecordingService: AudioCapturing {
     // MARK: - Teardown
 
     private func tearDown(deletingFiles: Bool) async {
-        if engine.isRunning { engine.stop() }
+        if engine.isRunning {
+            engine.stop()
+        }
         engine.inputNode.removeTap(onBus: 0)
 
         processingTask?.cancel()
@@ -430,7 +445,9 @@ public actor AudioRecordingService: AudioCapturing {
         }
 
         if deletingFiles {
-            for segment in segmentURLs { try? FileManager.default.removeItem(at: segment) }
+            for segment in segmentURLs {
+                try? FileManager.default.removeItem(at: segment)
+            }
             segmentURLs = []
             if let fileURL {
                 try? FileManager.default.removeItem(at: fileURL)

@@ -5,24 +5,23 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
+@testable import FeatureSpeechCreation
 import Foundation
 import ShuoCore
 import ShuoTestSupport
 import Testing
 
-@testable import FeatureSpeechCreation
-
 @MainActor
 @Suite("CreateScriptCoordinator")
 struct CreateScriptCoordinatorTests {
-
     // MARK: - Fixtures
 
     private static let transcript = "A short speech about something."
 
     private static func draft(purpose: SpeechPurpose) -> ScriptDraft {
         ScriptDraft(
-            title: "Untitled Script",
+            // What `makeDraft` actually produces for a blank title now — numbered, not bare.
+            title: UntitledScriptTitle.first,
             purpose: purpose,
             transcript: Transcript(original: transcript)
         )
@@ -45,6 +44,9 @@ struct CreateScriptCoordinatorTests {
                 recordingDeleter: FakeAudioRecordingDeleting(),
                 generateTranscript: GenerateTranscriptUseCase(
                     transcriber: FakeSpeechTranscribing(returning: "")
+                ),
+                nextUntitledTitle: NextUntitledScriptTitleUseCase(
+                    repository: FakeScriptRepository()
                 ),
                 initialText: initialText
             )
@@ -247,11 +249,36 @@ struct CreateScriptCoordinatorTests {
         // turn a placeholder into real content the user would have to delete.
         let (coordinator, _, _) = await makeCoordinatorOnAnalysis()
         var draft = Self.draft(purpose: .persuade)
-        draft.title = InputScriptViewModel.untitledTitle
+        draft.title = UntitledScriptTitle.named(4)
 
         coordinator.returnToInput(from: draft)
 
         #expect(coordinator.inputViewModel?.title.isEmpty == true)
+    }
+
+    @Test("stepping back keeps the number the script was already saved under")
+    func returnToInputAdoptsTheExistingNumber() async {
+        // Analysis has already saved this script as "Untitled Script 4" (ARCHITECTURE.md
+        // §16). Numbering afresh here would find that record and hand back 5, renaming the
+        // user's script for stepping back and confirming again.
+        let (coordinator, _, _) = await makeCoordinatorOnAnalysis()
+        var draft = Self.draft(purpose: .persuade)
+        draft.title = UntitledScriptTitle.named(4)
+
+        coordinator.returnToInput(from: draft)
+
+        #expect(coordinator.inputViewModel?.resolvedTitle == UntitledScriptTitle.named(4))
+    }
+
+    @Test("a title the user typed is not mistaken for a placeholder, even if it looks close")
+    func returnToInputRestoresANearMissTitle() async {
+        let (coordinator, _, _) = await makeCoordinatorOnAnalysis()
+        var draft = Self.draft(purpose: .persuade)
+        draft.title = "Untitled Script ideas"
+
+        coordinator.returnToInput(from: draft)
+
+        #expect(coordinator.inputViewModel?.title == "Untitled Script ideas")
     }
 
     @Test("a rejected transcript is left waiting in Write mode, not forced onto the screen")

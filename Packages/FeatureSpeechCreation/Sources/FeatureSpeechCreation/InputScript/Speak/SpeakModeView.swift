@@ -63,7 +63,7 @@ public struct SpeakModeView: View {
         case .recording, .paused, .finished:
             capturePanel
 
-        case .failed(let message):
+        case let .failed(message):
             messagePanel(icon: "exclamationmark.triangle", message: message, action: nil)
         }
     }
@@ -119,7 +119,7 @@ public struct SpeakModeView: View {
     }
 
     private func messagePanel(
-        icon: String,
+        icon _: String,
         message: String,
         action: (title: String, handler: () -> Void)?
     ) -> some View {
@@ -188,7 +188,6 @@ public struct SpeakModeView: View {
         UIApplication.shared.open(url)
     }
 
-    @ViewBuilder
     private var liveTranscriptPanel: some View {
         VStack(alignment: .leading, spacing: ShuoSpacing.xSmall) {
             Text("Live Script")
@@ -209,8 +208,8 @@ public struct SpeakModeView: View {
 }
 
 #if DEBUG
-#Preview("Idle") {
-    SpeakModeView(viewModel: .preview())
-        .background(ShuoColor.background)
-}
+    #Preview("Idle") {
+        SpeakModeView(viewModel: .preview())
+            .background(ShuoColor.background)
+    }
 #endif

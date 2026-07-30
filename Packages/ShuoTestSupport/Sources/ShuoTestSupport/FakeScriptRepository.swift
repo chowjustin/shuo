@@ -19,7 +19,6 @@ import ShuoCore
 /// fake means something about the real implementation too. `SwiftDataScriptRepositoryTests`
 /// asserts the same contract against actual SwiftData.
 public actor FakeScriptRepository: ScriptRepository {
-
     private var storage: [UUID: Script] = [:]
     /// Injected failure, applied to every method. Set to exercise error paths.
     private var error: ShuoError?
@@ -33,7 +32,7 @@ public actor FakeScriptRepository: ScriptRepository {
     public private(set) var saveCount = 0
     public private(set) var fetchedIDs: [UUID] = []
     public private(set) var searchQueries: [String] = []
-    // 👇 Tambahkan tracker untuk ID yang dihapus saat testing
+    /// 👇 Tambahkan tracker untuk ID yang dihapus saat testing
     public private(set) var deletedIDs: [UUID] = []
 
     /// Every stored script, newest first.
@@ -46,7 +45,7 @@ public actor FakeScriptRepository: ScriptRepository {
         throwing error: ShuoError? = nil,
         after delay: Duration = .zero
     ) {
-        self.storage = Dictionary(
+        storage = Dictionary(
             scripts.map { ($0.id, $0) },
             uniquingKeysWith: { _, latest in latest }
         )
@@ -94,7 +93,7 @@ public actor FakeScriptRepository: ScriptRepository {
             .filter { $0.title.localizedCaseInsensitiveContains(trimmed) }
             .map(\.summary)
     }
-    
+
     public func delete(id: UUID) async throws {
         try await waitIfNeeded()
         try failIfNeeded()
@@ -103,7 +102,9 @@ public actor FakeScriptRepository: ScriptRepository {
     }
 
     private func failIfNeeded() throws {
-        if let error { throw error }
+        if let error {
+            throw error
+        }
     }
 
     private func waitIfNeeded() async throws {

@@ -55,45 +55,46 @@ public struct LoadingRouteView: View {
     }
 
     public var body: some View {
-
-            content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .navigationTitle(navigationTitle)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button(action: goBack) {
-                            Image(systemName: "chevron.left")
-                        }
-                        .accessibilityLabel("Back to input")
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationTitle(navigationTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: goBack) {
+                        Image(systemName: "chevron.left")
                     }
+                    .accessibilityLabel("Back to input")
                 }
-        
-        .task { viewModel.start() }
-        // Covers every way out — the ‹ button or the whole flow being torn down — so no
-        // transcription outlives the screen that asked for it.
-        .onDisappear { viewModel.cancel() }
-        // If the user backgrounds the app while transcribing, iOS will suspend the work.
-        // Cancel explicitly and show a prompt rather than leaving a stale spinner.
-        .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .background { viewModel.interrupt() }
-        }
-        // Matches Input Script: the create flow is one sheet, so a swipe here would tear
-        // the whole session down rather than step back. ‹ is the only exit.
-        .interactiveDismissDisabled(true)
+            }
+
+            .task { viewModel.start() }
+            // Covers every way out — the ‹ button or the whole flow being torn down — so no
+            // transcription outlives the screen that asked for it.
+            .onDisappear { viewModel.cancel() }
+            // If the user backgrounds the app while transcribing, iOS will suspend the work.
+            // Cancel explicitly and show a prompt rather than leaving a stale spinner.
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .background {
+                    viewModel.interrupt()
+                }
+            }
+            // Matches Input Script: the create flow is one sheet, so a swipe here would tear
+            // the whole session down rather than step back. ‹ is the only exit.
+            .interactiveDismissDisabled(true)
     }
 
     @ViewBuilder
     private var content: some View {
         switch viewModel.viewState {
-        case .loading(let context):
+        case let .loading(context):
             LoadingView(
                 systemImage: systemImage(for: context),
                 message: message(for: context),
                 detail: viewModel.sourceDescription
             )
 
-        case .failed(let error):
+        case let .failed(error):
             let copy = TranscriptionErrorCopy(error: error)
             ErrorSheet(mascotImageName: "SHUO ERROR", title: copy.title, message: copy.message)
 
@@ -112,7 +113,7 @@ public struct LoadingRouteView: View {
                     .padding(.horizontal, 32)
             }
 
-        case .finished(let transcript):
+        case let .finished(transcript):
             // No confirmation step: the user already chose to transcribe, so showing them
             // the raw transcript and asking them to approve it adds a tap without adding a
             // decision. Analysis takes over from here and shows the transcript anyway.
@@ -143,11 +144,12 @@ public struct LoadingRouteView: View {
         onBack()
     }
 
-    // Every state of this screen is transitional, so none of them names itself — a title
-    // appearing for one frame on the way to analysis reads as a screen the user landed on.
+    /// Every state of this screen is transitional, so none of them names itself — a title
+    /// appearing for one frame on the way to analysis reads as a screen the user landed on.
     private let navigationTitle = ""
 
     // MARK: - LoadingContext -> copy
+
     //
     // Lives here rather than on `LoadingContext` so the domain stays free of UI wording,
     // and `LoadingView` stays free of domain types.

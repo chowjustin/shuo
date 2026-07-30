@@ -19,7 +19,6 @@ import ShuoCore
 /// Pure translation over AVFoundation with no state of its own, so it stays a static
 /// helper rather than another actor: the caller is already isolated.
 enum AudioSegmentMerger {
-
     private static let log = Logger(subsystem: "com.seven.shuo", category: "AudioSegmentMerger")
 
     /// Concatenates `segments`, in order, into a single `.m4a` at `destination`.

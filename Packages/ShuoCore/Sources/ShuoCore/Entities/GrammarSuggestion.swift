@@ -20,7 +20,9 @@ import Foundation
 public struct GrammarSuggestion: Sendable, Identifiable, Equatable, Codable, Hashable {
     /// Identity is the original phrase — suggestions are keyed by what they replace, and
     /// there is at most one suggestion per phrase.
-    public var id: String { originalPhrase }
+    public var id: String {
+        originalPhrase
+    }
 
     /// The phrase as the speaker said it, verbatim, so it can be located in the transcript
     /// by substring match. Stored as a snippet rather than a character range because

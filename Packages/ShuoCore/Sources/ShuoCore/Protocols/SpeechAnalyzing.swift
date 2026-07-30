@@ -24,7 +24,6 @@ import Foundation
 /// Implementations are `Sendable` and may be actors; callers must assume every method can
 /// suspend for seconds and must be cancellable.
 public protocol SpeechAnalyzing: Sendable {
-
     /// Judges whether `transcript` is a usable speech script and, if so, ranks
     /// `candidates` by how well the transcript fits each.
     ///

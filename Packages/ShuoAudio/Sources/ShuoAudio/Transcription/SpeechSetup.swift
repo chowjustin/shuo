@@ -4,8 +4,8 @@
 //
 
 import Foundation
-import Speech
 import ShuoCore
+import Speech
 
 /// Locale matching, authorization, and asset installation shared by the live and
 /// file-based transcription paths.

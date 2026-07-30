@@ -15,7 +15,9 @@ struct CardStyle: ViewModifier {
     var isSelected: Bool = false
     var showsBorder: Bool = true
 
-    private var cornerRadius: CGFloat { 20 }
+    private var cornerRadius: CGFloat {
+        20
+    }
 
     func body(content: Content) -> some View {
         content
@@ -36,8 +38,8 @@ struct CardStyle: ViewModifier {
     }
 }
 
-extension View {
-    public func cardStyle(isSelected: Bool = false, showsBorder: Bool = true) -> some View {
+public extension View {
+    func cardStyle(isSelected: Bool = false, showsBorder: Bool = true) -> some View {
         modifier(CardStyle(isSelected: isSelected, showsBorder: showsBorder))
     }
 }

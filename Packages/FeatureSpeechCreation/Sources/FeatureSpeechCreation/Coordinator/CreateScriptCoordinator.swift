@@ -12,7 +12,6 @@ import ShuoCore
 @Observable
 @MainActor
 public final class CreateScriptCoordinator {
-
     public enum Route: Hashable {
         case input
         case loading

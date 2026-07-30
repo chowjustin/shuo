@@ -22,17 +22,23 @@ public final class AttachFileModeViewModel {
     public var isPickerPresented: Bool = false
 
     public var hasImportedFile: Bool {
-        if case .ready = viewState { return true }
+        if case .ready = viewState {
+            return true
+        }
         return false
     }
 
     public var isFileTooLarge: Bool {
-        if case .fileTooLarge = viewState { return true }
+        if case .fileTooLarge = viewState {
+            return true
+        }
         return false
     }
 
     public var importedMedia: ImportedMedia? {
-        if case .ready(let media) = viewState { return media }
+        if case let .ready(media) = viewState {
+            return media
+        }
         return nil
     }
 
@@ -50,7 +56,9 @@ public final class AttachFileModeViewModel {
 
     /// The error behind `.failed`, for the caller that turns it into an error sheet.
     public var failure: ShuoError? {
-        if case .failed(let error) = viewState { return error }
+        if case let .failed(error) = viewState {
+            return error
+        }
         return nil
     }
 

@@ -17,18 +17,17 @@ import ShuoCore
 /// can be tested: `.modelNotReady` on the first call, `.available` on the next. The last
 /// value repeats once the sequence is exhausted.
 public actor FakeAIAvailabilityChecking: AIAvailabilityChecking {
-
     private var statuses: [AIAvailabilityStatus]
     private var index = 0
 
     public private(set) var callCount = 0
 
     public init(_ status: AIAvailabilityStatus = .available) {
-        self.statuses = [status]
+        statuses = [status]
     }
 
     public init(sequence: [AIAvailabilityStatus]) {
-        self.statuses = sequence.isEmpty ? [.available] : sequence
+        statuses = sequence.isEmpty ? [.available] : sequence
     }
 
     public func availability() async -> AIAvailabilityStatus {

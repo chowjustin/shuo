@@ -19,7 +19,6 @@ import ShuoCore
 @Observable
 @MainActor
 public final class PatternCarouselViewModel {
-
     public private(set) var patterns: [SpeechPattern]
     public private(set) var selectedPatternID: SpeechPattern.ID?
 

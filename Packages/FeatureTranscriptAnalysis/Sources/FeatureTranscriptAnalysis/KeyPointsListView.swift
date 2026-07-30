@@ -5,12 +5,11 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-import SwiftUI
 import ShuoCore
+import SwiftUI
 
 /// Lists the key points for the selected pattern.
 struct KeyPointsListView: View {
-
     let keyPoints: [KeyPoint]
     let isGenerating: Bool
     var focusedField: FocusState<AnalysisField?>.Binding

@@ -5,7 +5,6 @@
 //  Created by rasyel on 23/07/26.
 //
 
-
 import Foundation
 
 /// Deletes a script by its ID.
@@ -17,7 +16,7 @@ public struct DeleteScriptUseCase: Sendable {
     }
 
     public func callAsFunction(id: UUID) async throws {
-        // Asumsi repository milikmu memiliki fungsi delete(id:). 
+        // Asumsi repository milikmu memiliki fungsi delete(id:).
         // Jika belum, pastikan menambahkannya di protokol ScriptRepository.
         try await repository.delete(id: id)
     }

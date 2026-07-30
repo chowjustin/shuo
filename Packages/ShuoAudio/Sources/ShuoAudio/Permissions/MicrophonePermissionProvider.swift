@@ -17,7 +17,6 @@ import ShuoCore
 /// Uses `AVAudioApplication` rather than `AVAudioSession.requestRecordPermission`, which
 /// is deprecated as of iOS 17.
 public struct MicrophonePermissionProvider: MicrophonePermissionProviding {
-
     public init() {}
 
     public func currentStatus() async -> MicrophonePermissionStatus {
@@ -34,8 +33,8 @@ public struct MicrophonePermissionProvider: MicrophonePermissionProviding {
         return granted ? .granted : .denied
     }
 
-    // `.denied` collapses denied and any future restricted-style case: both mean the same
-    // thing to the UI — we cannot prompt, only Settings can change it.
+    /// `.denied` collapses denied and any future restricted-style case: both mean the same
+    /// thing to the UI — we cannot prompt, only Settings can change it.
     private static func map(_ permission: AVAudioApplication.recordPermission) -> MicrophonePermissionStatus {
         switch permission {
         case .undetermined: .notDetermined

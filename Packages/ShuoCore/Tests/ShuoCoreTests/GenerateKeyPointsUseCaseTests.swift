@@ -7,13 +7,12 @@
 // the seam holds — that raw model output is always normalized before it escapes, and that
 // a transcript covering nothing is a result rather than an error.
 
-import Testing
-import ShuoTestSupport
 @testable import ShuoCore
+import ShuoTestSupport
+import Testing
 
 @Suite("Generate key points use case")
 struct GenerateKeyPointsUseCaseTests {
-
     private static let transcript = Transcript(original: "Some speech content here.")
 
     private var topical: SpeechPattern {

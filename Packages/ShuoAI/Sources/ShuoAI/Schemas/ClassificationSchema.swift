@@ -24,7 +24,6 @@ import ShuoCore
 /// strong guarantee, not an absolute one, and the domain should not depend on a framework
 /// detail holding perfectly.
 enum ClassificationSchema {
-
     /// Property names, shared with `GeneratedContentMapper`. String literals duplicated
     /// across a schema and its decoder are a classic silent-failure source; naming them
     /// once removes the possibility.

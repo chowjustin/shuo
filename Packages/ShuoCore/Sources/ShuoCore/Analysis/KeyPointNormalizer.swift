@@ -28,7 +28,6 @@ import Foundation
 /// - Components the model omitted become `KeyPoint.absent(for:)`, carrying ghost text
 ///   derived from the component's own `contains` hints.
 public struct KeyPointNormalizer: Sendable {
-
     public init() {}
 
     /// Normalizes `rawKeyPoints` against `pattern`.
@@ -92,7 +91,9 @@ public struct KeyPointNormalizer: Sendable {
             .lowercased()
             .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
 
-        if standaloneAbsencePhrases.contains(normalized) { return true }
+        if standaloneAbsencePhrases.contains(normalized) {
+            return true
+        }
         guard absenceOpenings.contains(where: normalized.hasPrefix) else { return false }
         return sourceReferences.contains(where: normalized.contains)
     }

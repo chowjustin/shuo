@@ -11,14 +11,13 @@
 // test that needs no model and no device.
 
 import Foundation
-import Testing
 import FoundationModels
-import ShuoCore
 @testable import ShuoAI
+import ShuoCore
+import Testing
 
 @Suite("Generation schema construction")
 struct GenerationSchemaTests {
-
     @Test("A classification schema builds for every purpose's candidate set")
     func classificationSchemaBuildsForEveryPurpose() throws {
         for purpose in SpeechPurpose.allCases {

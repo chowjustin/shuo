@@ -5,14 +5,13 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
-import SwiftUI
 import ShuoCore
 import ShuoDesignSystem
+import SwiftUI
 
 /// Renders one key point as a labelled card: component name above, editable text inside a
 /// pink-bordered card.
 struct KeyPointRow: View {
-
     let keyPoint: KeyPoint
     var focusedField: FocusState<AnalysisField?>.Binding
     let onEdit: (String) -> Void
@@ -53,12 +52,14 @@ struct KeyPointRow: View {
             )
             .onChange(of: text) { _, newValue in
                 let stored = newValue.isEmpty ? KeyPoint.absentText : newValue
-                if stored != keyPoint.text { onEdit(stored) }
+                if stored != keyPoint.text {
+                    onEdit(stored)
+                }
             }
             .accessibilityLabel(keyPoint.componentName)
 
             let isFocused = focusedField.wrappedValue == .keyPoint(keyPoint.componentID)
-            if (text.isEmpty || isFocused), let suggestion = keyPoint.suggestion {
+            if text.isEmpty || isFocused, let suggestion = keyPoint.suggestion {
                 Text(recommendedAttributed(suggestion))
                     .font(.caption)
                     .foregroundStyle(ShuoColor.secondaryText)

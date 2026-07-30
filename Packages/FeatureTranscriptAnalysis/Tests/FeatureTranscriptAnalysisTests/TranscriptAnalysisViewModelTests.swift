@@ -5,26 +5,25 @@
 //  Created by Justin Chow on 13/07/26.
 //
 
+@testable import FeatureTranscriptAnalysis
 import Foundation
-import Testing
 import ShuoCore
 import ShuoTestSupport
-@testable import FeatureTranscriptAnalysis
+import Testing
 
 @MainActor
 @Suite("Transcript analysis view model")
 struct TranscriptAnalysisViewModelTests {
-
     // MARK: - Fixtures
 
     /// Comfortably past the usability precheck, so tests exercise the model path.
     private static let transcript = """
-        Good morning everyone. Today I want to talk about why remote work has reshaped \
-        how our team collaborates. When we moved to a distributed model two years ago, \
-        we assumed productivity would fall. It didn't. What actually changed was the \
-        shape of our communication, and that turned out to matter far more than the \
-        number of hours anyone logged at a desk each week.
-        """
+    Good morning everyone. Today I want to talk about why remote work has reshaped \
+    how our team collaborates. When we moved to a distributed model two years ago, \
+    we assumed productivity would fall. It didn't. What actually changed was the \
+    shape of our communication, and that turned out to matter far more than the \
+    number of hours anyone logged at a desk each week.
+    """
 
     /// The three inform patterns these tests rank, in prefetch order.
     private static let rankedIDs = ["inform.topical", "inform.causeEffect", "inform.spatial"]
@@ -58,7 +57,8 @@ struct TranscriptAnalysisViewModelTests {
             classifyTranscript: ClassifyTranscriptUseCase(analyzer: analyzer),
             generateKeyPoints: GenerateKeyPointsUseCase(analyzer: analyzer),
             regenerateTranscript: RegenerateTranscriptUseCase(analyzer: analyzer),
-            saveScript: SaveScriptUseCase(repository: repository)
+            saveScript: SaveScriptUseCase(repository: repository),
+            nextUntitledTitle: NextUntitledScriptTitleUseCase(repository: repository)
         )
         viewModel.availabilityPollInterval = .milliseconds(10)
         return viewModel
@@ -109,7 +109,9 @@ struct TranscriptAnalysisViewModelTests {
     ) async throws {
         let deadline = ContinuousClock.now + timeout
         while ContinuousClock.now < deadline {
-            if await condition() { return }
+            if await condition() {
+                return
+            }
             try await Task.sleep(for: .milliseconds(5))
         }
         Issue.record("Timed out waiting for the expected state")
@@ -355,8 +357,53 @@ struct TranscriptAnalysisViewModelTests {
 
         viewModel.commitTitle()
 
-        #expect(viewModel.title == TranscriptAnalysisViewModel.untitledTitle)
-        #expect(viewModel.draft.title == TranscriptAnalysisViewModel.untitledTitle)
+        #expect(viewModel.title == UntitledScriptTitle.first)
+        #expect(viewModel.draft.title == UntitledScriptTitle.first)
+    }
+
+    @Test("Clearing the title keeps the number the script is already saved under")
+    func clearedTitleKeepsItsOwnNumber() async throws {
+        // The draft arrived from Input Script already named `Untitled Script 2`, and the
+        // automatic save (§16) has written it under that name. Numbering afresh here would
+        // find that record and hand back 3 — renaming the user's script for clearing a field.
+        var draft = makeDraft()
+        draft.title = UntitledScriptTitle.named(2)
+        let analyzer = makeAnalyzer()
+        let repository = FakeScriptRepository()
+        let viewModel = makeViewModel(draft: draft, analyzer: analyzer, repository: repository)
+
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+        try await waitUntil { await repository.saveCount == 1 }
+
+        viewModel.title = ""
+        viewModel.commitTitle()
+
+        #expect(viewModel.title == UntitledScriptTitle.named(2))
+    }
+
+    @Test("Clearing the title on a named script numbers past the untitled scripts stored")
+    func clearedTitleOnNamedScriptTakesTheNextNumber() async throws {
+        let saved = Script(
+            title: UntitledScriptTitle.named(3),
+            purpose: .inform,
+            transcript: Transcript(original: Self.transcript),
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let analyzer = makeAnalyzer()
+        let repository = FakeScriptRepository(scripts: [saved])
+        // `makeDraft` is titled "Why remote work stuck" — a name of its own, so clearing it
+        // has to reach for a number that is actually free.
+        let viewModel = makeViewModel(analyzer: analyzer, repository: repository)
+
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+
+        viewModel.title = ""
+        viewModel.commitTitle()
+
+        #expect(viewModel.title == UntitledScriptTitle.named(4))
     }
 
     @Test("A whitespace-only title is treated as empty, not saved as spaces")
@@ -370,7 +417,7 @@ struct TranscriptAnalysisViewModelTests {
         viewModel.title = "   \n "
         viewModel.commitTitle()
 
-        #expect(viewModel.title == TranscriptAnalysisViewModel.untitledTitle)
+        #expect(viewModel.title == UntitledScriptTitle.first)
     }
 
     @Test("Committing trims surrounding whitespace from a real title")
@@ -419,7 +466,7 @@ struct TranscriptAnalysisViewModelTests {
 
         let scripts = await repository.scripts
         #expect(scripts.count == 1)
-        #expect(scripts.first?.title == TranscriptAnalysisViewModel.untitledTitle)
+        #expect(scripts.first?.title == UntitledScriptTitle.first)
         #expect(!viewModel.hasUnsavedChanges)
     }
 
@@ -449,7 +496,8 @@ struct TranscriptAnalysisViewModelTests {
             classifyTranscript: ClassifyTranscriptUseCase(analyzer: analyzer),
             generateKeyPoints: GenerateKeyPointsUseCase(analyzer: analyzer),
             regenerateTranscript: RegenerateTranscriptUseCase(analyzer: analyzer),
-            saveScript: SaveScriptUseCase(repository: FakeScriptRepository())
+            saveScript: SaveScriptUseCase(repository: FakeScriptRepository()),
+            nextUntitledTitle: NextUntitledScriptTitleUseCase(repository: FakeScriptRepository())
         )
 
         viewModel.start()
@@ -1059,7 +1107,6 @@ struct TranscriptAnalysisViewModelTests {
         viewModel.updateKeyPoint(id: first.id, text: KeyPoint.absentText)
         #expect(viewModel.hasUnfulfilledKeyPoints)
     }
-
 
     // MARK: - Re-entering a loaded screen
 
