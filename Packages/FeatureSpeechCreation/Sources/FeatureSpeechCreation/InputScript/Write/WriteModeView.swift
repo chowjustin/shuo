@@ -19,9 +19,6 @@ public struct WriteModeView: View {
         self.viewModel = viewModel
     }
 
-    /// `TextEditor` insets its text inside its frame — roughly 5pt leading and 8pt top.
-    /// Left alone, the first line sits indented and low relative to the Title field above,
-    /// which reads as a stray gap under the mode picker.
     private static let textInset = (leading: 5.0, top: 8.0)
 
     public var body: some View {
@@ -32,30 +29,38 @@ public struct WriteModeView: View {
                 .font(.body)
                 .accessibilityLabel("Your ideas")
 
-            if viewModel.content.isEmpty {
+            // Ghost text while actively typing with nothing entered yet — not the idle
+            // state. Only shown while focused, so it doesn't fight the centered idle
+            // copy below.
+            if viewModel.content.isEmpty && isEditorFocused {
                 Text("Let's write your ideas.")
                     .font(.body)
                     .foregroundStyle(ShuoColor.secondaryTextCream)
-                    // Sits on TextEditor's inset text, not its frame, so the placeholder
-                    // and the caret share a baseline.
                     .padding(.leading, Self.textInset.leading)
                     .padding(.top, Self.textInset.top)
                     .allowsHitTesting(false)
             }
         }
-        // Cancels the inset for the whole stack, moving editor and placeholder together:
-        // the first line now aligns with the Title field's leading edge and sits directly
-        // under the picker.
         .padding(.leading, -Self.textInset.leading)
         .padding(.top, -Self.textInset.top)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .overlay {
+            // Idle state: mirrors Speak mode's centered mascot + copy. Tapping anywhere
+            // still reaches the TextEditor underneath (allowsHitTesting is false here),
+            // which focuses it and swaps this out for the top-left editor.
             if viewModel.content.isEmpty && !isEditorFocused {
-                Image("SHUO WRITE")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 160, height: 160)
-                    .allowsHitTesting(false)
+                VStack(spacing: 12) {
+                    Image("SHUO WRITE")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 160, height: 160)
+
+                    Text("Tap anywhere to write.")
+                        .font(.body)
+                        .foregroundStyle(ShuoColor.secondaryTextCream)
+                }
+                .offset(y: -60) // adjust this value — negative moves it up
+                .allowsHitTesting(false)
             }
         }
     }
