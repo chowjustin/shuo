@@ -391,7 +391,7 @@ public struct TranscriptAnalysisView: View {
             .foregroundStyle(ShuoColor.primaryTextCream)
             .padding(.horizontal, badgePaddingH)
             .padding(.vertical, badgePaddingV)
-            .background(Color(UIColor.systemGray5), in: Capsule())
+            .background(Color(UIColor { $0.userInterfaceStyle == .dark ? .systemGray3 : .systemGray5 }), in: Capsule())
     }
 
     private var expandCollapseButton: some View {
