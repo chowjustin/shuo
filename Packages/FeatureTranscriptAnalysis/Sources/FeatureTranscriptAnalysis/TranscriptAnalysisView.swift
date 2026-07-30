@@ -47,7 +47,6 @@ public struct TranscriptAnalysisView: View {
             .toolbar {
                 toolbarContent
                 ToolbarItem(placement: .principal) {
-                
                     Text("Script Analysis")
                         .font(.headline)
                         .foregroundStyle(ShuoColor.primaryTextCream)
@@ -389,22 +388,6 @@ public struct TranscriptAnalysisView: View {
             .font(ShuoTypography.subtitle)
             .foregroundStyle(ShuoColor.secondaryTextCream)
     }
-
-    private var purposeBadge: some View {
-        Text(viewModel.draft.purpose.title)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(ShuoColor.primaryTextCard)
-            .padding(.horizontal, badgePaddingH)
-            .padding(.vertical, badgePaddingV)
-            .background(ShuoColor.card, in: Capsule())
-    }
-
-    private var refinedTranscriptSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Text("Refined Script")
-                    .font(.headline)
-                    .foregroundStyle(ShuoColor.primaryTextCream)
 
     private var purposeBadge: some View {
         Text(viewModel.draft.purpose.title)

@@ -67,7 +67,7 @@ public struct PatternCarouselView: View {
             }
             .onChange(of: focusedIndex) { _, newIndex in
                 guard let newIndex,
-                    let newPattern = pattern(atLoopedIndex: newIndex)
+                      let newPattern = pattern(atLoopedIndex: newIndex)
                 else { return }
                 guard newPattern.id != viewModel.selectedPatternID else {
                     return
@@ -76,11 +76,11 @@ public struct PatternCarouselView: View {
             }
             .onChange(of: viewModel.selectedPatternID) { _, newID in
                 guard let newID,
-                    let patternIdx = viewModel.patterns.firstIndex(where: {
-                        $0.id == newID
-                    }),
-                    let current = focusedIndex,
-                    current % viewModel.patterns.count != patternIdx
+                      let patternIdx = viewModel.patterns.firstIndex(where: {
+                          $0.id == newID
+                      }),
+                      let current = focusedIndex,
+                      current % viewModel.patterns.count != patternIdx
                 else { return }
                 let middleRepeat = Self.loopMultiplier / 2
                 withAnimation(.none) {
@@ -99,9 +99,9 @@ public struct PatternCarouselView: View {
             viewModel.selectedPatternID ?? viewModel.mostRecommended?.id
         let startPatternIndex =
             startPatternID
-            .flatMap { id in
-                viewModel.patterns.firstIndex(where: { $0.id == id })
-            } ?? 0
+                .flatMap { id in
+                    viewModel.patterns.firstIndex(where: { $0.id == id })
+                } ?? 0
 
         let middleRepeat = Self.loopMultiplier / 2
 

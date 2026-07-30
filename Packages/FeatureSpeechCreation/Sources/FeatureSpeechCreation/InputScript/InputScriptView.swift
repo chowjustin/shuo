@@ -35,7 +35,7 @@ public struct InputScriptView: View {
         VStack(alignment: .leading, spacing: 20) {
             TextField("Title", text: $viewModel.title, axis: .vertical)
                 .font(.system(.largeTitle, weight: .bold))
-                .lineLimit(1...3)
+                .lineLimit(1 ... 3)
                 .focused($isTitleFocused)
                 .submitLabel(.done)
                 .onSubmit { isTitleFocused = false }
@@ -96,7 +96,11 @@ public struct InputScriptView: View {
         }
         .sheet(isPresented: Binding(
             get: { viewModel.attachVM.isFileTooLarge },
-            set: { if !$0 { viewModel.attachVM.cancel() } }
+            set: {
+                if !$0 {
+                    viewModel.attachVM.cancel()
+                }
+            }
         )) {
             NavigationStack {
                 ErrorSheet(
@@ -169,63 +173,64 @@ public struct InputScriptView: View {
 }
 
 #if DEBUG
-#Preview {
-    InputScriptPreviewHost()
-}
+    #Preview {
+        InputScriptPreviewHost()
+    }
 
-#Preview("File Too Large") {
-    FileTooLargePreviewHost()
-}
+    #Preview("File Too Large") {
+        FileTooLargePreviewHost()
+    }
 
     private struct InputScriptPreviewHost: View {
         @State private var isPresented = true
 
-    var body: some View {
-        Color(.systemGroupedBackground)
-            .ignoresSafeArea()
-            .sheet(isPresented: $isPresented) {
-                InputScriptView(
-                    viewModel: .preview(purpose: .persuade),
-                    onBack: { isPresented = false },
-                    onConfirm: {}
-                )
-            }
+        var body: some View {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
+                .sheet(isPresented: $isPresented) {
+                    InputScriptView(
+                        viewModel: .preview(purpose: .persuade),
+                        onBack: { isPresented = false },
+                        onConfirm: {}
+                    )
+                }
+        }
     }
-}
 
-private struct FileTooLargePreviewHost: View {
-    @State private var isPresented = true
-    @State private var vm = InputScriptViewModel(
-        purpose: .persuade,
-        fileImporter: TooLargePreviewFileImporting(),
-        makeAudioCapturer: { PreviewAudioCapturing() },
-        microphonePermissions: PreviewMicrophonePermissionProviding(status: .granted),
-        audioPlayer: PreviewAudioPlaying(),
-        recordingDeleter: PreviewAudioRecordingDeleting(),
-        generateTranscript: GenerateTranscriptUseCase(transcriber: PreviewSpeechTranscribing())
-    )
+    private struct FileTooLargePreviewHost: View {
+        @State private var isPresented = true
+        @State private var vm = InputScriptViewModel(
+            purpose: .persuade,
+            fileImporter: TooLargePreviewFileImporting(),
+            makeAudioCapturer: { PreviewAudioCapturing() },
+            microphonePermissions: PreviewMicrophonePermissionProviding(status: .granted),
+            audioPlayer: PreviewAudioPlaying(),
+            recordingDeleter: PreviewAudioRecordingDeleting(),
+            generateTranscript: GenerateTranscriptUseCase(transcriber: PreviewSpeechTranscribing()),
+            nextUntitledTitle: NextUntitledScriptTitleUseCase(repository: PreviewScriptRepository())
+        )
 
-    var body: some View {
-        Color(.systemGroupedBackground)
-            .ignoresSafeArea()
-            .sheet(isPresented: $isPresented) {
-                InputScriptView(
-                    viewModel: vm,
-                    onBack: { isPresented = false },
-                    onConfirm: {}
-                )
-            }
-            .task {
-                vm.mode = .attachFile
-                vm.attachVM.fileSelected(url: URL(filePath: "/tmp/huge.mp4"))
-                await vm.attachVM.importTask?.value
-            }
+        var body: some View {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
+                .sheet(isPresented: $isPresented) {
+                    InputScriptView(
+                        viewModel: vm,
+                        onBack: { isPresented = false },
+                        onConfirm: {}
+                    )
+                }
+                .task {
+                    vm.mode = .attachFile
+                    vm.attachVM.fileSelected(url: URL(filePath: "/tmp/huge.mp4"))
+                    await vm.attachVM.importTask?.value
+                }
+        }
     }
-}
 
-private struct TooLargePreviewFileImporting: FileImporting {
-    func importFile(from url: URL) async throws -> ImportedMedia {
-        throw ShuoError.fileTooLarge
+    private struct TooLargePreviewFileImporting: FileImporting {
+        func importFile(from _: URL) async throws -> ImportedMedia {
+            throw ShuoError.fileTooLarge
+        }
     }
-}
 #endif
