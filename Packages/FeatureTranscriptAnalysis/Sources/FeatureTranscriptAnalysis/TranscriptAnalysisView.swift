@@ -111,14 +111,10 @@ public struct TranscriptAnalysisView: View {
         }
 
         if viewModel.isForceRegenerating {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarLeading) {
                 Button(action: goBack) {
                     Image(systemName: "chevron.left")
-                        .font(.title3.weight(.semibold))
                 }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.circle)
-                .tint(ShuoColor.pink)
                 .accessibilityLabel("Back to input")
             }
         } else if controls.showsFinish {
