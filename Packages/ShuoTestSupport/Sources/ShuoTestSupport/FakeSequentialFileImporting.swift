@@ -16,7 +16,7 @@ public actor FakeSequentialFileImporting: FileImporting {
         self.results = results
     }
 
-    public func importFile(from url: URL) async throws -> ImportedMedia {
+    public func importFile(from _: URL) async throws -> ImportedMedia {
         defer { callIndex += 1 }
         let index = min(callIndex, results.count - 1)
         return try results[index].get()

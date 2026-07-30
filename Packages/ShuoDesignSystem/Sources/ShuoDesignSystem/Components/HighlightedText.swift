@@ -9,7 +9,6 @@ import SwiftUI
 
 /// A `Text` that draws a colored background behind the given character ranges.
 public struct HighlightedText: View {
-
     private let text: String
     private let highlights: [Range<Int>]
     private let highlightColor: Color
@@ -51,20 +50,20 @@ public struct HighlightedText: View {
 
             let start = characters.index(characters.startIndex, offsetBy: lower)
             let end = characters.index(characters.startIndex, offsetBy: upper)
-            attributed[start..<end].backgroundColor = highlightColor
+            attributed[start ..< end].backgroundColor = highlightColor
         }
         return attributed
     }
 }
 
 #if DEBUG
-#Preview {
-    HighlightedText(
-        text: "We must migrate to a microservice architecture soon. The team lunch is at noon.",
-        highlights: [0..<52],
-        highlightColor: .yellow.opacity(0.4),
-        textColor: .primary
-    )
-    .padding()
-}
+    #Preview {
+        HighlightedText(
+            text: "We must migrate to a microservice architecture soon. The team lunch is at noon.",
+            highlights: [0 ..< 52],
+            highlightColor: .yellow.opacity(0.4),
+            textColor: .primary
+        )
+        .padding()
+    }
 #endif

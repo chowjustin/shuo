@@ -39,7 +39,9 @@ public actor FakeAudioPlaying: AudioPlaying {
 
     public func play(url: URL) async throws {
         playedURLs.append(url)
-        if let playError { throw playError }
+        if let playError {
+            throw playError
+        }
     }
 
     public func pause() async {

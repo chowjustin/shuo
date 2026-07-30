@@ -12,7 +12,6 @@ import ShuoCore
 @Observable
 @MainActor
 public final class TranscriptAnalysisViewModel {
-
     // MARK: - Observable state
 
     public private(set) var viewState: TranscriptAnalysisViewState = .analyzing
@@ -54,6 +53,7 @@ public final class TranscriptAnalysisViewModel {
     private let generateKeyPoints: GenerateKeyPointsUseCase
     private let regenerateTranscript: RegenerateTranscriptUseCase
     private let saveScript: SaveScriptUseCase
+    private let nextUntitledTitle: NextUntitledScriptTitleUseCase
     private let highlighter = TranscriptHighlighter()
 
     /// How long to wait between availability checks while the model is warming up.
@@ -86,7 +86,8 @@ public final class TranscriptAnalysisViewModel {
         classifyTranscript: ClassifyTranscriptUseCase,
         generateKeyPoints: GenerateKeyPointsUseCase,
         regenerateTranscript: RegenerateTranscriptUseCase,
-        saveScript: SaveScriptUseCase
+        saveScript: SaveScriptUseCase,
+        nextUntitledTitle: NextUntitledScriptTitleUseCase
     ) {
         self.draft = draft
         self.availability = availability
@@ -94,13 +95,20 @@ public final class TranscriptAnalysisViewModel {
         self.generateKeyPoints = generateKeyPoints
         self.regenerateTranscript = regenerateTranscript
         self.saveScript = saveScript
-        self.carousel = PatternCarouselViewModel()
+        self.nextUntitledTitle = nextUntitledTitle
+        carousel = PatternCarouselViewModel()
     }
 
     // MARK: - Derived
 
-    /// The fallback name for a script the user never named.
-    static let untitledTitle = "Untitled Script"
+    /// The fallback name for a script the user never named — `Untitled Script 1`,
+    /// `Untitled Script 2`, …
+    ///
+    /// Settled by `resolveUntitledPlaceholder()` during `start()`, so `commitTitle()` can
+    /// stay synchronous: ✓ can be tapped straight from the keyboard, and a title fallback
+    /// that had to await a store read first would be a fallback that sometimes lost the
+    /// race with the save it exists to feed.
+    private(set) var untitledPlaceholder = UntitledScriptTitle.first
 
     /// The script's title, renameable from the analysis screen.
     public var title: String {
@@ -125,16 +133,29 @@ public final class TranscriptAnalysisViewModel {
         scheduleSave()
     }
 
-    /// Settles the title once the user is done editing it: trims surrounding whitespace, and falls back to `untitledTitle` if that leaves nothing.
+    /// Settles the title once the user is done editing it: trims surrounding whitespace, and
+    /// falls back to `untitledPlaceholder` if that leaves nothing.
     public func commitTitle() {
         let trimmed = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        title = trimmed.isEmpty ? Self.untitledTitle : trimmed
-        if hasUnsavedChanges { scheduleSave() }
+        title = trimmed.isEmpty ? untitledPlaceholder : trimmed
+        if hasUnsavedChanges {
+            scheduleSave()
+        }
     }
-    public var originalTranscript: String { draft.transcript.original }
+
+    public var originalTranscript: String {
+        draft.transcript.original
+    }
+
     /// The refined transcript for the selected pattern, or nil if it has not been generated yet.
-    public var refinedTranscript: String? { draft.transcript.refined }
-    public var selectedPattern: SpeechPattern? { draft.selectedPattern }
+    public var refinedTranscript: String? {
+        draft.transcript.refined
+    }
+
+    public var selectedPattern: SpeechPattern? {
+        draft.selectedPattern
+    }
+
     /// True when the user has something to regenerate against.
     public var canRegenerateTranscript: Bool {
         selectedPattern != nil && !isRegeneratingTranscript
@@ -169,11 +190,35 @@ public final class TranscriptAnalysisViewModel {
         guard analysisTask == nil, viewState != .loaded else { return }
         analysisTask = Task { [weak self] in
             guard let self else { return }
+            // Before either branch, because the new-script branch ends in the automatic
+            // save (§16) and that save must not write an unnumbered name.
+            await resolveUntitledPlaceholder()
+            guard !Task.isCancelled else { return }
             if hasReopenableAnalysis {
                 await loadReopenedScript()
             } else {
                 await runInitialAnalysis()
             }
+        }
+    }
+
+    /// Settles the name a cleared title falls back to.
+    ///
+    /// A draft that arrived already carrying a generated name **keeps it**, with no store
+    /// read at all. That is the name this script is saved under, and numbering past it here
+    /// would renumber the user's script for the crime of clearing the field — the same drift
+    /// `InputScriptViewModel.restoreTitle` guards against on the way back. Only a script with
+    /// a name of its own needs a fresh number, which is the reopened-then-cleared case.
+    ///
+    /// A failed read leaves `UntitledScriptTitle.first` standing: the title of an untitled
+    /// script is not worth failing an analysis over.
+    private func resolveUntitledPlaceholder() async {
+        if UntitledScriptTitle.isGenerated(draft.title) {
+            untitledPlaceholder = draft.title
+            return
+        }
+        if let next = try? await nextUntitledTitle() {
+            untitledPlaceholder = next
         }
     }
 
@@ -215,7 +260,8 @@ public final class TranscriptAnalysisViewModel {
         let patterns = draft.suggestedPatterns
         guard let selectedPatternID = draft.selectedPatternID,
               let selectedPattern = draft.selectedPattern,
-              !patterns.isEmpty else {
+              !patterns.isEmpty
+        else {
             await runInitialAnalysis()
             return
         }
@@ -226,7 +272,8 @@ public final class TranscriptAnalysisViewModel {
             keyPointCache[selectedPatternID] = draft.keyPoints
         }
         if refinedCache[selectedPatternID] == nil,
-           let refined = draft.transcript.refined, !refined.isEmpty {
+           let refined = draft.transcript.refined, !refined.isEmpty
+        {
             refinedCache[selectedPatternID] = refined
         }
 
@@ -290,7 +337,7 @@ public final class TranscriptAnalysisViewModel {
             viewState = .failed(.aiGenerationFailed)
         }
     }
-    
+
     /// Waits until on-device generation is possible, returning false if it never will be.
     private func waitForModel() async -> Bool {
         while true {
@@ -299,7 +346,9 @@ public final class TranscriptAnalysisViewModel {
 
             switch status {
             case .available:
-                if viewState == .waitingForModel { viewState = .analyzing }
+                if viewState == .waitingForModel {
+                    viewState = .analyzing
+                }
                 return true
 
             case .modelNotReady:
@@ -318,7 +367,7 @@ public final class TranscriptAnalysisViewModel {
     }
 
     private static func viewState(for error: ShuoError) -> TranscriptAnalysisViewState {
-        if case .transcriptNotUsable(let reason) = error {
+        if case let .transcriptNotUsable(reason) = error {
             return .rejected(reason)
         }
         return .failed(error)
@@ -370,7 +419,11 @@ public final class TranscriptAnalysisViewModel {
         keyPointsGeneration &+= 1
         let generation = keyPointsGeneration
         isGeneratingKeyPoints = true
-        defer { if generation == keyPointsGeneration { isGeneratingKeyPoints = false } }
+        defer {
+            if generation == keyPointsGeneration {
+                isGeneratingKeyPoints = false
+            }
+        }
 
         let generated = try await generateKeyPoints(
             transcript: draft.transcript,
@@ -536,8 +589,6 @@ public final class TranscriptAnalysisViewModel {
         hasUnsavedChanges = true
         scheduleSave()
     }
-
-
 
     /// Clears an inline error after the user dismisses it.
     public func dismissActionError() {

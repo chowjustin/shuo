@@ -7,13 +7,12 @@
 // worth pinning down is narrow: it must be anchored to the key points already on screen,
 // and it must never hand back blank text.
 
-import Testing
-import ShuoTestSupport
 @testable import ShuoCore
+import ShuoTestSupport
+import Testing
 
 @Suite("Regenerate transcript use case")
 struct RegenerateTranscriptUseCaseTests {
-
     private static let transcript = Transcript(original: "Original speech content.")
 
     private var prep: SpeechPattern {

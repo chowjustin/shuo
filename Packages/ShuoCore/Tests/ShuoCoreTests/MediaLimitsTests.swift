@@ -4,12 +4,11 @@
 //
 
 import Foundation
-import Testing
 import ShuoCore
+import Testing
 
 @Suite("MediaLimits")
 struct MediaLimitsTests {
-
     @Test("A file at exactly the size limit is allowed")
     func sizeBoundaryIsInclusive() {
         #expect(MediaLimits.isFileSizeAllowed(MediaLimits.maxFileSizeBytes))

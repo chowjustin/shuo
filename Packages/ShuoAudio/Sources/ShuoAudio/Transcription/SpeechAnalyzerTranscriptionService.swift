@@ -10,8 +10,8 @@
 
 import AVFoundation
 import Foundation
-import Speech
 import ShuoCore
+import Speech
 
 /// Transcribes a finished audio file in one pass.
 ///
@@ -21,7 +21,6 @@ import ShuoCore
 /// when it fails the user has no transcript at all, and each failure mode maps to a
 /// distinct `ShuoError` the UI can actually explain.
 actor SpeechAnalyzerTranscriptionService {
-
     /// Transcribes the audio file at `url`.
     ///
     /// - Returns: the transcript, trimmed. May be empty — the caller decides whether an

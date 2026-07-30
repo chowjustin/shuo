@@ -25,13 +25,13 @@ public struct CircularIconButton: View {
         case filled
         case outlined
     }
+
     // Base sizes at the default (non-scaled) content size category.
     // Both are tied to the same Dynamic Type curve so the icon and its
     // circle always grow together — this is the actual fix (see note below).
     @ScaledMetric(relativeTo: .largeTitle) private var diameter: CGFloat = 72
     @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 28
-    
-   
+
     private let systemImage: String
     private let emphasis: Emphasis
     private let accessibilityTitle: String

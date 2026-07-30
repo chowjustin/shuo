@@ -10,7 +10,6 @@ import ShuoCore
 
 /// Translates between the stored `ScriptEntity` and the domain's `Script`.
 enum ScriptMapper {
-
     /// Entity → domain.
     ///
     /// - Throws: `ShuoError.persistenceFailed` when `purposeRawValue` is not a known `SpeechPurpose`.

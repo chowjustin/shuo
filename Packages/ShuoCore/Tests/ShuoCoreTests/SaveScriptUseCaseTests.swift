@@ -6,13 +6,12 @@
 //
 
 import Foundation
-import Testing
-import ShuoTestSupport
 @testable import ShuoCore
+import ShuoTestSupport
+import Testing
 
 @Suite("Save script use case")
 struct SaveScriptUseCaseTests {
-
     private static let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
     private static let savedAt = Date(timeIntervalSince1970: 1_700_003_600)
 

@@ -29,12 +29,12 @@ enum WaveformSampler {
         guard binCount > 0, !samples.isEmpty else { return [] }
 
         let bins = min(binCount, samples.count)
-        return (0..<bins).map { index in
+        return (0 ..< bins).map { index in
             // Multiply before dividing so bins stay evenly sized when `samples.count`
             // is not a multiple of `bins`, and every sample lands in exactly one bin.
             let start = index * samples.count / bins
             let end = (index + 1) * samples.count / bins
-            return normalizedAmplitude(rootMeanSquare(of: samples[start..<end]))
+            return normalizedAmplitude(rootMeanSquare(of: samples[start ..< end]))
         }
     }
 

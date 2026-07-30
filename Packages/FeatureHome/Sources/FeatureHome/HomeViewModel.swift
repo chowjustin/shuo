@@ -46,12 +46,11 @@ public final class HomeViewModel {
         }
     }
 
-
     public func delete(id: UUID) {
         Task {
             do {
                 try await deleteScript(id: id)
-                
+
                 // Refresh list tanpa memunculkan loading state yang agresif
                 if searchQuery.isEmpty {
                     run(showLoadingState: false) { [fetchScriptSummaries] in
@@ -77,12 +76,14 @@ public final class HomeViewModel {
 
     private func run(showLoadingState: Bool, _ fetch: @escaping () async throws -> [ScriptSummary]) {
         loadTask?.cancel()
-        if showLoadingState { state = .loading }
+        if showLoadingState {
+            state = .loading
+        }
 
         loadTask = Task {
             do {
                 let summaries = try await fetch()
-                
+
                 guard !Task.isCancelled else { return }
                 state = summaries.isEmpty ? .empty : .loaded(summaries)
             } catch {

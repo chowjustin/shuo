@@ -24,7 +24,6 @@ import ShuoCore
 /// inventing content for the gaps, which is the exact failure the "-" rule exists to
 /// prevent.
 enum KeyPointsSchema {
-
     /// Property names, shared with `GeneratedContentMapper`.
     enum Key {
         static let keyPoints = "keyPoints"

@@ -6,13 +6,12 @@
 //
 
 import Foundation
-import Testing
 import ShuoCore
 @testable import ShuoPersistence
+import Testing
 
 @Suite("Script mapper")
 struct ScriptMapperTests {
-
     /// A script with every optional populated, so a dropped field shows up as a failure rather than as a nil that happened to match.
     static func fullyPopulatedScript() -> Script {
         Script(
@@ -73,7 +72,7 @@ struct ScriptMapperTests {
         #expect(restored.keyPointsByPattern == original.keyPointsByPattern)
         #expect(restored.refinedByPattern == original.refinedByPattern)
         #expect(restored.keyPointsByPattern["inform.causeEffect"]?.first?.text
-                == "The pandemic forced the shift.")
+            == "The pandemic forced the shift.")
         #expect(restored.refinedByPattern["inform.causeEffect"] == "A cause-and-effect refinement.")
     }
 

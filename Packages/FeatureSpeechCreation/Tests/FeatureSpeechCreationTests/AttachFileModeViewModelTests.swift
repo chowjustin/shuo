@@ -3,16 +3,15 @@
 //  FeatureSpeechCreationTests
 //
 
-import Testing
+@testable import FeatureSpeechCreation
 import Foundation
 import ShuoCore
 import ShuoTestSupport
-@testable import FeatureSpeechCreation
+import Testing
 
 @MainActor
 @Suite("AttachFileModeViewModel")
 struct AttachFileModeViewModelTests {
-
     private func makeMedia(kind: ImportedMedia.Kind = .audio) -> ImportedMedia {
         ImportedMedia(
             fileURL: URL(filePath: "/tmp/speech.m4a"),
@@ -29,7 +28,9 @@ struct AttachFileModeViewModelTests {
     func startsIdle() {
         let vm = AttachFileModeViewModel(fileImporter: FakeFileImporting(returning: makeMedia()))
 
-        if case .idle = vm.viewState { } else { Issue.record("Expected idle") }
+        if case .idle = vm.viewState { } else {
+            Issue.record("Expected idle")
+        }
         #expect(!vm.hasImportedFile)
         #expect(vm.importedMedia == nil)
     }
@@ -58,7 +59,9 @@ struct AttachFileModeViewModelTests {
         vm.fileSelected(url: testURL)
         await vm.importTask?.value
 
-        if case .failed = vm.viewState { } else { Issue.record("Expected failed") }
+        if case .failed = vm.viewState { } else {
+            Issue.record("Expected failed")
+        }
         #expect(!vm.hasImportedFile)
         #expect(vm.importedMedia == nil)
     }
@@ -72,7 +75,9 @@ struct AttachFileModeViewModelTests {
         vm.fileSelected(url: testURL)
         await vm.importTask?.value
 
-        if case .fileTooLarge = vm.viewState { } else { Issue.record("Expected fileTooLarge") }
+        if case .fileTooLarge = vm.viewState { } else {
+            Issue.record("Expected fileTooLarge")
+        }
         #expect(!vm.hasImportedFile)
         #expect(vm.importedMedia == nil)
     }
@@ -138,7 +143,9 @@ struct AttachFileModeViewModelTests {
         await vm.importTask?.value
         vm.cancel()
 
-        if case .idle = vm.viewState { } else { Issue.record("Expected idle after cancel") }
+        if case .idle = vm.viewState { } else {
+            Issue.record("Expected idle after cancel")
+        }
         #expect(!vm.hasImportedFile)
         #expect(vm.importedMedia == nil)
     }
@@ -153,7 +160,9 @@ struct AttachFileModeViewModelTests {
         await vm.importTask?.value
         vm.cancel()
 
-        if case .idle = vm.viewState { } else { Issue.record("Expected idle after cancel from failed") }
+        if case .idle = vm.viewState { } else {
+            Issue.record("Expected idle after cancel from failed")
+        }
     }
 
     // MARK: - Overwrite
@@ -168,7 +177,7 @@ struct AttachFileModeViewModelTests {
         )
         let importer = FakeSequentialFileImporting(results: [
             .success(firstMedia),
-            .success(secondMedia)
+            .success(secondMedia),
         ])
         let vm = AttachFileModeViewModel(fileImporter: importer)
 

@@ -22,7 +22,6 @@ import Foundation
 ///   is discarded rather than propagated — so nothing downstream ever has to wonder
 ///   whether a `SpeechPattern` it holds is real.
 public struct ClassifyTranscriptUseCase: Sendable {
-
     /// The number of suggestions the UI shows. Enforced here rather than trusted from the
     /// model: guided generation constrains shape well but count only loosely, and this is
     /// a one-line clamp.

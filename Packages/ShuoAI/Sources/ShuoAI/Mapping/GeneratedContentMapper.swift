@@ -27,7 +27,6 @@ import ShuoCore
 /// component labels are dropped, and `KeyPointNormalizer` turns the resulting gaps into
 /// visible "-" slots.
 enum GeneratedContentMapper {
-
     /// Decodes a classification response.
     ///
     /// - Throws: `ShuoError.aiGenerationFailed` when the response has no `isUsable` field

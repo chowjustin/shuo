@@ -10,14 +10,14 @@ public struct FakeFileImporting: FileImporting {
     private let result: Result<ImportedMedia, any Error>
 
     public init(returning media: ImportedMedia) {
-        self.result = .success(media)
+        result = .success(media)
     }
 
     public init(throwing error: any Error) {
-        self.result = .failure(error)
+        result = .failure(error)
     }
 
-    public func importFile(from url: URL) async throws -> ImportedMedia {
+    public func importFile(from _: URL) async throws -> ImportedMedia {
         try result.get()
     }
 }

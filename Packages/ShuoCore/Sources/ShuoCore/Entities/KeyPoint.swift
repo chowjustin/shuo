@@ -31,7 +31,9 @@ public struct KeyPoint: Sendable, Identifiable, Equatable, Codable, Hashable {
     /// this is unique where it is used, and stable across regeneration in a way a fresh
     /// `UUID` would not be. Stability matters for SwiftUI list diffing when the user
     /// switches patterns and back.
-    public var id: String { componentID }
+    public var id: String {
+        componentID
+    }
 
     /// The `SpeechPatternComponent.id` this key point fills.
     public let componentID: String

@@ -5,14 +5,13 @@
 //  Created by Justin Chow on 20/07/26.
 //
 
-import Testing
+@testable import FeatureSpeechCreation
 import Foundation
 import ShuoCore
-@testable import FeatureSpeechCreation
+import Testing
 
 @Suite("TranscriptionErrorCopy")
 struct TranscriptionErrorCopyTests {
-
     /// The errors a user can actually reach on the transcription screen. Each one earns
     /// its own wording, because each one has a different thing the user should do next.
     ///
@@ -36,7 +35,9 @@ struct TranscriptionErrorCopyTests {
         .audioNotDetected, .storageFull,
     ]
 
-    private static var allErrors: [ShuoError] { reachableErrors + unreachableErrors }
+    private static var allErrors: [ShuoError] {
+        reachableErrors + unreachableErrors
+    }
 
     @Test("Every error has non-empty copy, so no case can ship blank")
     func everyErrorHasCopy() {

@@ -10,12 +10,15 @@
 // Pure Foundation, Sendable, Codable, CaseIterable — no Apple-SDK imports (CLAUDE.md §4).
 
 import Foundation
+
 public enum SpeechPurpose: String, Codable, CaseIterable, Sendable, Identifiable, Hashable {
     case persuade
     case inspire
     case inform
 
-    public var id: String { rawValue }
+    public var id: String {
+        rawValue
+    }
 
     public var title: String {
         switch self {

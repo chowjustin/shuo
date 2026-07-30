@@ -62,8 +62,7 @@ public struct PatternCard: View {
     }
 
     private var accessibilityText: String {
-        let mainText = isFocused ? "\(name). \(summary)" : name
-        return mainText
+        return isFocused ? "\(name). \(summary)" : name
     }
 
     private var focusedContent: some View {

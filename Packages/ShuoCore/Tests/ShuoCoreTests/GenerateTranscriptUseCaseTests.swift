@@ -6,13 +6,12 @@
 //
 
 import Foundation
-import Testing
 import ShuoCore
 import ShuoTestSupport
+import Testing
 
 @Suite("GenerateTranscriptUseCase")
 struct GenerateTranscriptUseCaseTests {
-
     // MARK: - Short-circuiting
 
     @Test("Typed text becomes the transcript without ever calling the transcriber")

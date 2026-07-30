@@ -5,16 +5,15 @@
 //  Created by Justin Chow on 20/07/26.
 //
 
-import Testing
+@testable import FeatureSpeechCreation
 import Foundation
 import ShuoCore
 import ShuoTestSupport
-@testable import FeatureSpeechCreation
+import Testing
 
 @MainActor
 @Suite("LoadingRouteViewModel")
 struct LoadingRouteViewModelTests {
-
     // MARK: - Helpers
 
     private func makeMedia(kind: ImportedMedia.Kind = .audio) -> ImportedMedia {
@@ -40,7 +39,9 @@ struct LoadingRouteViewModelTests {
 
     /// Lets the view model's detached work run to completion.
     private func settle() async {
-        for _ in 0..<5 { await Task.yield() }
+        for _ in 0 ..< 5 {
+            await Task.yield()
+        }
     }
 
     // MARK: - Initial state
@@ -118,6 +119,7 @@ struct LoadingRouteViewModelTests {
     }
 
     // MARK: - Cancellation
+
     //
     // The bug class CLAUDE.md §6 calls out for this app specifically: work that outlives
     // the screen that asked for it.

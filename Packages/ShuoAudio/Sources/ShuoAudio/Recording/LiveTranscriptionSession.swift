@@ -38,10 +38,12 @@ actor LiveTranscriptionSession {
     private var isRunning = false
 
     // MARK: DEBUG_LIVE_TRANSCRIPT — temporary; delete this property and every reference
-    // to it (all inside this file, marked with the same token). The shipped design hands
-    // the transcript over once, from `finish()`. `finalizedText` above accumulates
-    // independently of this callback, so removing it cannot affect `finish()`.
+
+    /// to it (all inside this file, marked with the same token). The shipped design hands
+    /// the transcript over once, from `finish()`. `finalizedText` above accumulates
+    /// independently of this callback, so removing it cannot affect `finish()`.
     private let onUpdate: @Sendable (String) -> Void
+
     // MARK: END DEBUG_LIVE_TRANSCRIPT
 
     init(onUpdate: @escaping @Sendable (String) -> Void = { _ in }) {
@@ -91,7 +93,7 @@ actor LiveTranscriptionSession {
         self.analyzerFormat = analyzerFormat
         self.converter = converter
         self.inputContinuation = inputContinuation
-        self.isRunning = true
+        isRunning = true
 
         resultsTask = Task { [weak self] in
             do {
@@ -172,8 +174,8 @@ actor LiveTranscriptionSession {
 
     // MARK: - Helpers
 
-    // Locale, authorization, and asset installation live in `SpeechSetup`, shared with
-    // the file-based path so the two cannot drift on what counts as supported.
+    /// Locale, authorization, and asset installation live in `SpeechSetup`, shared with
+    /// the file-based path so the two cannot drift on what counts as supported.
     private func makeTranscriber() -> SpeechTranscriber {
         SpeechTranscriber(
             locale: SpeechSetup.locale,

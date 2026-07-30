@@ -33,69 +33,69 @@ public struct InputScriptView: View {
 
     public var body: some View {
         ZStack {
-                VStack(alignment: .leading, spacing: 20) {
-                    TextField("Title", text: $viewModel.title, axis: .vertical)
-                        .font(.system(.largeTitle, weight: .bold))
-                        .lineLimit(1...3)
-                        .focused($isTitleFocused)
-                        .submitLabel(.done)
-                        .onSubmit { isTitleFocused = false }
-                        .onChange(of: viewModel.title) { _, newValue in
-                            guard newValue.contains("\n") else { return }
-                            viewModel.title = newValue.replacingOccurrences(of: "\n", with: "")
-                            isTitleFocused = false
-                        }
+            VStack(alignment: .leading, spacing: 20) {
+                TextField("Title", text: $viewModel.title, axis: .vertical)
+                    .font(.system(.largeTitle, weight: .bold))
+                    .lineLimit(1 ... 3)
+                    .focused($isTitleFocused)
+                    .submitLabel(.done)
+                    .onSubmit { isTitleFocused = false }
+                    .onChange(of: viewModel.title) { _, newValue in
+                        guard newValue.contains("\n") else { return }
+                        viewModel.title = newValue.replacingOccurrences(of: "\n", with: "")
+                        isTitleFocused = false
+                    }
 
-                    Picker("Input Mode", selection: $viewModel.mode) {
-                        ForEach(InputMode.allCases) { mode in
-                            Text(mode.title).tag(mode)
-                        }
+                Picker("Input Mode", selection: $viewModel.mode) {
+                    ForEach(InputMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
                     }
-                    .pickerStyle(.segmented)
+                }
+                .pickerStyle(.segmented)
 
-                    // Each mode owns its own vertical layout — Speak and Attach centre their
-                    // content and pin a button to the bottom, Write starts at the top. Spacers
-                    // here would only fight them, and would push Write's first line away from
-                    // the picker.
-                    modeContent
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                .padding()
-                .frame(maxHeight: .infinity, alignment: .top)
-                .contentShape(Rectangle())
-                .onTapGesture { isTitleFocused = false }
-                .navigationTitle("Input \(viewModel.purpose.gerund) Script")
-                .navigationBarTitleDisplayMode(.inline)
-                .navigationBarBackButtonHidden(true)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button(action: goBack) {
-                            Image(systemName: "chevron.left")
-                        }
-                        .accessibilityLabel("Back")
+                // Each mode owns its own vertical layout — Speak and Attach centre their
+                // content and pin a button to the bottom, Write starts at the top. Spacers
+                // here would only fight them, and would push Write's first line away from
+                // the picker.
+                modeContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .padding()
+            .frame(maxHeight: .infinity, alignment: .top)
+            .contentShape(Rectangle())
+            .onTapGesture { isTitleFocused = false }
+            .navigationTitle("Input \(viewModel.purpose.gerund) Script")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: goBack) {
+                        Image(systemName: "chevron.left")
                     }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button(action: attemptConfirm) {
-                            Image(systemName: "checkmark")
-                                .font(.title3.weight(.semibold))
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .buttonBorderShape(.circle)
-                        .tint(ShuoColor.pink)
-                        .disabled(!viewModel.hasValidContent)
-                        .accessibilityLabel("Confirm")
+                    .accessibilityLabel("Back")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: attemptConfirm) {
+                        Image(systemName: "checkmark")
+                            .font(.title3.weight(.semibold))
                     }
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.circle)
+                    .tint(ShuoColor.pink)
+                    .disabled(!viewModel.hasValidContent)
+                    .accessibilityLabel("Confirm")
                 }
-                .alert(
-                    "Process \(viewModel.mode.title) only?",
-                    isPresented: $isConfirmingProceed
-                ) {
-                    Button("Cancel", role: .cancel) {}
-                    Button("Continue", action: confirm)
-                } message: {
-                    Text(viewModel.discardWarningMessage)
-                }
-            
+            }
+            .alert(
+                "Process \(viewModel.mode.title) only?",
+                isPresented: $isConfirmingProceed
+            ) {
+                Button("Cancel", role: .cancel) {}
+                Button("Continue", action: confirm)
+            } message: {
+                Text(viewModel.discardWarningMessage)
+            }
+
             .blur(radius: viewModel.attachVM.isFileTooLarge ? 8 : 0)
             .animation(.spring(duration: 0.25), value: viewModel.attachVM.isFileTooLarge)
 
@@ -116,6 +116,10 @@ public struct InputScriptView: View {
         // flow entirely rather than stepping back — a half-filled session is not something
         // to lose to an accidental gesture. ‹ and ✓ are the deliberate exits.
         .interactiveDismissDisabled(true)
+        // Settles the name a blank title falls back to while the user is still working, so
+        // ✓ never waits on a store read. Idempotent, which matters because this step is
+        // re-entered rather than rebuilt and so this runs again on the way back.
+        .task { viewModel.prepareUntitledPlaceholder() }
     }
 
     private var fileTooLargeAlert: some View {
@@ -168,16 +172,16 @@ public struct InputScriptView: View {
         }
     }
 
-    // Leaving without confirming has to tear the Speak session down explicitly, or the
-    // microphone keeps running behind a screen the user has left.
+    /// Leaving without confirming has to tear the Speak session down explicitly, or the
+    /// microphone keeps running behind a screen the user has left.
     private func goBack() {
         viewModel.discard()
         onBack()
     }
 
-    // ✓. Only one mode is ever processed, so before committing, warn when another mode
-    // still holds content that confirming would silently drop. With nothing to lose,
-    // proceed straight through rather than nagging on the common single-mode path.
+    /// ✓. Only one mode is ever processed, so before committing, warn when another mode
+    /// still holds content that confirming would silently drop. With nothing to lose,
+    /// proceed straight through rather than nagging on the common single-mode path.
     private func attemptConfirm() {
         if viewModel.unconfirmedModesWithContent.isEmpty {
             confirm()
@@ -195,23 +199,23 @@ public struct InputScriptView: View {
 }
 
 #if DEBUG
-#Preview {
-    InputScriptPreviewHost()
-}
-
-private struct InputScriptPreviewHost: View {
-    @State private var isPresented = true
-
-    var body: some View {
-        Color(.systemGroupedBackground)
-            .ignoresSafeArea()
-            .sheet(isPresented: $isPresented) {
-                InputScriptView(
-                    viewModel: .preview(purpose: .persuade),
-                    onBack: { isPresented = false },
-                    onConfirm: {}
-                )
-            }
+    #Preview {
+        InputScriptPreviewHost()
     }
-}
+
+    private struct InputScriptPreviewHost: View {
+        @State private var isPresented = true
+
+        var body: some View {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
+                .sheet(isPresented: $isPresented) {
+                    InputScriptView(
+                        viewModel: .preview(purpose: .persuade),
+                        onBack: { isPresented = false },
+                        onConfirm: {}
+                    )
+                }
+        }
+    }
 #endif

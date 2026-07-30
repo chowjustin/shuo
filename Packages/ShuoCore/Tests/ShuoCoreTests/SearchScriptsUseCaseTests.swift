@@ -9,13 +9,12 @@
 // stub, as is `FetchScriptSummariesUseCase`, which has no test file at all.
 
 import Foundation
-import Testing
-import ShuoTestSupport
 @testable import ShuoCore
+import ShuoTestSupport
+import Testing
 
 @Suite("Search scripts use case")
 struct SearchScriptsUseCaseTests {
-
     private func script(title: String, createdAt: Date) -> Script {
         Script(
             title: title,

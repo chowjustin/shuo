@@ -40,7 +40,7 @@ public protocol ScriptRepository: Sendable {
     /// at the call site.
     /// - Throws: `ShuoError.persistenceFailed`.
     func search(query: String) async throws -> [ScriptSummary]
-    
+
     /// Deletes the script with the matching `id`.
     ///
     /// Silently succeeds if no script with the given ID exists, as the end goal

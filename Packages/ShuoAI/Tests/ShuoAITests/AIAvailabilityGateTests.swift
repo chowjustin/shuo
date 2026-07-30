@@ -10,14 +10,13 @@
 // more than this (CLAUDE.md §7).
 
 import Foundation
-import Testing
 import FoundationModels
-import ShuoCore
 @testable import ShuoAI
+import ShuoCore
+import Testing
 
 @Suite("AI availability gate")
 struct AIAvailabilityGateTests {
-
     @Test("An available model reports available")
     func availableMapsThrough() {
         #expect(AIAvailabilityGate.status(for: .available) == .available)

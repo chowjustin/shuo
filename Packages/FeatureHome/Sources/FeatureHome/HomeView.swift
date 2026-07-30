@@ -82,7 +82,9 @@ public struct HomeView: View {
         Binding(
             get: { scriptToDelete != nil },
             set: { isPresented in
-                if !isPresented { scriptToDelete = nil }
+                if !isPresented {
+                    scriptToDelete = nil
+                }
             }
         )
     }
@@ -110,7 +112,7 @@ public struct HomeView: View {
             emptyStateView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-        case .loaded(let summaries):
+        case let .loaded(summaries):
             List {
                 ForEach(summaries) { summary in
                     ScriptCard(
@@ -161,24 +163,24 @@ public struct HomeView: View {
 
     private var emptyStateView: some View {
         let isSearching = !viewModel.searchQuery.isEmpty
-        
+
         return VStack(spacing: ShuoSpacing.xSmall) {
             if !isSearching {
-                        Image("SHUO SLEEP")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 160, height: 160)
-                    }
-            
+                Image("SHUO SLEEP")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 160, height: 160)
+            }
+
             Text(
                 isSearching
-                ? "No results for \"\(viewModel.searchQuery)\"."
-                : "No scripts yet."
+                    ? "No results for \"\(viewModel.searchQuery)\"."
+                    : "No scripts yet."
             )
             .font(ShuoTypography.body)
             .fontWeight(.light)
             .foregroundStyle(ShuoColor.secondaryTextCream)
-            
+
             Text("Start creating a new speaking script!")
                 .font(ShuoTypography.body)
                 .fontWeight(.light)
@@ -189,8 +191,8 @@ public struct HomeView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             isSearching
-            ? "No results for \(viewModel.searchQuery)."
-            : "No scripts yet.\nStart creating a new speaking script!"
+                ? "No results for \(viewModel.searchQuery)."
+                : "No scripts yet.\nStart creating a new speaking script!"
         )
         .padding(ShuoSpacing.large)
     }
@@ -250,8 +252,10 @@ public struct HomeView: View {
 private struct PreviewScriptRepository: ScriptRepository {
     let hasScripts: Bool
 
-    func save(_ script: Script) async throws {}
-    func fetch(id: UUID) async throws -> Script? { nil }
+    func save(_: Script) async throws {}
+    func fetch(id _: UUID) async throws -> Script? {
+        nil
+    }
 
     func delete(id: UUID) async throws {
         print("Preview: Script \(id) deleted")

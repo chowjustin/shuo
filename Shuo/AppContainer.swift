@@ -13,12 +13,12 @@
 import FeatureHome
 import FeatureSpeechCreation
 import FeatureTranscriptAnalysis
+import Foundation
 import ShuoAI
 import ShuoAudio
 import ShuoCore
 import ShuoPersistence
 import SwiftData
-import Foundation
 
 final class AppContainer {
     // MARK: - Services
@@ -92,7 +92,8 @@ final class AppContainer {
             classifyTranscript: ClassifyTranscriptUseCase(analyzer: speechAnalyzer),
             generateKeyPoints: GenerateKeyPointsUseCase(analyzer: speechAnalyzer),
             regenerateTranscript: RegenerateTranscriptUseCase(analyzer: speechAnalyzer),
-            saveScript: SaveScriptUseCase(repository: scriptRepository)
+            saveScript: SaveScriptUseCase(repository: scriptRepository),
+            nextUntitledTitle: NextUntitledScriptTitleUseCase(repository: scriptRepository)
         )
     }
 
@@ -112,6 +113,7 @@ final class AppContainer {
             audioPlayer: audioPlayer,
             recordingDeleter: recordingDeleter,
             generateTranscript: GenerateTranscriptUseCase(transcriber: speechTranscriber),
+            nextUntitledTitle: NextUntitledScriptTitleUseCase(repository: scriptRepository),
             initialText: initialText
         )
     }
@@ -137,5 +139,4 @@ final class AppContainer {
         // schema itself is invalid — a build-time mistake, not a runtime condition.
         preconditionFailure("Could not create a ModelContainer for the Shuo schema")
     }
-    
 }

@@ -12,7 +12,6 @@ import ShuoCore
 /// one whose capture session already ended — which `AudioCapturing.discard()` cannot reach.
 /// Asserting on `deleted` is how tests tell those two paths apart.
 public actor FakeAudioRecordingDeleting: AudioRecordingDeleting {
-
     public private(set) var deleted: [AudioRecording] = []
 
     public init() {}

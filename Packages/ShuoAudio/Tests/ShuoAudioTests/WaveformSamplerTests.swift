@@ -6,12 +6,11 @@
 //
 
 import Foundation
-import Testing
 @testable import ShuoAudio
+import Testing
 
 @Suite("WaveformSampler")
 struct WaveformSamplerTests {
-
     // MARK: - Binning
 
     @Test("produces one amplitude per requested bin")

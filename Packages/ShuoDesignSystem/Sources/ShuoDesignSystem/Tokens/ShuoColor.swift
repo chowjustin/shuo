@@ -22,7 +22,6 @@ import SwiftUI
 /// increased-contrast variant of each. Resolution happens at render time, so no call site
 /// needs to branch on appearance and no literal hex belongs outside the catalog.
 public enum ShuoColor {
-
     // MARK: - Surfaces
 
     /// The app background: soft cream in light, warm near-black in dark.
@@ -64,6 +63,7 @@ public enum ShuoColor {
     public static let placeholderText = named("Placeholder")
 
     // MARK: - System-derived
+
     //
     // Already adapt to appearance and contrast on their own, so they stay system colors
     // rather than being re-authored in the catalog.
@@ -78,9 +78,17 @@ public enum ShuoColor {
 
     // MARK: - Resolution
 
-    private static func tile(_ name: String) -> Color { named("Tile/\(name)") }
-    private static func title(_ name: String) -> Color { named("Title/\(name)") }
-    private static func body(_ name: String) -> Color { named("Body/\(name)") }
+    private static func tile(_ name: String) -> Color {
+        named("Tile/\(name)")
+    }
+
+    private static func title(_ name: String) -> Color {
+        named("Title/\(name)")
+    }
+
+    private static func body(_ name: String) -> Color {
+        named("Body/\(name)")
+    }
 
     /// Resolves against this package's bundle, so previews find the catalog too.
     private static func named(_ name: String) -> Color {

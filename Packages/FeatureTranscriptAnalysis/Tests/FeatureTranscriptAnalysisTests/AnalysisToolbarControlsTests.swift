@@ -3,15 +3,13 @@
 //  FeatureTranscriptAnalysisTests
 //
 
+@testable import FeatureTranscriptAnalysis
 import Foundation
 import ShuoCore
 import Testing
 
-@testable import FeatureTranscriptAnalysis
-
 @Suite("Analysis toolbar controls")
 struct AnalysisToolbarControlsTests {
-
     /// Every state the screen can be in. Hand-listed because the enum carries payloads and
     /// is not `CaseIterable`; the exhaustive switch in the view is what forces a new state
     /// to be considered, and this list is the reminder to assert it here too.

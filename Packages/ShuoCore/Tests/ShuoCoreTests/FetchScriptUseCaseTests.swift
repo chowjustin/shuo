@@ -6,13 +6,12 @@
 //
 
 import Foundation
-import Testing
-import ShuoTestSupport
 @testable import ShuoCore
+import ShuoTestSupport
+import Testing
 
 @Suite("Fetch script use case")
 struct FetchScriptUseCaseTests {
-
     private func storedScript() -> Script {
         Script(
             title: "Why remote work stuck",

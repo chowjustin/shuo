@@ -7,22 +7,21 @@
 // model call, so both directions matter: it must reject the junk, and it must not reject
 // ordinary speech.
 
-import Testing
 @testable import ShuoCore
+import Testing
 
 @Suite("Transcript usability precheck")
 struct TranscriptUsabilityPrecheckTests {
-
     private let precheck = TranscriptUsabilityPrecheck()
 
     /// ~60 words of unremarkable prose with normal punctuation — the control case.
     private static let realSpeech = """
-        Good morning everyone. Today I want to talk about why remote work has reshaped \
-        how our team collaborates. When we moved to a distributed model two years ago, \
-        we assumed productivity would fall. It didn't. What actually changed was the \
-        shape of our communication, and that turned out to matter far more than the \
-        number of hours anyone logged at a desk.
-        """
+    Good morning everyone. Today I want to talk about why remote work has reshaped \
+    how our team collaborates. When we moved to a distributed model two years ago, \
+    we assumed productivity would fall. It didn't. What actually changed was the \
+    shape of our communication, and that turned out to matter far more than the \
+    number of hours anyone logged at a desk.
+    """
 
     @Test("Ordinary speech passes")
     func acceptsOrdinarySpeech() {
@@ -99,11 +98,11 @@ struct TranscriptUsabilityPrecheckTests {
     func acceptsNumbers() {
         // Digits count as alphanumeric — a data-heavy talk must not read as symbol soup.
         let statistical = """
-            Revenue grew 42 percent in 2024, from 18.6 million to 26.4 million dollars. \
-            Headcount rose from 120 to 145 people over the same period, which means \
-            revenue per employee climbed roughly 17 percent year over year across all \
-            three regions we operate in today.
-            """
+        Revenue grew 42 percent in 2024, from 18.6 million to 26.4 million dollars. \
+        Headcount rose from 120 to 145 people over the same period, which means \
+        revenue per employee climbed roughly 17 percent year over year across all \
+        three regions we operate in today.
+        """
         #expect(precheck.reasonForRejection(statistical) == nil)
     }
 
@@ -112,10 +111,10 @@ struct TranscriptUsabilityPrecheckTests {
         // Deciding a coherent shopping list isn't a talk requires comprehension. The
         // precheck must defer that to the model rather than guess.
         let shoppingList = """
-            Milk, eggs, bread, butter, two onions, a bag of rice, chicken thighs, olive \
-            oil, coffee beans, paper towels, dish soap, toothpaste, bananas, spinach, \
-            yogurt, cheddar cheese, tomatoes, garlic, lemons, and a bar of chocolate.
-            """
+        Milk, eggs, bread, butter, two onions, a bag of rice, chicken thighs, olive \
+        oil, coffee beans, paper towels, dish soap, toothpaste, bananas, spinach, \
+        yogurt, cheddar cheese, tomatoes, garlic, lemons, and a bar of chocolate.
+        """
         #expect(precheck.reasonForRejection(shoppingList) == nil)
     }
 }

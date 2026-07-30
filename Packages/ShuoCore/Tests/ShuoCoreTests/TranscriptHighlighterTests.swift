@@ -4,12 +4,11 @@
 //
 
 import Foundation
-import Testing
 @testable import ShuoCore
+import Testing
 
 @Suite("Transcript highlighter")
 struct TranscriptHighlighterTests {
-
     private let highlighter = TranscriptHighlighter()
 
     private func keyPoint(_ text: String, id: String = "c") -> KeyPoint {
@@ -25,8 +24,8 @@ struct TranscriptHighlighterTests {
     @Test("A paraphrased sentence is matched even though the wording differs")
     func matchesParaphrase() {
         let refined = """
-            We must migrate to a microservice architecture soon. The team lunch arrives at noon.
-            """
+        We must migrate to a microservice architecture soon. The team lunch arrives at noon.
+        """
         let point = keyPoint("Moving to microservices is now necessary for the architecture.")
 
         let ranges = highlighter.highlightRanges(in: refined, keyPoints: [point])
@@ -52,13 +51,13 @@ struct TranscriptHighlighterTests {
     @Test("A long key point still matches a shorter refined sentence that captures its gist")
     func longKeyPointMatchesShorterSentence() {
         let refined = """
-            It was a complete mess, and I believe a modular monolith architecture would greatly \
-            improve the system. The team lunch arrives at noon.
-            """
+        It was a complete mess, and I believe a modular monolith architecture would greatly \
+        improve the system. The team lunch arrives at noon.
+        """
         let point = keyPoint("""
-            We definitely need to move to a modular monolith architecture soon because the driver \
-            management system has been getting really slow lately.
-            """)
+        We definitely need to move to a modular monolith architecture soon because the driver \
+        management system has been getting really slow lately.
+        """)
 
         let ranges = highlighter.highlightRanges(in: refined, keyPoints: [point])
         let hits = highlighted(refined, ranges)

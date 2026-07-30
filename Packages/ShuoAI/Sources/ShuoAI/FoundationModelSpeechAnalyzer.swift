@@ -35,7 +35,6 @@ import ShuoCore
 /// are cheap to test. What is left here is prompt assembly, one framework call, and error
 /// translation.
 public actor FoundationModelSpeechAnalyzer: SpeechAnalyzing {
-
     private let model: SystemLanguageModel
     private let chunker: ContextWindowChunker
 
@@ -44,7 +43,7 @@ public actor FoundationModelSpeechAnalyzer: SpeechAnalyzing {
 
     public init(model: SystemLanguageModel = .default) {
         self.model = model
-        self.chunker = ContextWindowChunker(contextSize: model.contextSize)
+        chunker = ContextWindowChunker(contextSize: model.contextSize)
     }
 
     /// Warms the classification session, which is always the first call of a flow.
@@ -134,7 +133,7 @@ public actor FoundationModelSpeechAnalyzer: SpeechAnalyzing {
         }
     }
 
-    public func analyzeGrammar(_ transcript: String) async throws -> [GrammarSuggestion] {
+    public func analyzeGrammar(_: String) async throws -> [GrammarSuggestion] {
         // Defined by the protocol, deliberately unwired in v1 (CLAUDE.md §8, §11).
         // Returning empty rather than throwing keeps an accidental call harmless.
         []
@@ -190,7 +189,9 @@ public actor FoundationModelSpeechAnalyzer: SpeechAnalyzing {
     /// converting it into a `ShuoError` would surface an error banner for work the user
     /// deliberately walked away from.
     static func domainError(from error: any Error) -> any Error {
-        if error is CancellationError { return error }
+        if error is CancellationError {
+            return error
+        }
 
         guard let generationError = error as? LanguageModelSession.GenerationError else {
             return ShuoError.aiGenerationFailed
