@@ -386,16 +386,16 @@ public struct TranscriptAnalysisView: View {
     private var purposeLabel: some View {
         Text("Purpose:")
             .font(ShuoTypography.subtitle)
-            .foregroundStyle(ShuoColor.secondaryTextCream)
+            .foregroundStyle(ShuoColor.primaryTextCream)
     }
 
     private var purposeBadge: some View {
         Text(viewModel.draft.purpose.title)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(ShuoColor.primaryTextCard)
+            .foregroundStyle(ShuoColor.primaryTextCream)
             .padding(.horizontal, badgePaddingH)
             .padding(.vertical, badgePaddingV)
-            .background(ShuoColor.card, in: Capsule())
+            .background(Color(UIColor.systemGray5), in: Capsule())
     }
 
     private var expandCollapseButton: some View {
