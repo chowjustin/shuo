@@ -40,42 +40,53 @@ public struct PatternCarouselView: View {
                 .padding(.horizontal, ShuoSpacing.medium)
         } else {
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .center, spacing: ShuoSpacing.medium) {
+                // 1. UBAH LazyHStack menjadi HStack biasa
+                HStack(alignment: .center, spacing: ShuoSpacing.medium) {
                     ForEach(loopedIndices, id: \.self) { index in
                         if let currentPattern = pattern(atLoopedIndex: index) {
                             PatternCard(
                                 name: currentPattern.name,
                                 summary: currentPattern.summary,
                                 isFocused: focusedIndex == index,
-                                isMostRecommended: currentPattern.id == viewModel.mostRecommended?.id
+                                isMostRecommended: currentPattern.id
+                                    == viewModel.mostRecommended?.id
                             )
                             .id(index)
                         }
                     }
                 }
                 .scrollTargetLayout()
-                .padding(.vertical, ShuoSpacing.small)
+                // 2. TAMBAHKAN padding vertikal yang lebih lega di sini
+                .padding(.vertical, 32)
             }
             .safeAreaPadding(.horizontal, 60)
             .scrollTargetBehavior(.viewAligned)
             .scrollPosition(id: $focusedIndex, anchor: .center)
-        
+
             .onAppear {
                 setupInitialFocus()
             }
             .onChange(of: focusedIndex) { _, newIndex in
-                guard let newIndex, let newPattern = pattern(atLoopedIndex: newIndex) else { return }
-                guard newPattern.id != viewModel.selectedPatternID else { return }
+                guard let newIndex,
+                    let newPattern = pattern(atLoopedIndex: newIndex)
+                else { return }
+                guard newPattern.id != viewModel.selectedPatternID else {
+                    return
+                }
                 viewModel.select(newPattern)
             }
             .onChange(of: viewModel.selectedPatternID) { _, newID in
                 guard let newID,
-                      let patternIdx = viewModel.patterns.firstIndex(where: { $0.id == newID }),
-                      let current = focusedIndex,
-                      current % viewModel.patterns.count != patternIdx else { return }
+                    let patternIdx = viewModel.patterns.firstIndex(where: {
+                        $0.id == newID
+                    }),
+                    let current = focusedIndex,
+                    current % viewModel.patterns.count != patternIdx
+                else { return }
                 let middleRepeat = Self.loopMultiplier / 2
                 withAnimation(.none) {
-                    focusedIndex = middleRepeat * viewModel.patterns.count + patternIdx
+                    focusedIndex =
+                        middleRepeat * viewModel.patterns.count + patternIdx
                 }
             }
 
@@ -86,9 +97,13 @@ public struct PatternCarouselView: View {
         let patternCount = viewModel.patterns.count
         guard patternCount > 0 else { return }
 
-        let startPatternID = viewModel.selectedPatternID ?? viewModel.mostRecommended?.id
-        let startPatternIndex = startPatternID
-            .flatMap { id in viewModel.patterns.firstIndex(where: { $0.id == id }) } ?? 0
+        let startPatternID =
+            viewModel.selectedPatternID ?? viewModel.mostRecommended?.id
+        let startPatternIndex =
+            startPatternID
+            .flatMap { id in
+                viewModel.patterns.firstIndex(where: { $0.id == id })
+            } ?? 0
 
         let middleRepeat = Self.loopMultiplier / 2
 
@@ -104,7 +119,9 @@ public struct PatternCarouselView: View {
 
 private struct PatternCarouselPreviewHost: View {
     @State private var viewModel = PatternCarouselViewModel(
-        patterns: Array(SpeechPatternCatalog.patterns(for: .persuade).prefix(3)),
+        patterns: Array(
+            SpeechPatternCatalog.patterns(for: .persuade).prefix(3)
+        ),
         selectedPatternID: nil
     )
 
