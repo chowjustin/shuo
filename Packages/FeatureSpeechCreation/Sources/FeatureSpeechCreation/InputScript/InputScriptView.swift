@@ -32,83 +32,91 @@ public struct InputScriptView: View {
     }
 
     public var body: some View {
-        ZStack {
-            VStack(alignment: .leading, spacing: 20) {
-                TextField("Title", text: $viewModel.title, axis: .vertical)
-                    .font(.system(.largeTitle, weight: .bold))
-                    .lineLimit(1 ... 3)
-                    .focused($isTitleFocused)
-                    .submitLabel(.done)
-                    .onSubmit { isTitleFocused = false }
-                    .onChange(of: viewModel.title) { _, newValue in
-                        guard newValue.contains("\n") else { return }
-                        viewModel.title = newValue.replacingOccurrences(of: "\n", with: "")
-                        isTitleFocused = false
-                    }
-
-                Picker("Input Mode", selection: $viewModel.mode) {
-                    ForEach(InputMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
+        VStack(alignment: .leading, spacing: 20) {
+            TextField("Title", text: $viewModel.title, axis: .vertical)
+                .font(.system(.largeTitle, weight: .bold))
+                .lineLimit(1...3)
+                .focused($isTitleFocused)
+                .submitLabel(.done)
+                .onSubmit { isTitleFocused = false }
+                .onChange(of: viewModel.title) { _, newValue in
+                    guard newValue.contains("\n") else { return }
+                    viewModel.title = newValue.replacingOccurrences(of: "\n", with: "")
+                    isTitleFocused = false
                 }
-                .pickerStyle(.segmented)
 
-                // Each mode owns its own vertical layout — Speak and Attach centre their
-                // content and pin a button to the bottom, Write starts at the top. Spacers
-                // here would only fight them, and would push Write's first line away from
-                // the picker.
-                modeContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .padding()
-            .frame(maxHeight: .infinity, alignment: .top)
-            .contentShape(Rectangle())
-            .onTapGesture { isTitleFocused = false }
-            .navigationTitle("Input \(viewModel.purpose.gerund) Script")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarBackButtonHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(action: goBack) {
-                        Image(systemName: "chevron.left")
-                    }
-                    .accessibilityLabel("Back")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: attemptConfirm) {
-                        Image(systemName: "checkmark")
-                            .font(.title3.weight(.semibold))
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .buttonBorderShape(.circle)
-                    .tint(ShuoColor.pink)
-                    .disabled(!viewModel.hasValidContent)
-                    .accessibilityLabel("Confirm")
+            Picker("Input Mode", selection: $viewModel.mode) {
+                ForEach(InputMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
                 }
             }
-            .alert(
-                "Process \(viewModel.mode.title) only?",
-                isPresented: $isConfirmingProceed
-            ) {
-                Button("Cancel", role: .cancel) {}
-                Button("Continue", action: confirm)
-            } message: {
-                Text(viewModel.discardWarningMessage)
+            .pickerStyle(.segmented)
+
+            // Each mode owns its own vertical layout — Speak and Attach centre their
+            // content and pin a button to the bottom, Write starts at the top. Spacers
+            // here would only fight them, and would push Write's first line away from
+            // the picker.
+            modeContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .padding()
+        .frame(maxHeight: .infinity, alignment: .top)
+        .contentShape(Rectangle())
+        .onTapGesture { isTitleFocused = false }
+        .navigationTitle("Input \(viewModel.purpose.gerund) Script")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: goBack) {
+                    Image(systemName: "chevron.left")
+                }
+                .accessibilityLabel("Back")
             }
-
-            .blur(radius: viewModel.attachVM.isFileTooLarge ? 8 : 0)
-            .animation(.spring(duration: 0.25), value: viewModel.attachVM.isFileTooLarge)
-
-            if viewModel.attachVM.isFileTooLarge {
-                Color.black.opacity(0.4)
-                    .ignoresSafeArea()
-                    .transition(.opacity)
-
-                fileTooLargeAlert
-                    .transition(.scale(scale: 0.85).combined(with: .opacity))
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: attemptConfirm) {
+                    Image(systemName: "checkmark")
+                        .font(.title3.weight(.semibold))
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.circle)
+                .tint(ShuoColor.pink)
+                .disabled(!viewModel.hasValidContent)
+                .accessibilityLabel("Confirm")
             }
         }
-        .animation(.spring(duration: 0.25), value: viewModel.attachVM.isFileTooLarge)
+        .alert(
+            "Process \(viewModel.mode.title) only?",
+            isPresented: $isConfirmingProceed
+        ) {
+            Button("Cancel", role: .cancel) {}
+            Button("Continue", action: confirm)
+        } message: {
+            Text(viewModel.discardWarningMessage)
+        }
+        .sheet(isPresented: Binding(
+            get: { viewModel.attachVM.isFileTooLarge },
+            set: { if !$0 { viewModel.attachVM.cancel() } }
+        )) {
+            NavigationStack {
+                ErrorSheet(
+                    mascotImageName: "SHUO ERROR",
+                    title: "File too large.",
+                    message: "Maximum file size: \(MediaLimits.formattedMaxFileSize)"
+                )
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            viewModel.attachVM.cancel()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                        }
+                        .accessibilityLabel("Back")
+                    }
+                }
+                .navigationBarTitleDisplayMode(.inline)
+            }
+        }
         .foregroundStyle(ShuoColor.primaryTextCream)
         .background(ShuoColor.background)
         .presentationDragIndicator(.visible)
@@ -120,44 +128,6 @@ public struct InputScriptView: View {
         // ✓ never waits on a store read. Idempotent, which matters because this step is
         // re-entered rather than rebuilt and so this runs again on the way back.
         .task { viewModel.prepareUntitledPlaceholder() }
-    }
-
-    private var fileTooLargeAlert: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 52))
-                .foregroundStyle(.red.opacity(0.85))
-
-            Text("File too large.")
-                .font(.title3.bold())
-                .foregroundStyle(ShuoColor.primaryTextCream)
-
-            // Reads the limit from the domain rather than repeating it — the number and
-            // the check it describes used to be able to drift apart.
-            Text("Maximum file size: \(MediaLimits.formattedMaxFileSize)")
-                .font(.subheadline)
-                .foregroundStyle(ShuoColor.secondaryTextCream)
-
-            Button {
-                viewModel.attachVM.cancel()
-                viewModel.attachVM.isPickerPresented = true
-            } label: {
-                Text("Try again")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Color.accentColor, in: Capsule())
-            }
-            .padding(.top, 4)
-        }
-        .padding(28)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 8)
-        )
-        .frame(width: 300)
     }
 
     @ViewBuilder
@@ -199,23 +169,63 @@ public struct InputScriptView: View {
 }
 
 #if DEBUG
-    #Preview {
-        InputScriptPreviewHost()
-    }
+#Preview {
+    InputScriptPreviewHost()
+}
+
+#Preview("File Too Large") {
+    FileTooLargePreviewHost()
+}
 
     private struct InputScriptPreviewHost: View {
         @State private var isPresented = true
 
-        var body: some View {
-            Color(.systemGroupedBackground)
-                .ignoresSafeArea()
-                .sheet(isPresented: $isPresented) {
-                    InputScriptView(
-                        viewModel: .preview(purpose: .persuade),
-                        onBack: { isPresented = false },
-                        onConfirm: {}
-                    )
-                }
-        }
+    var body: some View {
+        Color(.systemGroupedBackground)
+            .ignoresSafeArea()
+            .sheet(isPresented: $isPresented) {
+                InputScriptView(
+                    viewModel: .preview(purpose: .persuade),
+                    onBack: { isPresented = false },
+                    onConfirm: {}
+                )
+            }
     }
+}
+
+private struct FileTooLargePreviewHost: View {
+    @State private var isPresented = true
+    @State private var vm = InputScriptViewModel(
+        purpose: .persuade,
+        fileImporter: TooLargePreviewFileImporting(),
+        makeAudioCapturer: { PreviewAudioCapturing() },
+        microphonePermissions: PreviewMicrophonePermissionProviding(status: .granted),
+        audioPlayer: PreviewAudioPlaying(),
+        recordingDeleter: PreviewAudioRecordingDeleting(),
+        generateTranscript: GenerateTranscriptUseCase(transcriber: PreviewSpeechTranscribing())
+    )
+
+    var body: some View {
+        Color(.systemGroupedBackground)
+            .ignoresSafeArea()
+            .sheet(isPresented: $isPresented) {
+                InputScriptView(
+                    viewModel: vm,
+                    onBack: { isPresented = false },
+                    onConfirm: {}
+                )
+            }
+            .task {
+                vm.mode = .attachFile
+                vm.attachVM.fileSelected(url: URL(filePath: "/tmp/huge.mp4"))
+                await vm.attachVM.importTask?.value
+            }
+    }
+}
+
+private struct TooLargePreviewFileImporting: FileImporting {
+    func importFile(from url: URL) async throws -> ImportedMedia {
+        throw ShuoError.fileTooLarge
+    }
+}
 #endif
