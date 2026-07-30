@@ -175,7 +175,8 @@ public struct TranscriptAnalysisView: View {
             if viewModel.isForceRegenerating {
                 LoadingView(
                     systemImage: "SHUO LOAD",
-                    message: "Refining script…"
+                    message: "Refining script…",
+                    messageColor: ShuoColor.primaryTextCream
                 )
             } else {
                 loadedView
@@ -284,7 +285,7 @@ public struct TranscriptAnalysisView: View {
                         ProgressView().controlSize(.small)
                         Text("Refining script…")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ShuoColor.primaryTextCream)
                     }
                 } else if !viewModel.editableRefinedText.isEmpty {
                     refinedTranscriptSection
