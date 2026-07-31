@@ -25,17 +25,9 @@ final class AppContainer {
 
     private let fileImportService: any FileImporting = FileImportService()
     private let microphonePermissions: any MicrophonePermissionProviding = MicrophonePermissionProvider()
-    // Shared, unlike `AudioRecordingService`: one player serves every replay the user
-    // asks for, across takes and across create flows, and holds no per-item state
-    // between them.
     private let audioPlayer: any AudioPlaying = AudioPlaybackService()
     private let recordingDeleter: any AudioRecordingDeleting = AudioRecordingFileStore()
-    // Stateless and safe to share, unlike `AudioRecordingService` below: each call
-    // builds its own analyzer session and tears it down again.
     private let speechTranscriber: any SpeechTranscribing = SpeechTranscribingRouter()
-
-    // Shared deliberately: one actor serializes requests against the neural engine and
-    // carries the prewarmed session into the first call. It holds no per-request state.
     private let speechAnalyzer = FoundationModelSpeechAnalyzer()
     private let availabilityChecker: any AIAvailabilityChecking = AIAvailabilityGate()
 
@@ -54,7 +46,6 @@ final class AppContainer {
         HomeViewModel(
             fetchScriptSummaries: FetchScriptSummariesUseCase(repository: scriptRepository),
             searchScripts: SearchScriptsUseCase(repository: scriptRepository),
-            // 👇 Inject DeleteScriptUseCase di sini
             deleteScript: DeleteScriptUseCase(repository: scriptRepository)
         )
     }
@@ -105,9 +96,6 @@ final class AppContainer {
         InputScriptViewModel(
             purpose: purpose,
             fileImporter: fileImportService,
-            // A factory, not an instance: `AudioRecordingService` is single-use by
-            // contract — its event stream completes when the session ends — so a retake
-            // has to be handed a brand new one or it would inherit a dead stream.
             makeAudioCapturer: { AudioRecordingService() },
             microphonePermissions: microphonePermissions,
             audioPlayer: audioPlayer,

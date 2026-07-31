@@ -146,10 +146,11 @@ public struct InputScriptView: View {
         }
     }
 
-    /// Leaving without confirming has to tear the Speak session down explicitly, or the
-    /// microphone keeps running behind a screen the user has left.
+    /// ‹. Leaving without confirming has to tear the Speak session down explicitly, or the
+    /// microphone keeps running behind a screen the user has left — but that is the
+    /// coordinator's call to make, not this view's. It discards as part of leaving, and it
+    /// is the only one that knows whether this tap is still the one on top of the stack.
     private func goBack() {
-        viewModel.discard()
         onBack()
     }
 

@@ -28,20 +28,20 @@ public struct HomeView: View {
         self.viewModel = viewModel
         self.onTapCreate = onTapCreate
         self.onSelectScript = onSelectScript
-        
-        let titleColor = UIColor { traits in
-                traits.userInterfaceStyle == .dark
-                    ? UIColor(ShuoColor.navigationTitleDark)
-                    : UIColor(ShuoColor.primaryTextCream)
-            }
-        let appearance = UINavigationBarAppearance()
-            appearance.configureWithTransparentBackground()
-            appearance.largeTitleTextAttributes = [.foregroundColor: titleColor]
-            appearance.titleTextAttributes = [.foregroundColor: titleColor]
 
-            UINavigationBar.appearance().standardAppearance = appearance
-            UINavigationBar.appearance().scrollEdgeAppearance = appearance
-            UINavigationBar.appearance().compactAppearance = appearance
+        let titleColor = UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(ShuoColor.navigationTitleDark)
+                : UIColor(ShuoColor.primaryTextCream)
+        }
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithTransparentBackground()
+        appearance.largeTitleTextAttributes = [.foregroundColor: titleColor]
+        appearance.titleTextAttributes = [.foregroundColor: titleColor]
+
+        UINavigationBar.appearance().standardAppearance = appearance
+        UINavigationBar.appearance().scrollEdgeAppearance = appearance
+        UINavigationBar.appearance().compactAppearance = appearance
     }
 
     public var body: some View {

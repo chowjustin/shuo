@@ -206,6 +206,39 @@ struct CreateScriptCoordinatorTests {
         #expect(coordinator.inputViewModel === stepBefore)
     }
 
+    @Test("a repeated back tap on transcription cannot fall through to the purpose picker")
+    func dismissLoadingTwiceStaysOnInputScript() async {
+        // ‹ sits in the same place on both screens, so a second delivery of the same tap
+        // used to read as "back, back" and drop the user out of the flow entirely — which
+        // is exactly what spamming the button on a slow transcription produced.
+        let (coordinator, _) = makeCoordinator()
+        coordinator.selectPurpose(.persuade)
+        coordinator.inputViewModel?.mode = .write
+        coordinator.inputViewModel?.writeVM.content = Self.transcript
+        await coordinator.confirmInput()
+
+        coordinator.dismissLoading()
+        coordinator.dismissLoading()
+
+        #expect(coordinator.path == [.input])
+        #expect(coordinator.inputViewModel != nil)
+        #expect(coordinator.selectedPurpose == .persuade)
+    }
+
+    @Test("leaving input script is ignored while a later step is on top of it")
+    func dismissInputScriptIsIgnoredWhileTranscribing() async {
+        let (coordinator, _) = makeCoordinator()
+        coordinator.selectPurpose(.persuade)
+        coordinator.inputViewModel?.mode = .write
+        coordinator.inputViewModel?.writeVM.content = Self.transcript
+        await coordinator.confirmInput()
+
+        coordinator.dismissInputScript()
+
+        #expect(coordinator.path == [.input, .loading])
+        #expect(coordinator.inputViewModel != nil)
+    }
+
     // MARK: - Back from analysis
 
     @Test("stepping back from analysis returns to the very same input step")

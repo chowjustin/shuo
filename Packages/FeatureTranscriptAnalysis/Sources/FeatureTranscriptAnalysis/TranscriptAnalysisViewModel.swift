@@ -66,6 +66,7 @@ public final class TranscriptAnalysisViewModel {
 
     private var keyPointCache: [SpeechPattern.ID: [KeyPoint]] = [:]
     private var refinedCache: [SpeechPattern.ID: String] = [:]
+    private var refinedBeforeForceRegenerate: String?
 
     // MARK: - In-flight work
 
@@ -492,6 +493,7 @@ public final class TranscriptAnalysisViewModel {
                 if generation == regenerationGeneration {
                     isRegeneratingTranscript = false
                     isForceRegenerating = false
+                    refinedBeforeForceRegenerate = nil
                 }
             }
             do {
@@ -570,11 +572,39 @@ public final class TranscriptAnalysisViewModel {
     /// Discards any manual edit and re-generates the refined transcript with AI.
     public func forceRegenerate() {
         guard let patternID = draft.selectedPatternID else { return }
+        refinedBeforeForceRegenerate = refinedCache[patternID]
         refinedCache.removeValue(forKey: patternID)
         draft.transcript.refined = nil
         editableRefinedText = ""
         isForceRegenerating = true
         regenerate()
+    }
+
+    /// ‹ while the full-screen "Refining script…" state is up: abandons the refinement and
+    /// puts the analysis back exactly as it was.
+    ///
+    /// This is a different move from the ‹ that steps back to Input Script, even though it
+    /// is the same button in the same place — the screen it covers is *this* one, so
+    /// leaving the flow would answer a request to close an overlay by closing everything
+    /// behind it. The refinement the user replaced comes back too: they asked to redo it,
+    /// then said no, and losing the old one to that is a worse outcome than either.
+    public func cancelForceRegeneration() {
+        guard isForceRegenerating else { return }
+
+        regenerationTask?.cancel()
+        regenerationTask = nil
+        // Disowns the cancelled run so its `defer` cannot clear the flags of a refinement
+        // the user starts straight afterwards.
+        regenerationGeneration &+= 1
+        isForceRegenerating = false
+        isRegeneratingTranscript = false
+
+        // `editableRefinedText`'s observer restores the draft and the per-pattern cache.
+        if let previous = refinedBeforeForceRegenerate, !previous.isEmpty {
+            editableRefinedText = previous
+            updateSuggestionsFromRefined(previous)
+        }
+        refinedBeforeForceRegenerate = nil
     }
 
     /// Updates the text of a single key point after the user edits it in the card.
