@@ -99,7 +99,7 @@ public struct TranscriptAnalysisView: View {
     /// the same gesture here, and the prompt behind ✓ is what separates them.
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        if controls.showsBack {
+        if controls.showsBack || viewModel.isForceRegenerating {
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: goBack) {
                     Image(systemName: "chevron.left")
@@ -108,14 +108,7 @@ public struct TranscriptAnalysisView: View {
             }
         }
 
-        if viewModel.isForceRegenerating {
-            ToolbarItem(placement: .topBarLeading) {
-                Button(action: goBack) {
-                    Image(systemName: "chevron.left")
-                }
-                .accessibilityLabel("Back to input")
-            }
-        } else if controls.showsFinish {
+        if !viewModel.isForceRegenerating, controls.showsFinish {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: finish) {
                     Image(systemName: "checkmark")
@@ -182,7 +175,8 @@ public struct TranscriptAnalysisView: View {
             if viewModel.isForceRegenerating {
                 LoadingView(
                     systemImage: "SHUO LOAD",
-                    message: "Refining script…"
+                    message: "Refining script…",
+                    messageColor: ShuoColor.primaryTextCream
                 )
             } else {
                 loadedView
@@ -291,7 +285,7 @@ public struct TranscriptAnalysisView: View {
                         ProgressView().controlSize(.small)
                         Text("Refining script…")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ShuoColor.primaryTextCream)
                     }
                 } else if !viewModel.editableRefinedText.isEmpty {
                     refinedTranscriptSection
@@ -363,7 +357,9 @@ public struct TranscriptAnalysisView: View {
             } label: {
                 Text("View Original Script")
                     .underline()
+                    .multilineTextAlignment(.leading)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityLabel("View original script")
         }
     }
@@ -386,16 +382,16 @@ public struct TranscriptAnalysisView: View {
     private var purposeLabel: some View {
         Text("Purpose:")
             .font(ShuoTypography.subtitle)
-            .foregroundStyle(ShuoColor.secondaryTextCream)
+            .foregroundStyle(ShuoColor.primaryTextCream)
     }
 
     private var purposeBadge: some View {
         Text(viewModel.draft.purpose.title)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(ShuoColor.primaryTextCard)
+            .foregroundStyle(ShuoColor.primaryTextCream)
             .padding(.horizontal, badgePaddingH)
             .padding(.vertical, badgePaddingV)
-            .background(ShuoColor.card, in: Capsule())
+            .background(Color(UIColor { $0.userInterfaceStyle == .dark ? .systemGray3 : .systemGray5 }), in: Capsule())
     }
 
     private var expandCollapseButton: some View {

@@ -22,16 +22,20 @@ import SwiftUI
 public struct LoadingView: View {
     private let systemImage: String
     private let message: String
+    private let messageColor: Color
     private let detail: String?
 
     /// - Parameter detail: optional second line, e.g. a filename or expected duration.
+    /// - Parameter messageColor: color for the message text; defaults to `ShuoColor.primaryText`.
     public init(
         systemImage: String = "waveform",
         message: String,
+        messageColor: Color = ShuoColor.primaryText,
         detail: String? = nil
     ) {
         self.systemImage = systemImage
         self.message = message
+        self.messageColor = messageColor
         self.detail = detail
     }
 
@@ -52,7 +56,7 @@ public struct LoadingView: View {
             VStack(spacing: ShuoSpacing.small) {
                 Text(message)
                     .font(ShuoTypography.headline)
-                    .foregroundStyle(ShuoColor.primaryTextCream)
+                    .foregroundStyle(messageColor)
 
                 if let detail {
                     Text(detail)
