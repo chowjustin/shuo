@@ -78,7 +78,14 @@ public final class CreateScriptCoordinator {
         path = [.input, .loading]
     }
 
+    /// ‹ on the transcription step.
+    ///
+    /// Guarded on the step actually being on top, so a second delivery of the same tap —
+    /// or one that arrived while the screen was already leaving — cannot pop a step it
+    /// never belonged to. The two screens put ‹ in the same place, so an unguarded repeat
+    /// reads as "back, back" and lands the user on the purpose picker.
     public func dismissLoading() {
+        guard path.last == .loading else { return }
         inputViewModel?.dismissLoading()
         path = [.input]
     }
@@ -97,7 +104,12 @@ public final class CreateScriptCoordinator {
 
     // MARK: - Backward
 
+    /// ‹ on Input Script: leaves the flow's first step and returns to the purpose picker.
+    ///
+    /// Guarded the same way as `dismissLoading()`, and for the same reason: this is the
+    /// step a stray second tap lands on, and answering it would discard the session.
     public func dismissInputScript() {
+        guard path.last == .input else { return }
         inputViewModel?.discard()
         inputViewModel = nil
         selectedPurpose = nil

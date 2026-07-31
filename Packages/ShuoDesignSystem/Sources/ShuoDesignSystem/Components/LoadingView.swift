@@ -20,6 +20,22 @@ import SwiftUI
 /// Takes a message rather than a `LoadingContext` so this package stays free of domain
 /// types; the caller maps its own state to copy.
 public struct LoadingView: View {
+    /// The animated mascot every step of the pipeline shows. Pass it as `systemImage` to
+    /// get the loop instead of an SF Symbol.
+    public static let artworkName = "SHUO LOAD"
+
+    /// Decodes the mascot ahead of time, off the main thread, so the first loading screen
+    /// of a flow shows it in the frame it appears.
+    ///
+    /// Worth calling as soon as a flow that ends in a loading screen *begins* — the create
+    /// flow does it at the purpose step, which buys the whole of Input Script. Decoding is
+    /// a second of work for a 165-frame loop, and the alternative to spending it early is
+    /// an empty box on screen while the user waits for something else. Cheap to call more
+    /// than once: already decoded and already decoding are both no-ops.
+    public static func prewarmArtwork() {
+        GifImageLoader.prewarm(artworkName)
+    }
+
     private let systemImage: String
     private let message: String
     private let messageColor: Color
@@ -41,8 +57,8 @@ public struct LoadingView: View {
 
     public var body: some View {
         VStack(spacing: ShuoSpacing.large) {
-            if systemImage == "SHUO LOAD" {
-                NativeGifView(gifName: "SHUO LOAD")
+            if systemImage == Self.artworkName {
+                NativeGifView(gifName: Self.artworkName)
                     .frame(width: 160, height: 160)
                     .accessibilityHidden(true)
             } else {

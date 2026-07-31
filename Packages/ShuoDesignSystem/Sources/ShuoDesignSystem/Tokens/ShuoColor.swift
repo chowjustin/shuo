@@ -96,6 +96,7 @@ public enum ShuoColor {
         Color(name, bundle: .module)
     }
 }
+
 private extension Color {
     init(hex: UInt32) {
         self.init(

@@ -104,7 +104,9 @@ public struct TranscriptAnalysisView: View {
                 Button(action: goBack) {
                     Image(systemName: "chevron.left")
                 }
-                .accessibilityLabel("Back to input")
+                .accessibilityLabel(
+                    viewModel.isForceRegenerating ? "Cancel refining" : "Back to input"
+                )
             }
         }
 
@@ -134,9 +136,22 @@ public struct TranscriptAnalysisView: View {
         }
     }
 
-    /// ‹. Back to Input Script with the draft, leaving this screen's state intact: the
-    /// user can return to it, and the recording behind it is still theirs to replay.
+    /// ‹. One button, two destinations — because there are two things it can be covering.
+    ///
+    /// While ↺ has taken the whole screen over with "Refining script…", ‹ belongs to *that*
+    /// screen and returns to the analysis underneath it. It used to fall through to the
+    /// Input Script case, which sent a user who only wanted to stop a refinement two steps
+    /// back and out of the analysis entirely. Reopened-from-library scripts happened to
+    /// behave correctly only because they have no `onBack` to fall through to.
+    ///
+    /// Otherwise it steps back to Input Script with the draft, leaving this screen's state
+    /// intact: the user can return to it, and the recording behind it is still theirs to
+    /// replay.
     private func goBack() {
+        if viewModel.isForceRegenerating {
+            viewModel.cancelForceRegeneration()
+            return
+        }
         viewModel.cancelAll()
         onBack?(viewModel.draft)
     }

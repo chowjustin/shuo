@@ -61,11 +61,7 @@ public struct WaveformView: View {
             }
         }
         .frame(height: maxBarHeight)
-        // Short and linear: long or springy easing would still be catching up to the
-        // previous sample when the next one arrives ~12 times a second.
         .animation(.linear(duration: 0.08), value: samples)
-        // The duration label beside this carries the information a screen reader needs;
-        // announcing every amplitude would be noise.
         .accessibilityHidden(true)
     }
 

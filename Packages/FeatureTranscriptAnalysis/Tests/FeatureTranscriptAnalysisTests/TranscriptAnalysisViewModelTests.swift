@@ -786,6 +786,84 @@ struct TranscriptAnalysisViewModelTests {
         #expect(calls.count == 1, "the cached refinement must not be regenerated")
     }
 
+    @Test("Backing out of a forced refinement returns to the analysis, not out of it")
+    func cancellingAForcedRefinementReturnsToTheAnalysis() async throws {
+        // ‹ during "Refining script…" belongs to that state, not to the screen behind it.
+        let analyzer = makeAnalyzer()
+        let viewModel = makeViewModel(analyzer: analyzer)
+
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+        await analyzer.setDelay(.seconds(5))
+        viewModel.forceRegenerate()
+        #expect(viewModel.isForceRegenerating)
+
+        viewModel.cancelForceRegeneration()
+
+        #expect(!viewModel.isForceRegenerating)
+        #expect(!viewModel.isRegeneratingTranscript)
+        #expect(viewModel.viewState == .loaded)
+    }
+
+    @Test("Backing out of a forced refinement puts the previous one back")
+    func cancellingAForcedRefinementRestoresTheReplacedText() async throws {
+        let analyzer = makeAnalyzer()
+        let viewModel = makeViewModel(analyzer: analyzer)
+
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+        viewModel.regenerate()
+        try await waitUntil { viewModel.refinedTranscript != nil }
+        let original = try #require(viewModel.refinedTranscript)
+
+        await analyzer.setDelay(.seconds(5))
+        viewModel.forceRegenerate()
+        #expect(viewModel.refinedTranscript == nil, "↺ clears it before regenerating")
+
+        viewModel.cancelForceRegeneration()
+
+        #expect(viewModel.refinedTranscript == original)
+        #expect(viewModel.editableRefinedText == original)
+    }
+
+    @Test("A refinement backed out of never lands on the screen afterwards")
+    func cancelledForcedRefinementDoesNotArriveLate() async throws {
+        let analyzer = makeAnalyzer()
+        let viewModel = makeViewModel(analyzer: analyzer)
+
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+        viewModel.regenerate()
+        try await waitUntil { viewModel.refinedTranscript != nil }
+        let original = try #require(viewModel.refinedTranscript)
+
+        await analyzer.setDelay(.milliseconds(50))
+        viewModel.forceRegenerate()
+        viewModel.cancelForceRegeneration()
+        try await Task.sleep(for: .milliseconds(250))
+
+        #expect(viewModel.refinedTranscript == original)
+        #expect(!viewModel.isForceRegenerating)
+        #expect(!viewModel.isRegeneratingTranscript)
+    }
+
+    @Test("Backing out when nothing is being force-refined is a no-op")
+    func cancellingAForcedRefinementThatIsNotRunningDoesNothing() async throws {
+        let analyzer = makeAnalyzer()
+        let viewModel = makeViewModel(analyzer: analyzer)
+
+        viewModel.start()
+        try await waitUntil { viewModel.viewState == .loaded }
+        viewModel.regenerate()
+        try await waitUntil { viewModel.refinedTranscript != nil }
+        let original = try #require(viewModel.refinedTranscript)
+
+        viewModel.cancelForceRegeneration()
+
+        #expect(viewModel.refinedTranscript == original)
+        #expect(viewModel.viewState == .loaded)
+    }
+
     @Test("A failed refinement surfaces inline and keeps the screen loaded")
     func refinementFailureIsInline() async throws {
         let analyzer = makeAnalyzer()
