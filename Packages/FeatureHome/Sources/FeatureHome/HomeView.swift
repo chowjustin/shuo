@@ -145,6 +145,12 @@ public struct HomeView: View {
                         onTap: {
                             selectedID = summary.id
                             onSelectScript(summary.id)
+                        Task {
+                                try? await Task.sleep(for: .milliseconds(150))
+                                if selectedID == summary.id {
+                                selectedID = nil
+                                }
+                            }
                         }
                     )
                     .listRowInsets(
